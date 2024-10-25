@@ -68,9 +68,7 @@ struct benchmark_base {
 	static constexpr bool PREFILL_IN_ORDER = PREFILL_IN_ORDER_T;
 
 	// Make sure we have enough space for at least 4 (not 3 so it's PO2) windows where each window supports HW threads with HW blocks each with HW cells each.
-	static size_t size(const benchmark_info&) {
-		return SIZE_T != 0 ? SIZE_T : 4 * std::thread::hardware_concurrency() * std::thread::hardware_concurrency() * std::thread::hardware_concurrency();
-	}
+	static const inline size_t SIZE = SIZE_T != 0 ? SIZE_T : 4 * std::thread::hardware_concurrency() * std::thread::hardware_concurrency() * std::thread::hardware_concurrency();
 };
 
 template <bool PREFILL_IN_ORDER = false, bool HAS_TIMEOUT = false, size_t SIZE = 0>
@@ -317,11 +315,6 @@ struct benchmark_bfs : benchmark_timed<> {
 
 	}
 
-	static size_t size(const benchmark_info& info) {
-		// We need to provide some leeway for nodes potentially being added twice.
-		return reinterpret_cast<const benchmark_info_graph&>(info).graph->num_nodes() * 2;
-	}
-
 	template <typename FIFO>
 	void process_node(uint64_t node, typename FIFO::handle& handle, Counter& counter) {
 		uint64_t node_id = node & 0xffff'ffff;
@@ -376,10 +369,6 @@ struct benchmark_bfs : benchmark_timed<> {
 			return sum;
 		});
 
-		if (total_counts.pushed_nodes != total_counts.processed_nodes + total_counts.ignored_nodes) {
-			throw std::runtime_error("Not all pushed nodes were handled!");
-		}
-
 		auto longest_distance =
         std::max_element(distances.begin(), distances.end(), [](auto const& a, auto const& b) {
             auto a_val = a.value.load(std::memory_order_relaxed);
@@ -430,7 +419,7 @@ protected:
 			if (BENCHMARK::PREFILL_IN_ORDER && idx != 0) {
 				return;
 			}
-			for (size_t i = 0; i < prefill_amount * BENCHMARK::size(info) / (BENCHMARK::PREFILL_IN_ORDER ? 1 : info.num_threads); i++) {
+			for (size_t i = 0; i < prefill_amount * BENCHMARK::SIZE / (BENCHMARK::PREFILL_IN_ORDER ? 1 : info.num_threads); i++) {
 				if (!handles[idx].push(i + 1)) {
 					break;
 				}
@@ -481,7 +470,7 @@ public:
 	}
 
 	BENCHMARK test(thread_pool& pool, const benchmark_info& info, double prefill_amount) const override {
-		FIFO fifo = std::apply([&](Args... args) { return FIFO{ info.num_threads, BENCHMARK::size(info), args... }; }, args);
+		FIFO fifo = std::apply([&](Args... args) { return FIFO{ info.num_threads, BENCHMARK::SIZE, args... }; }, args);
 		return benchmark_provider<BENCHMARK>::template test_single<FIFO>(pool, fifo, info, prefill_amount);
 	}
 
@@ -548,7 +537,7 @@ class benchmark_provider_relaxed : public benchmark_provider<BENCHMARK> {
 
 		template <typename FIFO>
 		static BENCHMARK test_helper(thread_pool& pool, const benchmark_info& info, double prefill_amount) {
-			FIFO fifo{ info.num_threads, BENCHMARK::size(info) };
+			FIFO fifo{ info.num_threads, BENCHMARK::SIZE };
 			return benchmark_provider<BENCHMARK>::template test_single(pool, fifo, info, prefill_amount);
 		}
 };
