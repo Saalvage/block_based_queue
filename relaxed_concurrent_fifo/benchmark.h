@@ -210,7 +210,7 @@ public:
 		}
 
 		auto [r_avg, r_std, r_max, r_dist] = analyze(rank_errors);
-		stream << r_avg << ',' << r_std << ',' << r_max;
+		stream << r_avg << ',' << r_std << ',' << r_max << ',';
 		for (const auto& [x, y] : r_dist) {
 			stream << x << ";" << y << "|";
 		}
