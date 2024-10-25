@@ -451,9 +451,9 @@ protected:
 			}
 		} else {
 			joined.wait();
-			if constexpr (BENCHMARK::RECORD_TIME) {
-				b.time_nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start).count();
-			}
+		}
+		if constexpr (BENCHMARK::RECORD_TIME) {
+			b.time_nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start).count();
 		}
 
 		return b;
