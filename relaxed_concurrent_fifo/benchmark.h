@@ -304,7 +304,9 @@ protected:
 				return;
 			}
 			for (size_t i = 0; i < prefill_amount * BENCHMARK::SIZE / (BENCHMARK::PREFILL_IN_ORDER ? 1 : info.num_threads); i++) {
-				handles[idx].push(i + 1);
+				if (!handles[idx].push(i + 1)) {
+					break;
+				}
 			}
 		}, info.num_threads, true);
 

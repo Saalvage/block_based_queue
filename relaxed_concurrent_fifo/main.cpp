@@ -421,7 +421,8 @@ int main() {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_prodcon>>> instances;
 		add_all_benchmarking(instances);
 		run_benchmark<benchmark_prodcon, benchmark_info_prodcon, int, int>(pool, std::format("prodcon-{}-{}", producers, consumers),
-			instances, 0.5, { processor_counts.back() }, TEST_ITERATIONS, TEST_TIME_SECONDS, producers, consumers);
+			instances, producers > consumers ? std::numeric_limits<double>::infinity() : producers < consumers ? 0 : 0.5,
+			{ processor_counts.back() }, TEST_ITERATIONS, TEST_TIME_SECONDS, producers, consumers);
 		} break;
 	}
 
