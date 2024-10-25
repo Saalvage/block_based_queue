@@ -435,7 +435,7 @@ int main() {
 			Graph graph{ graph_file };
 			std::vector<std::unique_ptr<benchmark_provider<benchmark_bfs>>> instances;
 			add_all_benchmarking(instances);
-			run_benchmark<benchmark_bfs, benchmark_info_graph, Graph*>(pool, std::format("bfs-{}", graph_file.string()), instances, 0, processor_counts, TEST_ITERATIONS, 0, &graph);
+			run_benchmark<benchmark_bfs, benchmark_info_graph, Graph*>(pool, std::format("bfs-{}", graph_file.filename().string()), instances, 0, processor_counts, TEST_ITERATIONS, 0, &graph);
 	} break;
 #endif // __GNUC__
 	}
