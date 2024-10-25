@@ -254,11 +254,14 @@ struct benchmark_prodcon : benchmark_default {
 		a.arrive_and_wait();
 		while (!over) {
 			if (thread_index < thread_switch) {
-				handle.push(5);
+				if (handle.push(5)) {
+					its++;
+				}
 			} else {
-				handle.pop();
+				if (handle.pop().has_value()) {
+					its++;
+				}
 			}
-			its++;
 		}
 		results[thread_index] = its;
 	}
