@@ -366,12 +366,12 @@ int main() {
 	case 5: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_fill>>> instances;
 		add_all_benchmarking(instances);
-		run_benchmark(pool, "fill", instances, 0, processor_counts, TEST_ITERATIONS, 0);
+		run_benchmark(pool, "fill", instances, 0, processor_counts, TEST_ITERATIONS, 60);
 		} break;
 	case 6: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_empty>>> instances;
 		add_all_benchmarking(instances);
-		run_benchmark(pool, "empty", instances, 1, processor_counts, TEST_ITERATIONS, 0);
+		run_benchmark(pool, "empty", instances, 1, processor_counts, TEST_ITERATIONS, 60);
 		} break;
 	case 7: {
 		static constexpr size_t THREADS = 128;

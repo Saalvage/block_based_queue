@@ -60,8 +60,8 @@ struct benchmark_base {
 	static const inline size_t SIZE = SIZE_T != 0 ? SIZE_T : 4 * std::thread::hardware_concurrency() * std::thread::hardware_concurrency() * std::thread::hardware_concurrency();
 };
 
-template <bool PREFILL_IN_ORDER = false, size_t SIZE = 0>
-struct benchmark_timed : benchmark_base<false, true, PREFILL_IN_ORDER, SIZE> {
+template <bool PREFILL_IN_ORDER = false, bool HAS_TIMEOUT = false, size_t SIZE = 0>
+struct benchmark_timed : benchmark_base<HAS_TIMEOUT, true, PREFILL_IN_ORDER, SIZE> {
 	uint64_t time_nanos;
 };
 
@@ -211,31 +211,30 @@ public:
 	}
 };
 
-struct benchmark_fill : benchmark_timed<false, 1 << 28> {
+struct benchmark_fill : benchmark_timed<false, true, 1 << 28> {
 	std::vector<uint64_t> results;
 
 	benchmark_fill(const benchmark_info& info) : results(info.num_threads) { }
 
 	template <typename T>
-	void per_thread(int thread_index, typename T::handle& handle, std::barrier<>& a) {
+	void per_thread(int thread_index, typename T::handle& handle, std::barrier<>& a, std::atomic_bool& over) {
 		a.arrive_and_wait();
-		while (handle.push(thread_index + 1)) {
+		while (handle.push(thread_index + 1) && !over) {
 			results[thread_index]++;
 		}
 	}
 
 	template <typename T>
 	void output(T& stream) {
-		// TODO: Due to overallocation this should use the actual FIFO's size and not the size defined here.
-		stream << time_nanos << ',' << static_cast<double>(std::reduce(results.begin(), results.end())) / SIZE;
+		stream << static_cast<double>(std::reduce(results.begin(), results.end())) / time_nanos;
 	}
 };
 
 struct benchmark_empty : benchmark_fill {
 	template <typename T>
-	void per_thread(int thread_index, typename T::handle& handle, std::barrier<>& a) {
+	void per_thread(int thread_index, typename T::handle& handle, std::barrier<>& a, std::atomic_bool& over) {
 		a.arrive_and_wait();
-		while (handle.pop().has_value()) {
+		while (handle.pop().has_value() && !over) {
 			results[thread_index]++;
 		}
 	}
