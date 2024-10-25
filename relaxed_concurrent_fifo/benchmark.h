@@ -21,6 +21,8 @@
 #include "contenders/multififo/multififo.hpp"
 
 #ifdef __GNUC__
+#include <filesystem>
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
 #pragma GCC diagnostic ignored "-Wunused-parameter"
@@ -33,6 +35,9 @@ using LCRQWrapped = LCRQueue<T>;
 
 #include "contenders/scal/scal_wrapper.h"
 #include "contenders/scal/util/threadlocals.h"
+
+#include "contenders/multififo/util/graph.hpp"
+#include "contenders/multififo/util/termination_detection.hpp"
 #pragma GCC diagnostic pop
 #endif // __GNUC__
 
@@ -49,6 +54,12 @@ struct benchmark_info_prodcon : public benchmark_info {
 	int producers;
 	int consumers;
 };
+
+#ifdef __GNUC__
+struct benchmark_info_graph : public benchmark_info {
+	Graph* graph;
+};
+#endif // __GNUC__
 
 template <bool HAS_TIMEOUT_T = true, bool RECORD_TIME_T = false, bool PREFILL_IN_ORDER_T = false, size_t SIZE_T = 0>
 struct benchmark_base {
@@ -274,6 +285,108 @@ struct benchmark_prodcon : benchmark_default {
 		/ test_time_seconds;
 	}
 };
+
+#ifdef __GNUC__
+
+struct benchmark_bfs : benchmark_timed<> {
+	struct Counter {
+		long long pushed_nodes{ 0 };
+		long long ignored_nodes{ 0 };
+		long long processed_nodes{ 0 };
+	};
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Winterference-size"
+	struct alignas(std::hardware_destructive_interference_size) AtomicDistance {
+		std::atomic<uint32_t> value{ std::numeric_limits<uint32_t>::max() };
+	};
+#pragma GCC diagnostic pop
+
+	Graph* graph;
+	std::vector<AtomicDistance> distances;
+	termination_detection::TerminationDetection termination_detection;
+	std::vector<Counter> counters;
+
+	benchmark_bfs(const benchmark_info& info) :
+			graph(reinterpret_cast<const benchmark_info_graph&>(info).graph),
+			distances(graph->num_nodes()),
+			termination_detection(info.num_threads),
+			counters(info.num_threads) {
+
+	}
+
+	template <typename FIFO>
+	void process_node(uint64_t node, typename FIFO::handle& handle, Counter& counter) {
+		uint64_t node_id = node & 0xffff'ffff;
+		uint64_t node_dist = node >> 32;
+		auto current_distance = distances[node_id].value.load(std::memory_order_relaxed);
+		if (node_dist > current_distance) {
+			++counter.ignored_nodes;
+			return;
+		}
+		for (auto i = graph->nodes[node_id]; i < graph->nodes[node_id + 1]; ++i) {
+			auto target = graph->edges[i].target;
+			auto d = node_dist + 1;
+			auto old_d = distances[target].value.load(std::memory_order_relaxed);
+			while (d < old_d) {
+				if (distances[target].value.compare_exchange_weak(old_d, d, std::memory_order_relaxed)) {
+					handle.push((d << 32) | target);
+					++counter.pushed_nodes;
+					break;
+				}
+			}
+		}
+		++counter.processed_nodes;
+	}
+
+	template <typename FIFO>
+	void per_thread(int thread_index, typename FIFO::handle& handle, std::barrier<>& a) {
+		Counter counter;
+		if (thread_index == 0) {
+			// We can't push 0 to the queues!
+			distances[0].value = 1;
+			handle.push(1ull << 32);
+			++counter.pushed_nodes;
+		}
+		a.arrive_and_wait();
+		std::optional<uint64_t> node;
+		while (termination_detection.repeat([&]() {
+				node = handle.pop();
+				return node.has_value();
+			})) {
+			process_node<FIFO>(*node, handle, counter);
+		}
+		counters[thread_index] = counter;
+	}
+
+	template <typename T>
+	void output(T& stream) {
+		auto total_counts =
+			std::accumulate(counters.begin(), counters.end(), Counter{}, [](auto sum, auto const& counter) {
+			sum.pushed_nodes += counter.pushed_nodes;
+			sum.processed_nodes += counter.processed_nodes;
+			sum.ignored_nodes += counter.ignored_nodes;
+			return sum;
+		});
+
+		auto longest_distance =
+        std::max_element(distances.begin(), distances.end(), [](auto const& a, auto const& b) {
+            auto a_val = a.value.load(std::memory_order_relaxed);
+            auto b_val = b.value.load(std::memory_order_relaxed);
+            if (b_val == std::numeric_limits<long long>::max()) {
+                return false;
+            }
+            if (a_val == std::numeric_limits<long long>::max()) {
+                return true;
+            }
+            return a_val < b_val;
+        })->value.load();
+
+		stream << time_nanos << ',' << longest_distance << ',' << total_counts.pushed_nodes << ',' << total_counts.processed_nodes << ',' << total_counts.ignored_nodes;
+	}
+};
+
+#endif // __GNUC__
 
 template <typename BENCHMARK>
 class benchmark_provider {

@@ -50,7 +50,7 @@ thread_pool::~thread_pool() {
 /// <param name="thread_count"></param>
 /// <param name="do_signaling">Whether the caller wants to manually signal the start of the execution.</param>
 void thread_pool::do_work(std::function<void(int, std::barrier<>&)> func, int thread_count, bool do_signaling) {
-	assert(thread_count <= threads.size());
+	assert(static_cast<size_t>(thread_count) <= threads.size());
 
 	per_thread = std::move(func);
 	for (int i = 0; i < thread_count; i++) {

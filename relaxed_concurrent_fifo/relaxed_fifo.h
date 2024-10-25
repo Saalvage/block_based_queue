@@ -9,6 +9,7 @@
 #include <optional>
 #include <ostream>
 
+#include "fifo.h"
 #include "atomic_bitset.h"
 
 #define LOG_WINDOW_MOVE 0

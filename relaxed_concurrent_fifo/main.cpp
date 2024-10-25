@@ -333,6 +333,9 @@ int main() {
 		"[7] Strong Scaling\n"
 		"[8] Bitset Size Comparison\n"
 		"[9] Producer-Consumer\n"
+#ifdef __GNUC__
+		"[10] BFS\n"
+#endif // __GNUC__
 		"Input: ";
 	std::cin >> input;
 
@@ -424,6 +427,17 @@ int main() {
 			instances, producers > consumers ? std::numeric_limits<double>::infinity() : producers < consumers ? 0 : 0.5,
 			{ processor_counts.back() }, TEST_ITERATIONS, TEST_TIME_SECONDS, producers, consumers);
 		} break;
+#ifdef __GNUC__
+		case 10: {
+			std::filesystem::path graph_file;
+			std::cout << "Please enter your graph file: ";
+			std::cin >> graph_file;
+			Graph graph{ graph_file };
+			std::vector<std::unique_ptr<benchmark_provider<benchmark_bfs>>> instances;
+			add_all_benchmarking(instances);
+			run_benchmark<benchmark_bfs, benchmark_info_graph, Graph*>(pool, std::format("bfs-{}", graph_file.string()), instances, 0, processor_counts, TEST_ITERATIONS, 0, &graph);
+	} break;
+#endif // __GNUC__
 	}
 
 	return 0;
