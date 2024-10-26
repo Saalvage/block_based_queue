@@ -416,17 +416,18 @@ int main() {
 		run_benchmark(pool, "bitset-sizes", instances, 0.5, processor_counts, TEST_ITERATIONS, TEST_TIME_SECONDS);
 		} break;
 	case 9: {
-		int producers, consumers;
-		std::cout << "Enter producers: ";
-		std::cin >> producers;
-		std::cout << "Enter consumers: ";
-		std::cin >> consumers;
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_prodcon>>> instances;
 		add_all_benchmarking(instances);
-		run_benchmark<benchmark_prodcon, benchmark_info_prodcon, int, int>(pool, std::format("prodcon-{}-{}", producers, consumers),
-			instances, producers > consumers ? std::numeric_limits<double>::infinity() : producers < consumers ? 0 : 0.5,
-			{ processor_counts.back() }, TEST_ITERATIONS, TEST_TIME_SECONDS, producers, consumers);
-		} break;
+		// TODO: This can be done nicer to account for different thread counts.
+		for (int producers = 8; producers < 128; producers += 8) {
+			auto consumers = 128 - producers;
+			run_benchmark<benchmark_prodcon, benchmark_info_prodcon, int, int>(pool,
+				std::format("prodcon-{}-{}", producers, consumers), instances, 0.5,
+				{ processor_counts.back() }, TEST_ITERATIONS, TEST_TIME_SECONDS, producers, consumers);
+		}
+	} break;
+
+
 #ifdef __GNUC__
 		case 10: {
 			std::filesystem::path graph_file;
