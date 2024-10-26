@@ -17,6 +17,29 @@
 
 #include "thread_pool.h"
 
+std::pair<uint64_t, uint32_t> sequential_bfs(const Graph& graph) {
+	multififo::RingBuffer<uint32_t> nodes(graph.num_nodes());
+	std::vector<uint32_t> distances(graph.num_nodes(), std::numeric_limits<uint32_t>::max());
+	distances[0] = 0;
+
+	nodes.push(graph.nodes[0]);
+
+	auto now = std::chrono::steady_clock::now().time_since_epoch().count();
+	while (!nodes.empty()) {
+		auto node_id = nodes.top();
+		nodes.pop();
+		auto d = distances[node_id] + 1;
+		for (auto i = graph.nodes[node_id]; i < graph.nodes[node_id + 1]; ++i) {
+			if (distances[i] == std::numeric_limits<uint32_t>::max()) {
+				distances[i] = d;
+				nodes.push(i);
+			}
+		}
+	}
+	auto end = std::chrono::steady_clock::now().time_since_epoch().count();
+	return std::pair(end - now, *std::max_element(distances.begin(), distances.end()));
+}
+
 /*static constexpr int COUNT = 512;
 
 template <template <typename, size_t> typename T>
@@ -434,6 +457,12 @@ int main() {
 			std::cout << "Please enter your graph file: ";
 			std::cin >> graph_file;
 			Graph graph{ graph_file };
+
+			for (int i = 0; i < TEST_ITERATIONS; i++) {
+				auto [time, dist] = sequential_bfs(graph);
+				std::cout << "Sequential time: " << time << "; Dist: " dist + 1 << std::endl;
+			}
+
 			std::vector<std::unique_ptr<benchmark_provider<benchmark_bfs>>> instances;
 			add_all_benchmarking(instances);
 			run_benchmark<benchmark_bfs, benchmark_info_graph, Graph*>(pool, std::format("bfs-{}", graph_file.filename().string()), instances, 0, processor_counts, TEST_ITERATIONS, 0, &graph);

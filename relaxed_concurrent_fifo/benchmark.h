@@ -312,9 +312,7 @@ struct benchmark_bfs : benchmark_timed<> {
 			graph(reinterpret_cast<const benchmark_info_graph&>(info).graph),
 			distances(graph->num_nodes()),
 			termination_detection(info.num_threads),
-			counters(info.num_threads) {
-
-	}
+			counters(info.num_threads) { }
 
 	template <typename FIFO>
 	void process_node(uint64_t node, typename FIFO::handle& handle, Counter& counter) {
