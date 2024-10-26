@@ -460,7 +460,7 @@ int main() {
 
 			for (int i = 0; i < TEST_ITERATIONS; i++) {
 				auto [time, dist] = sequential_bfs(graph);
-				std::cout << "Sequential time: " << time << "; Dist: " dist + 1 << std::endl;
+				std::cout << "Sequential time: " << time << "; Dist: " << dist + 1 << std::endl;
 			}
 
 			std::vector<std::unique_ptr<benchmark_provider<benchmark_bfs>>> instances;
