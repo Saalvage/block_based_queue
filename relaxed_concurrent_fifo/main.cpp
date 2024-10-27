@@ -17,8 +17,16 @@
 
 #include "thread_pool.h"
 
-std::pair<uint64_t, uint32_t> sequential_bfs(const Graph& graph) {
-	multififo::RingBuffer<uint32_t> nodes(graph.num_nodes());
+static constexpr size_t make_po2(size_t size) {
+	size_t ret = 1;
+	while (size > ret) {
+		ret *= 2;
+	}
+	return ret;
+}
+
+static std::pair<uint64_t, uint32_t> sequential_bfs(const Graph& graph) {
+	multififo::RingBuffer<uint32_t> nodes(make_po2(graph.num_nodes()));
 	std::vector<uint32_t> distances(graph.num_nodes(), std::numeric_limits<uint32_t>::max());
 	distances[0] = 0;
 
