@@ -38,9 +38,10 @@ static std::pair<uint64_t, uint32_t> sequential_bfs(const Graph& graph) {
 		nodes.pop();
 		auto d = distances[node_id] + 1;
 		for (auto i = graph.nodes[node_id]; i < graph.nodes[node_id + 1]; ++i) {
-			if (distances[i] == std::numeric_limits<uint32_t>::max()) {
-				distances[i] = d;
-				nodes.push(i);
+			auto node_id = graph.edges[i].target;
+			if (distances[node_id] == std::numeric_limits<uint32_t>::max()) {
+				distances[node_id] = d;
+				nodes.push(node_id);
 			}
 		}
 	}
