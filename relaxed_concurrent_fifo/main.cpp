@@ -17,6 +17,7 @@
 
 #include "thread_pool.h"
 
+#ifdef __GNUC__
 static constexpr size_t make_po2(size_t size) {
 	size_t ret = 1;
 	while (size > ret) {
@@ -48,6 +49,7 @@ static std::pair<uint64_t, uint32_t> sequential_bfs(const Graph& graph) {
 	auto end = std::chrono::steady_clock::now().time_since_epoch().count();
 	return std::pair(end - now, *std::max_element(distances.begin(), distances.end()));
 }
+#endif // __GNUC__
 
 /*static constexpr int COUNT = 512;
 

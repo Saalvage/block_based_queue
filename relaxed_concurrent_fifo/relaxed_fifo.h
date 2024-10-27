@@ -173,6 +173,7 @@ public:
 						if (!fifo.get_window(write_window).filled_set.any(std::memory_order_relaxed)) {
 							return false;
 						}
+						// TODO: This should be simplifiable? Spurious block claims only occur when force-moving.
 						// Before we force-move the write window, there might be unclaimed blocks in the current one.
 						// We need to make sure we clean those up BEFORE we move the write window in order to prevent
 						// the read window from being moved before all blocks have either been claimed or invalidated.
