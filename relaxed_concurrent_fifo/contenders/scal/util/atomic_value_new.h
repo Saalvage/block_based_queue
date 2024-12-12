@@ -12,9 +12,19 @@
 #include <atomic>
 #include <limits>
 
-#include "platform.h"
-
 // #define TAGGED_VALUE_CHECKED_MODE 1
+
+#ifndef _always_inline
+#ifdef DEBUG
+#define _always_inline inline
+#else
+#ifdef _WIN32
+#define _always_inline inline __forceinline
+#else
+#define _always_inline inline __attribute__((always_inline))
+#endif // _WIN32
+#endif  // DEBUG
+#endif  // _always_inline
 
 typedef uint64_t AtomicRaw;
 
@@ -32,13 +42,15 @@ class TaggedValue {
   static _always_inline void CheckCompatibility(T value) {
 #ifdef TAGGED_VALUE_CHECKED_MODE
     assert((value & kValueMask) == value);
+#else
+    (void)value;
 #endif  // TAGGED_VALUE_CHECKED_MODE
   }
 
   _always_inline TaggedValue() : raw_(0) {}
 
   explicit _always_inline TaggedValue(T value, tag_type tag)
-      : raw_((reinterpret_cast<raw_type>(value) & kValueMask) |
+      : raw_((static_cast<raw_type>(value) & kValueMask) |
              (static_cast<raw_type>(tag) << 48)) {
 #ifdef TAGGED_VALUE_CHECKED_MODE
     if ((this->value() != value) || (this->tag() != tag)) {
@@ -59,9 +71,9 @@ class TaggedValue {
   }
 
   _always_inline T value() const {
-    return reinterpret_cast<T>(
+    return 
         (raw_ & kValueMask) |
-        (((raw_ >> (kValueBits - 1)) & 0x1) * kExtendMask));
+        (((raw_ >> (kValueBits - 1)) & 0x1) * kExtendMask);
   }
 
   _always_inline tag_type tag() const {
@@ -83,9 +95,9 @@ class TaggedValue {
   }
 
  private:
-  static const uint64_t kValueBits = 48;
-  static const uint64_t kValueMask = (1UL << kValueBits) - 1;
-  static const uint64_t kExtendMask =
+  static constexpr uint64_t kValueBits = 48;
+  static constexpr uint64_t kValueMask = (1ULL << kValueBits) - 1;
+  static constexpr uint64_t kExtendMask =
       std::numeric_limits<raw_type>::max() - kValueMask;
 
   explicit _always_inline TaggedValue(raw_type raw) : raw_(raw) {}
@@ -123,8 +135,13 @@ class AtomicTaggedValue {
     if (ALIGN == 0) {
       return malloc(size);
     }
-    void* mem;
-    if (posix_memalign(&mem, ALIGN, size) != 0) {
+    void* mem =
+#ifdef _WIN32
+        _aligned_malloc(size, ALIGN);
+#else
+        std::aligned_alloc(ALIGN, size);
+#endif // _WIN32
+    if (mem == nullptr) {
       fprintf(stderr, "posix_memalign of AtomicTaggedValue failed\n");
       abort();
     }

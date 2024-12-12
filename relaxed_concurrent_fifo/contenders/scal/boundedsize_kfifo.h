@@ -15,11 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "datastructures/queue.h"
-#include "util/allocation.h"
 #include "util/atomic_value_new.h"
-#include "util/platform.h"
-#include "util/random.h"
 
 #define BSKFIFO_WASTE 1
 
@@ -34,9 +30,14 @@
 namespace scal {
 
 template<typename T>
-class BoundedSizeKFifo : public Queue<T> {
+class BoundedSizeKFifo {
  public:
-  BoundedSizeKFifo(uint64_t k, uint64_t num_segments);
+  BoundedSizeKFifo(uint64_t k, uint64_t num_segments) : queue_size_(k * num_segments)
+      , k_(k)
+      , head_(new AtomicSegmentPtr())
+      , tail_(new AtomicSegmentPtr())
+      , queue_(std::make_unique<AtomicItem[]>(queue_size_)) { }
+
   bool enqueue(T item);
   bool dequeue(T *item);
 
@@ -66,32 +67,18 @@ class BoundedSizeKFifo : public Queue<T> {
   size_t k_;
   AtomicSegmentPtr* head_;
   AtomicSegmentPtr* tail_;
-  AtomicItem* queue_;
-  uint8_t pad_[
-    128
-        - sizeof(queue_size_)
-        - sizeof(k_)
-        - sizeof(head_)
-        - sizeof(tail_)
-        - sizeof(queue_)];
+  std::unique_ptr<AtomicItem[]> queue_;
 };
-
-
-template<typename T>
-BoundedSizeKFifo<T>::BoundedSizeKFifo(uint64_t k, uint64_t num_segments)
-    : queue_size_(k * num_segments)
-    , k_(k)
-    , head_(new AtomicSegmentPtr())
-    , tail_(new AtomicSegmentPtr())
-    , queue_(static_cast<AtomicItem*>(
-          CallocAligned(k * num_segments, sizeof(AtomicItem), 64))) {
-}
 
 
 template<typename T>
 bool BoundedSizeKFifo<T>::find_index(
     uint64_t start_index, bool empty, int64_t *item_index, Item* old) {
-  const uint64_t random_index = pseudorand() % k_;
+    static thread_local std::random_device dev;
+    static thread_local std::minstd_rand rng{ dev() };
+    std::uniform_int_distribution<uint64_t> dist{ 0, k_-1 };
+
+  const uint64_t random_index = dist(rng);
   uint64_t index;
   for (size_t i = 0; i < k_; i++) {
     index = (start_index + ((random_index + i) % k_)) % queue_size_;

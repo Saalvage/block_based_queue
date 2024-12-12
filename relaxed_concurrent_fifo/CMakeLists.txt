@@ -6,10 +6,6 @@ set(sources
   main.cpp
   thread_pool.cpp)
 
-if(NOT MSVC)
-  set(sources ${sources} "contenders/scal/util/allocation.cc" "contenders/scal/util/random.cc" "contenders/scal/util/threadlocals.cc")
-endif()
-
 # Add source to this project's executable.
 add_executable (relaxed_concurrent_fifo ${sources})
 

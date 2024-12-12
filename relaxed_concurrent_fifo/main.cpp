@@ -338,16 +338,6 @@ int main() {
 	// We need this because scal does really weird stuff to have thread locals.
 	thread_pool pool;
 
-#ifdef __GNUC__
-	scal::ThreadContext::prepare(std::thread::hardware_concurrency() * 2);
-	scal::ThreadLocalAllocator::Get().Init(1024, true);
-
-	pool.do_work([&](size_t, std::barrier<>& a) {
-		a.arrive_and_wait();
-		scal::ThreadLocalAllocator::Get().Init(1024, true);
-	}, std::thread::hardware_concurrency(), true);
-#endif // __GNUC__
-
 	std::vector<int> processor_counts;
 	for (int i = 1; i <= static_cast<int>(std::thread::hardware_concurrency()); i *= 2) {
 		processor_counts.emplace_back(i);

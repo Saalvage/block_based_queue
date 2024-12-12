@@ -19,6 +19,7 @@
 #include "thread_pool.h"
 #include "relaxed_fifo.h"
 #include "contenders/multififo/multififo.hpp"
+#include "contenders/scal/scal_wrapper.h"
 
 #ifdef __GNUC__
 #include <filesystem>
@@ -32,9 +33,6 @@
 
 template <typename T>
 using LCRQWrapped = LCRQueue<T>;
-
-#include "contenders/scal/scal_wrapper.h"
-#include "contenders/scal/util/threadlocals.h"
 
 #include "contenders/multififo/util/graph.hpp"
 #include "contenders/multififo/util/termination_detection.hpp"
@@ -478,31 +476,11 @@ private:
 	std::tuple<Args...> args;
 };
 
-#ifdef __GNUC__
 template <typename BENCHMARK>
 using benchmark_provider_ws_kfifo = benchmark_provider_generic<ws_k_fifo<uint64_t>, BENCHMARK, size_t>;
 
 template <typename BENCHMARK>
 using benchmark_provider_ss_kfifo = benchmark_provider_generic<ss_k_fifo<uint64_t>, BENCHMARK, size_t>;
-
-template <typename BENCHMARK>
-using benchmark_provider_ws_sq = benchmark_provider_generic<ws_segment_queue<uint64_t>, BENCHMARK, size_t>;
-
-template <typename BENCHMARK>
-using benchmark_provider_ss_sq = benchmark_provider_generic<ss_segment_queue<uint64_t>, BENCHMARK, size_t>;
-
-template <typename BENCHMARK>
-using benchmark_provider_ws_rdq = benchmark_provider_generic<ws_random_dequeue_queue<uint64_t>, BENCHMARK, size_t, size_t>;
-
-template <typename BENCHMARK>
-using benchmark_provider_ss_rdq = benchmark_provider_generic<ss_random_dequeue_queue<uint64_t>, BENCHMARK, size_t, size_t>;
-
-template <typename BENCHMARK>
-using benchmark_provider_ws_lruq = benchmark_provider_generic<ws_lru_distributed_queue<uint64_t>, BENCHMARK, size_t>;
-
-template <typename BENCHMARK>
-using benchmark_provider_ss_lruq = benchmark_provider_generic<ss_lru_distributed_queue<uint64_t>, BENCHMARK, size_t>;
-#endif // __GNUC__
 
 template <typename BENCHMARK>
 using benchmark_provider_multififo = benchmark_provider_generic<multififo::MultiFifo<uint64_t>, BENCHMARK, int, int>;
