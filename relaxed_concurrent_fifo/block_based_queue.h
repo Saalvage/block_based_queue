@@ -24,7 +24,7 @@
 #endif // __GNUC__
 
 template <typename T, size_t BLOCKS_PER_WINDOW_RAW = 1, size_t CELLS_PER_BLOCK = 7, typename BITSET_TYPE = uint8_t>
-class relaxed_fifo {
+class block_based_queue {
 private:
 	static constexpr size_t make_po2(size_t size) {
 		size_t ret = 1;
@@ -82,7 +82,7 @@ private:
 
 public:
 	// TODO: Remove unused parameter!!
-	relaxed_fifo([[maybe_unused]] int thread_count, size_t size) :
+	block_based_queue([[maybe_unused]] int thread_count, size_t size) :
 			window_count(std::max<size_t>(4, make_po2(size / BLOCKS_PER_WINDOW / CELLS_PER_BLOCK))),
 			window_count_mod_mask(window_count - 1),
 			buffer(std::make_unique<window_t[]>(window_count)) {
@@ -103,7 +103,7 @@ public:
 	}
 
 	std::ostream& operator<<(std::ostream& os) const {
-		os << "Printing relaxed_fifo:\n"
+		os << "Printing block_based_queue:\n"
 			<< "Read: " << read_window << "; Write: " << write_window << '\n';
 		for (size_t i = 0; i < window_count; i++) {
 			for (size_t j = 0; j < BLOCKS_PER_WINDOW; j++) {
@@ -117,7 +117,7 @@ public:
 
 	class handle {
 	private:
-		relaxed_fifo& fifo;
+		block_based_queue& fifo;
 
 		// Doing it like this avoids having to have a special case for first-time initialization, while only claiming a block on first use.
 		static inline thread_local block_t dummy_block{header_t{0xffffull << 48}, {}};
@@ -128,9 +128,9 @@ public:
 		uint64_t write_window = 0;
 		uint64_t read_window = 0;
 
-		handle(relaxed_fifo& fifo) : fifo(fifo) { }
+		handle(block_based_queue& fifo) : fifo(fifo) { }
 
-		friend relaxed_fifo;
+		friend block_based_queue;
 
 		bool claim_new_block_write() {
 			size_t free_bit;
@@ -278,7 +278,7 @@ public:
 
 	handle get_handle() { return handle(*this); }
 };
-static_assert(fifo<relaxed_fifo<uint64_t>, uint64_t>);
+static_assert(fifo<block_based_queue<uint64_t>, uint64_t>);
 
 #ifdef __GNUC__
 #pragma GCC diagnostic pop

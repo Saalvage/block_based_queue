@@ -1,7 +1,7 @@
 ﻿#include "benchmark.h"
 
 #include "lock_fifo.h"
-#include "relaxed_fifo.h"
+#include "block_based_queue.h"
 #include "concurrent_fifo.h"
 
 #include "contenders/LCRQ/wrapper.h"
@@ -104,7 +104,7 @@ void test_all() {
 
 template <size_t THREAD_COUNT, size_t BLOCK_MULTIPLIER>
 void test_consistency(size_t fifo_size, size_t elements_per_thread, double prefill) {
-	relaxed_fifo<uint64_t, THREAD_COUNT * BLOCK_MULTIPLIER> fifo{ THREAD_COUNT, fifo_size };
+	block_based_queue<uint64_t, THREAD_COUNT * BLOCK_MULTIPLIER> fifo{ THREAD_COUNT, fifo_size };
 	auto handle = fifo.get_handle();
 
 	size_t pre_push = static_cast<size_t>(fifo_size * prefill);
@@ -405,18 +405,18 @@ int main() {
 
 		std::cout << "Benchmarking performance" << std::endl;
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_default>>> instances;
-		instances.push_back(std::make_unique<benchmark_provider_generic<relaxed_fifo<uint64_t, THREADS, 7>, benchmark_default>>("bbq-1-7"));
-		instances.push_back(std::make_unique<benchmark_provider_generic<relaxed_fifo<uint64_t, 2 * THREADS, 63>, benchmark_default>>("bbq-2-63"));
-		instances.push_back(std::make_unique<benchmark_provider_generic<relaxed_fifo<uint64_t, 4 * THREADS, 127>, benchmark_default>>("bbq-4-127"));
-		instances.push_back(std::make_unique<benchmark_provider_generic<relaxed_fifo<uint64_t, 8 * THREADS, 127>, benchmark_default>>("bbq-8-127"));
+		instances.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<uint64_t, THREADS, 7>, benchmark_default>>("bbq-1-7"));
+		instances.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<uint64_t, 2 * THREADS, 63>, benchmark_default>>("bbq-2-63"));
+		instances.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<uint64_t, 4 * THREADS, 127>, benchmark_default>>("bbq-4-127"));
+		instances.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<uint64_t, 8 * THREADS, 127>, benchmark_default>>("bbq-8-127"));
 		run_benchmark(pool, "ss-performance", instances, 0.5, processor_counts, TEST_ITERATIONS, TEST_TIME_SECONDS);
 
 		std::cout << "Benchmarking quality" << std::endl;
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_quality<>>>> instances_q;
-		instances_q.push_back(std::make_unique<benchmark_provider_generic<relaxed_fifo<uint64_t, THREADS, 7>, benchmark_quality<>>>("bbq-1-7"));
-		instances_q.push_back(std::make_unique<benchmark_provider_generic<relaxed_fifo<uint64_t, 2 * THREADS, 63>, benchmark_quality<>>>("bbq-2-63"));
-		instances_q.push_back(std::make_unique<benchmark_provider_generic<relaxed_fifo<uint64_t, 4 * THREADS, 127>, benchmark_quality<>>>("bbq-4-127"));
-		instances_q.push_back(std::make_unique<benchmark_provider_generic<relaxed_fifo<uint64_t, 8 * THREADS, 127>, benchmark_quality<>>>("bbq-8-127"));
+		instances_q.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<uint64_t, THREADS, 7>, benchmark_quality<>>>("bbq-1-7"));
+		instances_q.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<uint64_t, 2 * THREADS, 63>, benchmark_quality<>>>("bbq-2-63"));
+		instances_q.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<uint64_t, 4 * THREADS, 127>, benchmark_quality<>>>("bbq-4-127"));
+		instances_q.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<uint64_t, 8 * THREADS, 127>, benchmark_quality<>>>("bbq-8-127"));
 		run_benchmark(pool, "ss-quality", instances_q, 0.5, processor_counts, TEST_ITERATIONS, 0);
 		} break;
 	case 8: {
