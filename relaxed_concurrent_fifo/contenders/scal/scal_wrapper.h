@@ -38,20 +38,38 @@ public:
 	}
 };
 
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Winterference-size"
+#endif
 template <typename T>
+struct alignas(std::hardware_destructive_interference_size) Padded {
+	T value;
+	Padded() = default;
+	Padded(T value) : value(std::move(value)) {}
+	operator T&() { return value; }
+	operator const T&() const { return value; }
+	Padded(const Padded& other) = default;
+	Padded& operator=(const Padded& other) = default;
+};
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+
+template <typename T, typename Container = std::vector<T>>
 struct ringbuffer_wrapper {
 protected:
-	multififo::RingBuffer<T> queue;
+	multififo::RingBuffer<T, Container> queue;
 
 public:
-	ringbuffer_wrapper(int thread_count, size_t size) : queue{size} { }
+	ringbuffer_wrapper(int, size_t size) : queue{size} { }
 
 	struct handle {
 	private:
-		multififo::RingBuffer<T>* queue;
+		multififo::RingBuffer<T, Container>* queue;
 
 	public:
-		handle(multififo::RingBuffer<T>* queue) : queue(queue) {}
+		handle(multififo::RingBuffer<T, Container>* queue) : queue(queue) {}
 
 		bool push(T t) {
 			if (queue->full()) {

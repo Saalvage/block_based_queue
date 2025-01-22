@@ -348,6 +348,7 @@ void add_all_parameter_tuning(std::vector<std::unique_ptr<benchmark_provider<BEN
 template <typename BENCHMARK>
 void add_all_benchmarking(std::vector<std::unique_ptr<benchmark_provider<BENCHMARK>>>& instances) {
 	instances.push_back(std::make_unique<benchmark_provider_generic<ringbuffer_wrapper<uint64_t>, BENCHMARK>>("sequential"));
+	instances.push_back(std::make_unique<benchmark_provider_generic<ringbuffer_wrapper<uint64_t, std::vector<Padded<uint64_t>>>, BENCHMARK>>("sequential-padded"));
 	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 1, 7>>("bbq-1-7"));
 	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 2, 63>>("bbq-2-63"));
 	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 4, 127>>("bbq-4-127"));
