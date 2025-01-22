@@ -49,6 +49,40 @@ static std::pair<uint64_t, uint32_t> sequential_bfs(const Graph& graph) {
 	auto end = std::chrono::steady_clock::now().time_since_epoch().count();
 	return std::pair(end - now, *std::max_element(distances.begin(), distances.end()));
 }
+
+static std::pair<uint64_t, uint32_t> sequential_bfs_padded(const Graph& graph) {
+	multififo::RingBuffer<uint32_t> nodes(make_po2(graph.num_nodes()));
+	std::vector<benchmark_bfs::AtomicDistance> distances(graph.num_nodes());
+	distances[0].value = 0;
+
+	nodes.push(graph.nodes[0]);
+
+	auto now = std::chrono::steady_clock::now().time_since_epoch().count();
+	while (!nodes.empty()) {
+		auto node_id = nodes.top();
+		nodes.pop();
+		auto d = distances[node_id].value.load(std::memory_order_relaxed) + 1;
+		for (auto i = graph.nodes[node_id]; i < graph.nodes[node_id + 1]; ++i) {
+			auto node_id = graph.edges[i].target;
+			if (distances[node_id].value.load(std::memory_order_relaxed) == std::numeric_limits<uint32_t>::max()) {
+				distances[node_id].value.store(d, std::memory_order_relaxed);
+				nodes.push(node_id);
+			}
+		}
+	}
+	auto end = std::chrono::steady_clock::now().time_since_epoch().count();
+	return std::pair(end - now, std::max_element(distances.begin(), distances.end(), [](auto const& a, auto const& b) {
+		auto a_val = a.value.load(std::memory_order_relaxed);
+		auto b_val = b.value.load(std::memory_order_relaxed);
+		if (b_val == std::numeric_limits<long long>::max()) {
+			return false;
+		}
+		if (a_val == std::numeric_limits<long long>::max()) {
+			return true;
+		}
+		return a_val < b_val;
+		})->value.load());
+}
 #endif // __GNUC__
 
 /*static constexpr int COUNT = 512;
@@ -464,9 +498,14 @@ int main() {
 				std::cout << "Sequential time: " << time << "; Dist: " << dist + 1 << std::endl;
 			}
 
+			for (int i = 0; i < TEST_ITERATIONS; i++) {
+				auto [time, dist] = sequential_bfs_padded(graph);
+				std::cout << "Sequential padded time: " << time << "; Dist: " << dist + 1 << std::endl;
+			}
+
 			std::vector<std::unique_ptr<benchmark_provider<benchmark_bfs>>> instances;
 			add_all_benchmarking(instances);
-			run_benchmark<benchmark_bfs, benchmark_info_graph, Graph*>(pool, std::format("bfs-{}", graph_file.filename().string()), instances, 0, processor_counts, TEST_ITERATIONS, 0, &graph);
+			run_benchmark<benchmark_bfs, benchmark_info_graph, Graph*>(pool, std::format("bfs-{}", graph_file.filename().string()), instances, 0, { 1 }, TEST_ITERATIONS, 0, & graph);
 	} break;
 #endif // __GNUC__
 	}
