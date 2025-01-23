@@ -326,11 +326,9 @@ struct benchmark_bfs : benchmark_timed<> {
 				auto target = graph->edges[i].target;
 				auto d = node_dist + 1;
 				auto old_d = distances[target].value.load(std::memory_order_relaxed);
-				while (d < old_d) {
-					if (distances[target].value.compare_exchange_weak(old_d, d, std::memory_order_relaxed)) {
-						handle.push((d << 32) | target);
-						break;
-					}
+				if (d < old_d) {
+					distances[target].value = d;
+					handle.push((d << 32) | target);
 				}
 			}
 		}
