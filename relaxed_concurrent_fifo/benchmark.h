@@ -348,10 +348,7 @@ struct benchmark_bfs : benchmark_timed<> {
 		a.arrive_and_wait();
 		auto now = std::chrono::steady_clock::now().time_since_epoch().count();
 		std::optional<uint64_t> node;
-		while (termination_detection.repeat([&]() {
-				node = handle.pop();
-				return node.has_value();
-			})) {
+		while ((node = handle.pop()).has_value()) {
 			process_node<FIFO>(*node, handle, counter);
 		}
 		counters[thread_index] = counter;
