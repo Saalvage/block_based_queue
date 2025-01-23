@@ -288,12 +288,6 @@ struct benchmark_prodcon : benchmark_default {
 #ifdef __GNUC__
 
 struct benchmark_bfs : benchmark_timed<> {
-	struct Counter {
-		long long pushed_nodes{ 0 };
-		long long ignored_nodes{ 0 };
-		long long processed_nodes{ 0 };
-	};
-
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Winterference-size"
 	struct alignas(std::hardware_destructive_interference_size) AtomicDistance {
@@ -304,68 +298,48 @@ struct benchmark_bfs : benchmark_timed<> {
 	Graph* graph;
 	std::vector<AtomicDistance> distances;
 	termination_detection::TerminationDetection termination_detection;
-	std::vector<Counter> counters;
 
 	benchmark_bfs(const benchmark_info& info) :
 			graph(reinterpret_cast<const benchmark_info_graph&>(info).graph),
 			distances(graph->num_nodes()),
-			termination_detection(info.num_threads),
-			counters(info.num_threads) { }
-
-	template <typename FIFO>
-	void process_node(uint64_t node, typename FIFO::handle& handle, Counter& counter) {
-		uint64_t node_id = node & 0xffff'ffff;
-		uint64_t node_dist = node >> 32;
-		auto current_distance = distances[node_id].value.load(std::memory_order_relaxed);
-		if (node_dist > current_distance) {
-			++counter.ignored_nodes;
-			return;
-		}
-		for (auto i = graph->nodes[node_id]; i < graph->nodes[node_id + 1]; ++i) {
-			auto target = graph->edges[i].target;
-			auto d = node_dist + 1;
-			auto old_d = distances[target].value.load(std::memory_order_relaxed);
-			while (d < old_d) {
-				if (distances[target].value.compare_exchange_weak(old_d, d, std::memory_order_relaxed)) {
-					handle.push((d << 32) | target);
-					++counter.pushed_nodes;
-					break;
-				}
-			}
-		}
-		++counter.processed_nodes;
-	}
+			termination_detection(info.num_threads) { }
 
 	template <typename FIFO>
 	void per_thread(int thread_index, typename FIFO::handle& handle, std::barrier<>& a) {
-		Counter counter;
 		if (thread_index == 0) {
 			// We can't push 0 to the queues!
 			distances[0].value = 1;
 			handle.push(1ull << 32);
-			++counter.pushed_nodes;
 		}
 		a.arrive_and_wait();
 		auto now = std::chrono::steady_clock::now().time_since_epoch().count();
 		std::optional<uint64_t> node;
 		while ((node = handle.pop()).has_value()) {
-			process_node<FIFO>(*node, handle, counter);
+			uint64_t node_val = node.value();
+			uint64_t node_id = node_val & 0xffff'ffff;
+			uint64_t node_dist = node_val >> 32;
+			auto current_distance = distances[node_id].value.load(std::memory_order_relaxed);
+			if (node_dist > current_distance) {
+				continue;
+			}
+			for (auto i = graph->nodes[node_id]; i < graph->nodes[node_id + 1]; ++i) {
+				auto target = graph->edges[i].target;
+				auto d = node_dist + 1;
+				auto old_d = distances[target].value.load(std::memory_order_relaxed);
+				while (d < old_d) {
+					if (distances[target].value.compare_exchange_weak(old_d, d, std::memory_order_relaxed)) {
+						handle.push((d << 32) | target);
+						break;
+					}
+				}
+			}
 		}
-		counters[thread_index] = counter;
 		auto end = std::chrono::steady_clock::now().time_since_epoch().count();
 		std::cout << "ACTUAL TIME " << (end - now) << std::endl;
 	}
 
 	template <typename T>
 	void output(T& stream) {
-		auto total_counts =
-			std::accumulate(counters.begin(), counters.end(), Counter{}, [](auto sum, auto const& counter) {
-			sum.pushed_nodes += counter.pushed_nodes;
-			sum.processed_nodes += counter.processed_nodes;
-			sum.ignored_nodes += counter.ignored_nodes;
-			return sum;
-		});
-
 		auto longest_distance =
         std::max_element(distances.begin(), distances.end(), [](auto const& a, auto const& b) {
             auto a_val = a.value.load(std::memory_order_relaxed);
@@ -379,7 +353,7 @@ struct benchmark_bfs : benchmark_timed<> {
             return a_val < b_val;
         })->value.load();
 
-		stream << time_nanos << ',' << longest_distance << ',' << total_counts.pushed_nodes << ',' << total_counts.processed_nodes << ',' << total_counts.ignored_nodes;
+		stream << time_nanos << ',' << longest_distance;
 	}
 };
 
