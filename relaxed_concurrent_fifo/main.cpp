@@ -83,6 +83,41 @@ static std::pair<uint64_t, uint32_t> sequential_bfs_padded(const Graph& graph) {
 		return a_val < b_val;
 		})->value.load());
 }
+
+static std::pair<uint64_t, uint32_t> sequential_bfs_multififo(const Graph& graph) {
+	multififo::MultiFifo<uint32_t> nodes_(1, make_po2(graph.num_nodes()), 2, 2);
+	auto nodes = nodes_.get_handle();
+	std::vector<benchmark_bfs::AtomicDistance> distances(graph.num_nodes());
+	distances[0].value = 0;
+
+	nodes.push(graph.nodes[0]);
+
+	auto now = std::chrono::steady_clock::now().time_since_epoch().count();
+	std::optional<uint64_t> node;
+	while ((node = nodes.pop()).has_value()) {
+		auto node_id = node.value();
+		auto d = distances[node_id].value.load(std::memory_order_relaxed) + 1;
+		for (auto i = graph.nodes[node_id]; i < graph.nodes[node_id + 1]; ++i) {
+			auto node_id = graph.edges[i].target;
+			if (distances[node_id].value.load(std::memory_order_relaxed) == std::numeric_limits<uint32_t>::max()) {
+				distances[node_id].value.store(d, std::memory_order_relaxed);
+				nodes.push(node_id);
+			}
+		}
+	}
+	auto end = std::chrono::steady_clock::now().time_since_epoch().count();
+	return std::pair(end - now, std::max_element(distances.begin(), distances.end(), [](auto const& a, auto const& b) {
+		auto a_val = a.value.load(std::memory_order_relaxed);
+		auto b_val = b.value.load(std::memory_order_relaxed);
+		if (b_val == std::numeric_limits<long long>::max()) {
+			return false;
+		}
+		if (a_val == std::numeric_limits<long long>::max()) {
+			return true;
+		}
+		return a_val < b_val;
+		})->value.load());
+}
 #endif // __GNUC__
 
 /*static constexpr int COUNT = 512;
@@ -503,6 +538,11 @@ int main() {
 			for (int i = 0; i < TEST_ITERATIONS; i++) {
 				auto [time, dist] = sequential_bfs_padded(graph);
 				std::cout << "Sequential padded time: " << time << "; Dist: " << dist + 1 << std::endl;
+			}
+
+			for (int i = 0; i < TEST_ITERATIONS; i++) {
+				auto [time, dist] = sequential_bfs_multififo(graph);
+				std::cout << "Sequential multififo time: " << time << "; Dist: " << dist + 1 << std::endl;
 			}
 
 			std::vector<std::unique_ptr<benchmark_provider<benchmark_bfs>>> instances;
