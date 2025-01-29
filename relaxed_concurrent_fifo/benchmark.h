@@ -317,17 +317,11 @@ struct benchmark_bfs : benchmark_timed<> {
 		while ((node = handle.pop()).has_value()) {
 			uint64_t node_val = node.value();
 			uint64_t node_id = node_val & 0xffff'ffff;
-			uint64_t node_dist = node_val >> 32;
-			auto current_distance = distances[node_id].value.load(std::memory_order_relaxed);
-			if (node_dist > current_distance) {
-				continue;
-			}
+			auto d = distances[node_id].value.load(std::memory_order_relaxed) + 1;
 			for (auto i = graph->nodes[node_id]; i < graph->nodes[node_id + 1]; ++i) {
 				auto target = graph->edges[i].target;
-				auto d = node_dist + 1;
-				auto old_d = distances[target].value.load(std::memory_order_relaxed);
-				if (d < old_d) {
-					distances[target].value = d;
+				if (distances[target].value.load(std::memory_order_relaxed) == std::numeric_limits<uint32_t>::max()) {
+					distances[target].value.store(d, std::memory_order_relaxed);
 					handle.push((d << 32) | target);
 				}
 			}
