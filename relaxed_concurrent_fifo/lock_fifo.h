@@ -15,15 +15,15 @@ class lock_fifo {
 private:
 	std::unique_ptr<T[]> buffer;
 
-	size_t head = 0;
-	size_t tail = 0;
+	std::size_t head = 0;
+	std::size_t tail = 0;
 
-	size_t capacity;
+	std::size_t capacity;
 
 	std::mutex mut;
 
 public:
-	lock_fifo([[maybe_unused]] int thread_count, size_t capacity) : capacity(capacity) {
+	lock_fifo([[maybe_unused]] int thread_count, std::size_t capacity) : capacity(capacity) {
 		if (!is_po2(capacity)) {
 			throw std::runtime_error("Please only use capacities that are a power of two");
 		}
@@ -58,6 +58,6 @@ public:
 
 	handle get_handle() { return handle(this); }
 };
-static_assert(fifo<lock_fifo<uint64_t>, uint64_t>);
+static_assert(fifo<lock_fifo<std::uint64_t>, std::uint64_t>);
 
 #endif // LOCK_FIFO_H_INCLUDED

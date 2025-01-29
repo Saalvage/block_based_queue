@@ -55,7 +55,7 @@ struct replay_tree_default_traits {
     //! find_upper() instead of binary_search, unless the node size is larger
     //! than this threshold. See notes at
     //! http://panthema.net/2013/0504-STX-B+Tree-Binary-vs-Linear-Search
-    static constexpr size_t binsearch_threshold = 256;
+    static constexpr std::size_t binsearch_threshold = 256;
 };
 
 template <typename Node, bool IsConst>
@@ -104,7 +104,7 @@ struct inner_node : public node {
     }
 
     //! Return key in slot s
-    inline key_type const& key(size_t s) const {
+    inline key_type const& key(std::size_t s) const {
         return slotkey[s];
     }
 
@@ -147,7 +147,7 @@ struct leaf_node : public node {
     }
 
     //! Return key in slot s
-    inline key_type const& key(size_t s) const {
+    inline key_type const& key(std::size_t s) const {
         return KeyOfValue::get(slotdata[s]);
     }
 

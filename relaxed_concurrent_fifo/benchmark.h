@@ -59,30 +59,30 @@ struct benchmark_info_graph : public benchmark_info {
 };
 #endif // __GNUC__
 
-template <bool HAS_TIMEOUT_T = true, bool RECORD_TIME_T = false, bool PREFILL_IN_ORDER_T = false, size_t SIZE_T = 0>
+template <bool HAS_TIMEOUT_T = true, bool RECORD_TIME_T = false, bool PREFILL_IN_ORDER_T = false, std::size_t SIZE_T = 0>
 struct benchmark_base {
 	static constexpr bool HAS_TIMEOUT = HAS_TIMEOUT_T;
 	static constexpr bool RECORD_TIME = RECORD_TIME_T;
 	static constexpr bool PREFILL_IN_ORDER = PREFILL_IN_ORDER_T;
 
 	// Make sure we have enough space for at least 4 (not 3 so it's PO2) windows where each window supports HW threads with HW blocks each with HW cells each.
-	static const inline size_t SIZE = SIZE_T != 0 ? SIZE_T : 4 * std::thread::hardware_concurrency() * std::thread::hardware_concurrency() * std::thread::hardware_concurrency();
+	static const inline std::size_t SIZE = SIZE_T != 0 ? SIZE_T : 4 * std::thread::hardware_concurrency() * std::thread::hardware_concurrency() * std::thread::hardware_concurrency();
 };
 
-template <bool PREFILL_IN_ORDER = false, bool HAS_TIMEOUT = false, size_t SIZE = 0>
+template <bool PREFILL_IN_ORDER = false, bool HAS_TIMEOUT = false, std::size_t SIZE = 0>
 struct benchmark_timed : benchmark_base<HAS_TIMEOUT, true, PREFILL_IN_ORDER, SIZE> {
-	uint64_t time_nanos;
+	std::uint64_t time_nanos;
 };
 
 struct benchmark_default : benchmark_base<> {
-	std::vector<size_t> results;
-	size_t test_time_seconds;
+	std::vector<std::size_t> results;
+	std::size_t test_time_seconds;
 
 	benchmark_default(const benchmark_info& info) : results(info.num_threads), test_time_seconds(info.test_time_seconds) { }
 
 	template <typename T>
 	void per_thread(int thread_index, typename T::handle& handle, std::barrier<>& a, std::atomic_bool& over) {
-		size_t its = 0;
+		std::size_t its = 0;
 		a.arrive_and_wait();
 		while (!over) {
 			handle.push(5);
@@ -103,7 +103,7 @@ struct benchmark_quality : benchmark_base<false, false, true> {
 private:
 	std::atomic_uint64_t chunks_done = 0;
 
-	std::vector<std::vector<std::tuple<uint64_t, uint64_t>>> results;
+	std::vector<std::vector<std::tuple<std::uint64_t, std::uint64_t>>> results;
 
 	struct pop_op {
 		std::uint64_t pop_time;
@@ -114,12 +114,12 @@ private:
 		double avg;
 		double std;
 		std::uint64_t max;
-		std::unordered_map<uint64_t, uint64_t> distribution;
+		std::unordered_map<std::uint64_t, std::uint64_t> distribution;
 	};
 
 	static data_point analyze(const std::vector<std::uint64_t>& data) {
 		double avg = std::reduce(std::execution::par_unseq, data.begin(), data.end()) / static_cast<double>(data.size());
-		std::unordered_map<uint64_t, uint64_t> distribution;
+		std::unordered_map<std::uint64_t, std::uint64_t> distribution;
 		std::uint64_t max = 0;
 		double std = std::accumulate(data.begin(), data.end(), 0., [&max, &distribution, avg](double std_it, std::uint64_t new_val) {
 			max = std::max(max, new_val);
@@ -167,10 +167,10 @@ public:
 
 	template <typename T>
 	void output(T& stream) {
-		auto total_count = std::accumulate(results.begin(), results.end(), static_cast<size_t>(0), [](size_t size, const auto& v) { return size + v.size(); });
+		auto total_count = std::accumulate(results.begin(), results.end(), static_cast<std::size_t>(0), [](std::size_t size, const auto& v) { return size + v.size(); });
 		std::vector<pop_op> pops;
 		pops.reserve(total_count);
-		std::vector<uint64_t> pushes;
+		std::vector<std::uint64_t> pushes;
 		pushes.reserve(total_count);
 		for (const auto& thread_result : results) {
 			for (const auto& [pushed, popped] : thread_result) {
@@ -221,7 +221,7 @@ public:
 };
 
 struct benchmark_fill : benchmark_timed<false, true, 1 << 28> {
-	std::vector<uint64_t> results;
+	std::vector<std::uint64_t> results;
 
 	benchmark_fill(const benchmark_info& info) : results(info.num_threads) { }
 
@@ -260,7 +260,7 @@ struct benchmark_prodcon : benchmark_default {
 
 	template <typename T>
 	void per_thread(int thread_index, typename T::handle& handle, std::barrier<>& a, std::atomic_bool& over) {
-		size_t its = 0;
+		std::size_t its = 0;
 		a.arrive_and_wait();
 		while (!over) {
 			if (thread_index < thread_switch) {
@@ -297,7 +297,7 @@ struct benchmark_bfs : benchmark_timed<> {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Winterference-size"
 	struct alignas(std::hardware_destructive_interference_size) AtomicDistance {
-		std::atomic<uint32_t> value{ std::numeric_limits<uint32_t>::max() };
+		std::atomic<std::uint32_t> value{ std::numeric_limits<std::uint32_t>::max() };
 	};
 #pragma GCC diagnostic pop
 
@@ -313,9 +313,9 @@ struct benchmark_bfs : benchmark_timed<> {
 			counters(info.num_threads) { }
 
 	template <typename FIFO>
-	void process_node(uint64_t node, typename FIFO::handle& handle, Counter& counter) {
-		uint64_t node_id = node & 0xffff'ffff;
-		uint64_t node_dist = node >> 32;
+	void process_node(std::uint64_t node, typename FIFO::handle& handle, Counter& counter) {
+		std::uint64_t node_id = node & 0xffff'ffff;
+		std::uint64_t node_dist = node >> 32;
 		auto current_distance = distances[node_id].value.load(std::memory_order_relaxed);
 		if (node_dist > current_distance) {
 			++counter.ignored_nodes;
@@ -346,7 +346,7 @@ struct benchmark_bfs : benchmark_timed<> {
 			++counter.pushed_nodes;
 		}
 		a.arrive_and_wait();
-		std::optional<uint64_t> node;
+		std::optional<std::uint64_t> node;
 		while (termination_detection.repeat([&]() {
 				node = handle.pop();
 				return node.has_value();
@@ -401,7 +401,7 @@ protected:
 		std::condition_variable cv;
 		std::mutex m;
 		// We prefill with all threads since this may improve performance for certain implementations.
-		pool.do_work([&](size_t idx, std::barrier<>& a) {
+		pool.do_work([&](std::size_t idx, std::barrier<>& a) {
 			// We want to execute these in order so that the indices in the array are correct
 			// while still having been initialized by the correct thread.
 			// We cannot rely on the default constructability of handles.
@@ -416,7 +416,7 @@ protected:
 			if (BENCHMARK::PREFILL_IN_ORDER && idx != 0) {
 				return;
 			}
-			for (size_t i = 0; i < prefill_amount * BENCHMARK::SIZE / (BENCHMARK::PREFILL_IN_ORDER ? 1 : info.num_threads); i++) {
+			for (std::size_t i = 0; i < prefill_amount * BENCHMARK::SIZE / (BENCHMARK::PREFILL_IN_ORDER ? 1 : info.num_threads); i++) {
 				if (!handles[idx].push(i + 1)) {
 					break;
 				}
@@ -477,15 +477,15 @@ private:
 };
 
 template <typename BENCHMARK>
-using benchmark_provider_ws_kfifo = benchmark_provider_generic<ws_k_fifo<uint64_t>, BENCHMARK, size_t>;
+using benchmark_provider_ws_kfifo = benchmark_provider_generic<ws_k_fifo<std::uint64_t>, BENCHMARK, std::size_t>;
 
 template <typename BENCHMARK>
-using benchmark_provider_ss_kfifo = benchmark_provider_generic<ss_k_fifo<uint64_t>, BENCHMARK, size_t>;
+using benchmark_provider_ss_kfifo = benchmark_provider_generic<ss_k_fifo<std::uint64_t>, BENCHMARK, std::size_t>;
 
 template <typename BENCHMARK>
-using benchmark_provider_multififo = benchmark_provider_generic<multififo::MultiFifo<uint64_t>, BENCHMARK, int, int>;
+using benchmark_provider_multififo = benchmark_provider_generic<multififo::MultiFifo<std::uint64_t>, BENCHMARK, int, int>;
 
-template <typename BENCHMARK, size_t BLOCK_MULTIPLIER, size_t CELLS_PER_BLOCK, typename BITSET_TYPE = uint8_t>
+template <typename BENCHMARK, std::size_t BLOCK_MULTIPLIER, std::size_t CELLS_PER_BLOCK, typename BITSET_TYPE = uint8_t>
 class benchmark_provider_relaxed : public benchmark_provider<BENCHMARK> {
 	public:
 		benchmark_provider_relaxed(std::string name) : name(std::move(name)) { }
@@ -496,15 +496,15 @@ class benchmark_provider_relaxed : public benchmark_provider<BENCHMARK> {
 
 		BENCHMARK test(thread_pool& pool, const benchmark_info& info, double prefill_amount) const override {
 			switch (info.num_threads) {
-			case 1: return test_helper<block_based_queue<size_t, 1 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(pool, info, prefill_amount);
-			case 2: return test_helper<block_based_queue<size_t, 2 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(pool, info, prefill_amount);
-			case 4: return test_helper<block_based_queue<size_t, 4 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(pool, info, prefill_amount);
-			case 8: return test_helper<block_based_queue<size_t, 8 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(pool, info, prefill_amount);
-			case 16: return test_helper<block_based_queue<size_t, 16 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(pool, info, prefill_amount);
-			case 32: return test_helper<block_based_queue<size_t, 32 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(pool, info, prefill_amount);
-			case 64: return test_helper<block_based_queue<size_t, 64 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(pool, info, prefill_amount);
-			case 128: return test_helper<block_based_queue<size_t, 128 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(pool, info, prefill_amount);
-			case 256: return test_helper<block_based_queue<size_t, 256 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(pool, info, prefill_amount);
+			case 1: return test_helper<block_based_queue<std::size_t, 1 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(pool, info, prefill_amount);
+			case 2: return test_helper<block_based_queue<std::size_t, 2 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(pool, info, prefill_amount);
+			case 4: return test_helper<block_based_queue<std::size_t, 4 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(pool, info, prefill_amount);
+			case 8: return test_helper<block_based_queue<std::size_t, 8 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(pool, info, prefill_amount);
+			case 16: return test_helper<block_based_queue<std::size_t, 16 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(pool, info, prefill_amount);
+			case 32: return test_helper<block_based_queue<std::size_t, 32 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(pool, info, prefill_amount);
+			case 64: return test_helper<block_based_queue<std::size_t, 64 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(pool, info, prefill_amount);
+			case 128: return test_helper<block_based_queue<std::size_t, 128 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(pool, info, prefill_amount);
+			case 256: return test_helper<block_based_queue<std::size_t, 256 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(pool, info, prefill_amount);
 			default: throw std::runtime_error("Unsupported thread count!");
 			}
 		}

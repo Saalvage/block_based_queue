@@ -23,11 +23,11 @@
 #pragma GCC diagnostic ignored "-Winterference-size"
 #endif // __GNUC__
 
-template <typename T, size_t BLOCKS_PER_WINDOW_RAW = 1, size_t CELLS_PER_BLOCK = 7, typename BITSET_TYPE = uint8_t>
+template <typename T, std::size_t BLOCKS_PER_WINDOW_RAW = 1, std::size_t CELLS_PER_BLOCK = 7, typename BITSET_TYPE = uint8_t>
 class block_based_queue {
 private:
-	static constexpr size_t make_po2(size_t size) {
-		size_t ret = 1;
+	static constexpr std::size_t make_po2(std::size_t size) {
+		std::size_t ret = 1;
 		while (size > ret) {
 			ret *= 2;
 		}
@@ -35,12 +35,12 @@ private:
 	}
 
 	// PO2 for modulo performance and at least as big as the bitset type.
-	static constexpr size_t BLOCKS_PER_WINDOW = std::max(sizeof(BITSET_TYPE) * 8, make_po2(BLOCKS_PER_WINDOW_RAW));
+	static constexpr std::size_t BLOCKS_PER_WINDOW = std::max(sizeof(BITSET_TYPE) * 8, make_po2(BLOCKS_PER_WINDOW_RAW));
 
-	const size_t window_count;
-	const size_t window_count_mod_mask;
+	const std::size_t window_count;
+	const std::size_t window_count_mod_mask;
 
-	size_t size() const {
+	std::size_t size() const {
 		return window_count * BLOCKS_PER_WINDOW * CELLS_PER_BLOCK;
 	}
 
@@ -54,11 +54,11 @@ private:
 	static_assert(sizeof(header_t) == 8);
 
 	// We use 64 bit return types here to avoid potential deficits through 16-bit comparisons.
-	static constexpr uint16_t get_epoch(uint64_t ei) { return ei >> 48; }
-	static constexpr uint16_t get_read_started_index(uint64_t ei) { return (ei >> 32) & 0xffff; }
-	static constexpr uint16_t get_read_finished_index(uint64_t ei) { return (ei >> 16) & 0xffff; }
-	static constexpr uint16_t get_write_index(uint64_t ei) { return ei & 0xffff; }
-	static constexpr uint64_t epoch_to_header(uint64_t epoch) { return epoch << 48; }
+	static constexpr std::uint16_t get_epoch(std::uint64_t ei) { return ei >> 48; }
+	static constexpr std::uint16_t get_read_started_index(std::uint64_t ei) { return (ei >> 32) & 0xffff; }
+	static constexpr std::uint16_t get_read_finished_index(std::uint64_t ei) { return (ei >> 16) & 0xffff; }
+	static constexpr std::uint16_t get_write_index(std::uint64_t ei) { return ei & 0xffff; }
+	static constexpr std::uint64_t epoch_to_header(std::uint64_t epoch) { return epoch << 48; }
 
 	struct block_t {
 		header_t header;
@@ -73,7 +73,7 @@ private:
 
 	const std::unique_ptr<window_t[]> buffer;
 
-	window_t& get_window(size_t index) const {
+	window_t& get_window(std::size_t index) const {
 		return buffer[index & window_count_mod_mask];
 	}
 
@@ -82,21 +82,21 @@ private:
 
 public:
 	// TODO: Remove unused parameter!!
-	block_based_queue([[maybe_unused]] int thread_count, size_t size) :
-			window_count(std::max<size_t>(4, make_po2(size / BLOCKS_PER_WINDOW / CELLS_PER_BLOCK))),
+	block_based_queue([[maybe_unused]] int thread_count, std::size_t size) :
+			window_count(std::max<std::size_t>(4, make_po2(size / BLOCKS_PER_WINDOW / CELLS_PER_BLOCK))),
 			window_count_mod_mask(window_count - 1),
 			buffer(std::make_unique<window_t[]>(window_count)) {
 		read_window = window_count;
 		write_window = window_count + 1;
-		for (size_t i = 1; i < window_count; i++) {
+		for (std::size_t i = 1; i < window_count; i++) {
 			window_t& window = buffer[i];
-			for (size_t j = 0; j < BLOCKS_PER_WINDOW; j++) {
+			for (std::size_t j = 0; j < BLOCKS_PER_WINDOW; j++) {
 				header_t& header = window.blocks[j].header;
 				header.epoch_and_indices = (window_count + i) << 48;
 			}
 		}
 		window_t& window = buffer[0];
-		for (size_t j = 0; j < BLOCKS_PER_WINDOW; j++) {
+		for (std::size_t j = 0; j < BLOCKS_PER_WINDOW; j++) {
 			header_t& header = window.blocks[j].header;
 			header.epoch_and_indices = (window_count * 2) << 48;
 		}
@@ -105,9 +105,9 @@ public:
 	std::ostream& operator<<(std::ostream& os) const {
 		os << "Printing block_based_queue:\n"
 			<< "Read: " << read_window << "; Write: " << write_window << '\n';
-		for (size_t i = 0; i < window_count; i++) {
-			for (size_t j = 0; j < BLOCKS_PER_WINDOW; j++) {
-				uint64_t val = buffer[i].blocks[j].header.epoch_and_indices;
+		for (std::size_t i = 0; i < window_count; i++) {
+			for (std::size_t j = 0; j < BLOCKS_PER_WINDOW; j++) {
+				std::uint64_t val = buffer[i].blocks[j].header.epoch_and_indices;
 				os << get_epoch(val) << " " << get_read_started_index(val) << " " << get_read_finished_index(val) << " " << get_write_index(val) << " | ";
 			}
 			os << "\n======================\n";
@@ -125,22 +125,22 @@ public:
 		block_t* read_block = &dummy_block;
 		block_t* write_block = &dummy_block;
 
-		uint64_t write_window = 0;
-		uint64_t read_window = 0;
+		std::uint64_t write_window = 0;
+		std::uint64_t read_window = 0;
 
 		handle(block_based_queue& fifo) : fifo(fifo) { }
 
 		friend block_based_queue;
 
 		bool claim_new_block_write() {
-			size_t free_bit;
-			uint64_t window_index;
+			std::size_t free_bit;
+			std::uint64_t window_index;
 			window_t* window;
 			do {
 				window_index = fifo.write_window.load(std::memory_order_relaxed);
 				window = &fifo.get_window(window_index);
 				free_bit = window->filled_set.template claim_bit<false, true>(std::memory_order_relaxed);
-				if (free_bit == std::numeric_limits<size_t>::max()) {
+				if (free_bit == std::numeric_limits<std::size_t>::max()) {
 					// No more free bits, we move.
 					if (window_index + 1 - fifo.read_window.load(std::memory_order_relaxed) == fifo.window_count) {
 						return false;
@@ -160,15 +160,15 @@ public:
 		}
 
 		bool claim_new_block_read() {
-			size_t free_bit;
-			uint64_t window_index;
+			std::size_t free_bit;
+			std::uint64_t window_index;
 			window_t* window;
 			do {
 				window_index = fifo.read_window.load(std::memory_order_relaxed);
 				window = &fifo.get_window(window_index);
 				free_bit = window->filled_set.template claim_bit<true, false>(std::memory_order_relaxed);
-				if (free_bit == std::numeric_limits<size_t>::max()) {
-					uint64_t write_window = fifo.write_window.load(std::memory_order_relaxed);
+				if (free_bit == std::numeric_limits<std::size_t>::max()) {
+					std::uint64_t write_window = fifo.write_window.load(std::memory_order_relaxed);
 					if (write_window == window_index + 1) {
 						if (!fifo.get_window(write_window).filled_set.any(std::memory_order_relaxed)) {
 							return false;
@@ -178,11 +178,11 @@ public:
 						// We need to make sure we clean those up BEFORE we move the write window in order to prevent
 						// the read window from being moved before all blocks have either been claimed or invalidated.
 						window_t& new_window = fifo.get_window(write_window);
-						uint64_t next_epoch = epoch_to_header(write_window + fifo.window_count);
-						for (size_t i = 0; i < BLOCKS_PER_WINDOW; i++) {
+						std::uint64_t next_epoch = epoch_to_header(write_window + fifo.window_count);
+						for (std::size_t i = 0; i < BLOCKS_PER_WINDOW; i++) {
 							// We can't rely on the bitset here because it might be experiencing a spurious claim.
 
-							uint64_t ei = epoch_to_header(write_window); // All empty with current epoch.
+							std::uint64_t ei = epoch_to_header(write_window); // All empty with current epoch.
 							new_window.blocks[i].header.epoch_and_indices.compare_exchange_strong(ei, next_epoch, std::memory_order_relaxed);
 						}
 						fifo.write_window.compare_exchange_strong(write_window, write_window + 1, std::memory_order_relaxed);
@@ -210,10 +210,10 @@ public:
 			assert(t != 0);
 
 			header_t* header = &write_block->header;
-			uint64_t ei = header->epoch_and_indices.load(std::memory_order_relaxed);
-			uint16_t index;
+			std::uint64_t ei = header->epoch_and_indices.load(std::memory_order_relaxed);
+			std::uint16_t index;
 			bool claimed = false;
-			while (get_epoch(ei) != static_cast<uint16_t>(write_window) || (index = get_write_index(ei)) == CELLS_PER_BLOCK || !header->epoch_and_indices.compare_exchange_weak(ei, ei + 1, std::memory_order_relaxed)) {
+			while (get_epoch(ei) != static_cast<std::uint16_t>(write_window) || (index = get_write_index(ei)) == CELLS_PER_BLOCK || !header->epoch_and_indices.compare_exchange_weak(ei, ei + 1, std::memory_order_relaxed)) {
 				// We need this in case of a spurious claim where we claim a bit, but can't place an element inside,
 				// because the write window was already forced-moved.
 				// This is safe to do because writers are exclusive.
@@ -238,10 +238,10 @@ public:
 
 		std::optional<T> pop() {
 			header_t* header = &read_block->header;
-			uint64_t ei = header->epoch_and_indices.load(std::memory_order_relaxed);
-			uint16_t index;
+			std::uint64_t ei = header->epoch_and_indices.load(std::memory_order_relaxed);
+			std::uint16_t index;
 
-			while (get_epoch(ei) != static_cast<uint16_t>(read_window) || (index = get_read_started_index(ei)) == get_write_index(ei)
+			while (get_epoch(ei) != static_cast<std::uint16_t>(read_window) || (index = get_read_started_index(ei)) == get_write_index(ei)
 				|| !header->epoch_and_indices.compare_exchange_weak(ei, ei + (1ull << 32), std::memory_order_relaxed)) {
 				if (!claim_new_block_read()) {
 					return std::nullopt;
@@ -254,12 +254,12 @@ public:
 			while ((ret = std::move(read_block->cells[index].load(std::memory_order_relaxed))) == 0) { }
 			read_block->cells[index].store(0, std::memory_order_relaxed);
 
-			uint16_t finished_index = get_read_finished_index(header->epoch_and_indices.fetch_add(1 << 16, std::memory_order_relaxed)) + 1;
+			std::uint16_t finished_index = get_read_finished_index(header->epoch_and_indices.fetch_add(1 << 16, std::memory_order_relaxed)) + 1;
 			// We need the >= here because between the read of ei and the fetch_add above both a write and a finished read might have occurred
 			// that make our finished_index > our (outdated) write index.
 			if (finished_index >= get_write_index(ei)) {
 				// Apply local read index update.
-				ei = (ei & (0xffffull << 48)) | (static_cast<uint64_t>(finished_index) << 32) | (static_cast<uint64_t>(finished_index) << 16) | finished_index;
+				ei = (ei & (0xffffull << 48)) | (static_cast<std::uint64_t>(finished_index) << 32) | (static_cast<std::uint64_t>(finished_index) << 16) | finished_index;
 				// Before we mark this block as empty, we make it unavailable for other readers and writers of this epoch.
 				if (header->epoch_and_indices.compare_exchange_strong(ei, (read_window + fifo.window_count) << 48, std::memory_order_relaxed)) {
 					window_t& window = fifo.get_window(read_window);
@@ -278,7 +278,7 @@ public:
 
 	handle get_handle() { return handle(*this); }
 };
-static_assert(fifo<block_based_queue<uint64_t>, uint64_t>);
+static_assert(fifo<block_based_queue<std::uint64_t>, std::uint64_t>);
 
 #ifdef __GNUC__
 #pragma GCC diagnostic pop

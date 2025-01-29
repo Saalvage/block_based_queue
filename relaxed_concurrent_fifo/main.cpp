@@ -18,17 +18,17 @@
 #include "thread_pool.h"
 
 #ifdef __GNUC__
-static constexpr size_t make_po2(size_t size) {
-	size_t ret = 1;
+static constexpr std::size_t make_po2(std::size_t size) {
+	std::size_t ret = 1;
 	while (size > ret) {
 		ret *= 2;
 	}
 	return ret;
 }
 
-static std::pair<uint64_t, uint32_t> sequential_bfs(const Graph& graph) {
-	multififo::RingBuffer<uint32_t> nodes(make_po2(graph.num_nodes()));
-	std::vector<uint32_t> distances(graph.num_nodes(), std::numeric_limits<uint32_t>::max());
+static std::pair<std::uint64_t, std::uint32_t> sequential_bfs(const Graph& graph) {
+	multififo::RingBuffer<std::uint32_t> nodes(make_po2(graph.num_nodes()));
+	std::vector<std::uint32_t> distances(graph.num_nodes(), std::numeric_limits<std::uint32_t>::max());
 	distances[0] = 0;
 
 	nodes.push(graph.nodes[0]);
@@ -40,7 +40,7 @@ static std::pair<uint64_t, uint32_t> sequential_bfs(const Graph& graph) {
 		auto d = distances[node_id] + 1;
 		for (auto i = graph.nodes[node_id]; i < graph.nodes[node_id + 1]; ++i) {
 			auto node_id = graph.edges[i].target;
-			if (distances[node_id] == std::numeric_limits<uint32_t>::max()) {
+			if (distances[node_id] == std::numeric_limits<std::uint32_t>::max()) {
 				distances[node_id] = d;
 				nodes.push(node_id);
 			}
@@ -53,7 +53,7 @@ static std::pair<uint64_t, uint32_t> sequential_bfs(const Graph& graph) {
 
 /*static constexpr int COUNT = 512;
 
-template <template <typename, size_t> typename T>
+template <template <typename, std::size_t> typename T>
 void test_full_capacity() {
 	T<int, COUNT> buf;
 	for (int i : std::views::iota(0, COUNT)) {
@@ -64,7 +64,7 @@ void test_full_capacity() {
 	}
 }
 
-template <template <typename, size_t> typename T>
+template <template <typename, std::size_t> typename T>
 void test_single_element() {
 	T<int, COUNT> buf;
 	for (int i : std::views::iota(0, COUNT * 10)) {
@@ -73,7 +73,7 @@ void test_single_element() {
 	}
 }
 
-template <template <typename, size_t> typename T>
+template <template <typename, std::size_t> typename T>
 void test_empty_pop() {
 	T<int, COUNT> buf;
 	assert(!buf.pop().has_value());
@@ -87,14 +87,14 @@ void test_empty_pop() {
 	assert(!buf.pop().has_value());
 }
 
-template <template <typename, size_t> typename T>
+template <template <typename, std::size_t> typename T>
 void test_full_push() {
 	T<int, 1> buf;
 	buf.push(1);
 	assert(!buf.push(1));
 }
 
-template <template <typename, size_t> typename T>
+template <template <typename, std::size_t> typename T>
 void test_all() {
 	test_full_capacity<T>();
 	test_single_element<T>();
@@ -102,14 +102,14 @@ void test_all() {
 	test_full_push<T>();
 }*/
 
-template <size_t THREAD_COUNT, size_t BLOCK_MULTIPLIER>
-void test_consistency(size_t fifo_size, size_t elements_per_thread, double prefill) {
-	block_based_queue<uint64_t, THREAD_COUNT * BLOCK_MULTIPLIER> fifo{ THREAD_COUNT, fifo_size };
+template <std::size_t THREAD_COUNT, std::size_t BLOCK_MULTIPLIER>
+void test_consistency(std::size_t fifo_size, std::size_t elements_per_thread, double prefill) {
+	block_based_queue<std::uint64_t, THREAD_COUNT * BLOCK_MULTIPLIER> fifo{ THREAD_COUNT, fifo_size };
 	auto handle = fifo.get_handle();
 
-	size_t pre_push = static_cast<size_t>(fifo_size * prefill);
-	std::unordered_multiset<uint64_t> test_ints;
-	for (size_t index = 0; index < pre_push; index++) {
+	std::size_t pre_push = static_cast<std::size_t>(fifo_size * prefill);
+	std::unordered_multiset<std::uint64_t> test_ints;
+	for (std::size_t index = 0; index < pre_push; index++) {
 		auto i = index | (1ull << 63);
 		handle.push(i);
 		test_ints.emplace(i);
@@ -117,17 +117,17 @@ void test_consistency(size_t fifo_size, size_t elements_per_thread, double prefi
 
 	std::barrier a{ (ptrdiff_t)(THREAD_COUNT + 1) };
 	std::vector<std::jthread> threads(THREAD_COUNT);
-	std::vector<std::vector<uint64_t>> test(THREAD_COUNT);
-	std::vector<std::vector<uint64_t>> popped(THREAD_COUNT);
-	for (size_t i = 0; i < THREAD_COUNT; i++) {
+	std::vector<std::vector<std::uint64_t>> test(THREAD_COUNT);
+	std::vector<std::vector<std::uint64_t>> popped(THREAD_COUNT);
+	for (std::size_t i = 0; i < THREAD_COUNT; i++) {
 		threads[i] = std::jthread([&, i]() {
 			auto handle = fifo.get_handle();
 			a.arrive_and_wait();
-			for (uint64_t j = 0; j < elements_per_thread; j++) {
+			for (std::uint64_t j = 0; j < elements_per_thread; j++) {
 				auto val = (i << 32) | (j + 1);
 				test[i].push_back(val);
 				while (!handle.push(val)) {}
-				std::optional<uint64_t> pop;
+				std::optional<std::uint64_t> pop;
 				do {
 					pop = handle.pop();
 				} while (!pop.has_value());
@@ -140,12 +140,12 @@ void test_consistency(size_t fifo_size, size_t elements_per_thread, double prefi
 		thread.join();
 	}
 
-	std::unordered_multiset<uint64_t> popped_ints;
-	for (size_t index = 0; index < pre_push; index++) {
+	std::unordered_multiset<std::uint64_t> popped_ints;
+	for (std::size_t index = 0; index < pre_push; index++) {
 		popped_ints.emplace(handle.pop().value());
 	}
 
-	for (size_t i = 0; i < THREAD_COUNT; i++) {
+	for (std::size_t i = 0; i < THREAD_COUNT; i++) {
 		for (auto i : popped[i]) {
 			popped_ints.emplace(i);
 		}
@@ -163,7 +163,7 @@ void test_consistency(size_t fifo_size, size_t elements_per_thread, double prefi
 	}
 }
 
-template <size_t BITSET_SIZE = 128>
+template <std::size_t BITSET_SIZE = 128>
 void test_continuous_bitset_claim() {
 	auto gen = std::bind(std::uniform_int_distribution<>(0, 1), std::default_random_engine());
 	while (true) {
@@ -176,7 +176,7 @@ void test_continuous_bitset_claim() {
 			}
 		}
 		auto result = a.template claim_bit<true, true>();
-		if (result != std::numeric_limits<size_t>::max() && (a[result] || !b[result])) {
+		if (result != std::numeric_limits<std::size_t>::max() && (a[result] || !b[result])) {
 			throw std::runtime_error("Incorrect!");
 		}
 	}
@@ -307,7 +307,7 @@ void add_all_parameter_tuning(std::vector<std::unique_ptr<benchmark_provider<BEN
 	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("2048,kfifo", 2048));
 	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("4096,kfifo", 4096));
 	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("8192,kfifo", 8192));
-	instances.push_back(std::make_unique<benchmark_provider_generic<adapter<uint64_t, LCRQWrapped>, BENCHMARK>>("lcrq"));
+	instances.push_back(std::make_unique<benchmark_provider_generic<adapter<std::uint64_t, LCRQWrapped>, BENCHMARK>>("lcrq"));
 #endif // __GNUC__
 }
 
@@ -324,7 +324,7 @@ void add_all_benchmarking(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4-16-multififo", 4, 16));
 	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4-128-multififo", 4, 128));
 	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4-256-multififo", 4, 256));
-	instances.push_back(std::make_unique<benchmark_provider_generic<adapter<uint64_t, LCRQWrapped>, BENCHMARK>>("lcrq"));
+	instances.push_back(std::make_unique<benchmark_provider_generic<adapter<std::uint64_t, LCRQWrapped>, BENCHMARK>>("lcrq"));
 #endif // __GNUC__
 }
 
@@ -401,22 +401,22 @@ int main() {
 		run_benchmark(pool, "empty", instances, 1, processor_counts, TEST_ITERATIONS, 10);
 		} break;
 	case 7: {
-		static constexpr size_t THREADS = 128;
+		static constexpr std::size_t THREADS = 128;
 
 		std::cout << "Benchmarking performance" << std::endl;
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_default>>> instances;
-		instances.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<uint64_t, THREADS, 7>, benchmark_default>>("bbq-1-7"));
-		instances.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<uint64_t, 2 * THREADS, 63>, benchmark_default>>("bbq-2-63"));
-		instances.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<uint64_t, 4 * THREADS, 127>, benchmark_default>>("bbq-4-127"));
-		instances.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<uint64_t, 8 * THREADS, 127>, benchmark_default>>("bbq-8-127"));
+		instances.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<std::uint64_t, THREADS, 7>, benchmark_default>>("bbq-1-7"));
+		instances.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<std::uint64_t, 2 * THREADS, 63>, benchmark_default>>("bbq-2-63"));
+		instances.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<std::uint64_t, 4 * THREADS, 127>, benchmark_default>>("bbq-4-127"));
+		instances.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<std::uint64_t, 8 * THREADS, 127>, benchmark_default>>("bbq-8-127"));
 		run_benchmark(pool, "ss-performance", instances, 0.5, processor_counts, TEST_ITERATIONS, TEST_TIME_SECONDS);
 
 		std::cout << "Benchmarking quality" << std::endl;
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_quality<>>>> instances_q;
-		instances_q.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<uint64_t, THREADS, 7>, benchmark_quality<>>>("bbq-1-7"));
-		instances_q.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<uint64_t, 2 * THREADS, 63>, benchmark_quality<>>>("bbq-2-63"));
-		instances_q.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<uint64_t, 4 * THREADS, 127>, benchmark_quality<>>>("bbq-4-127"));
-		instances_q.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<uint64_t, 8 * THREADS, 127>, benchmark_quality<>>>("bbq-8-127"));
+		instances_q.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<std::uint64_t, THREADS, 7>, benchmark_quality<>>>("bbq-1-7"));
+		instances_q.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<std::uint64_t, 2 * THREADS, 63>, benchmark_quality<>>>("bbq-2-63"));
+		instances_q.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<std::uint64_t, 4 * THREADS, 127>, benchmark_quality<>>>("bbq-4-127"));
+		instances_q.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<std::uint64_t, 8 * THREADS, 127>, benchmark_quality<>>>("bbq-8-127"));
 		run_benchmark(pool, "ss-quality", instances_q, 0.5, processor_counts, TEST_ITERATIONS, 0);
 		} break;
 	case 8: {
@@ -425,18 +425,18 @@ int main() {
 		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 2, 63, uint8_t>>("8,bbq-2-63"));
 		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 4, 127, uint8_t>>("8,bbq-4-127"));
 		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 8, 127, uint8_t>>("8,bbq-8-127"));
-		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 1, 7, uint16_t>>("16,bbq-1-7"));
-		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 2, 63, uint16_t>>("16,bbq-2-63"));
-		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 4, 127, uint16_t>>("16,bbq-4-127"));
-		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 8, 127, uint16_t>>("16,bbq-8-127"));
-		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 1, 7, uint32_t>>("32,bbq-1-7"));
-		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 2, 63, uint32_t>>("32,bbq-2-63"));
-		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 4, 127, uint32_t>>("32,bbq-4-127"));
-		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 8, 127, uint32_t>>("32,bbq-8-127"));
-		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 1, 7, uint64_t>>("64,bbq-1-7"));
-		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 2, 63, uint64_t>>("64,bbq-2-63"));
-		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 4, 127, uint64_t>>("64,bbq-4-127"));
-		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 8, 127, uint64_t>>("64,bbq-8-127"));
+		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 1, 7, std::uint16_t>>("16,bbq-1-7"));
+		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 2, 63, std::uint16_t>>("16,bbq-2-63"));
+		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 4, 127, std::uint16_t>>("16,bbq-4-127"));
+		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 8, 127, std::uint16_t>>("16,bbq-8-127"));
+		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 1, 7, std::uint32_t>>("32,bbq-1-7"));
+		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 2, 63, std::uint32_t>>("32,bbq-2-63"));
+		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 4, 127, std::uint32_t>>("32,bbq-4-127"));
+		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 8, 127, std::uint32_t>>("32,bbq-8-127"));
+		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 1, 7, std::uint64_t>>("64,bbq-1-7"));
+		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 2, 63, std::uint64_t>>("64,bbq-2-63"));
+		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 4, 127, std::uint64_t>>("64,bbq-4-127"));
+		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 8, 127, std::uint64_t>>("64,bbq-8-127"));
 		run_benchmark(pool, "bitset-sizes", instances, 0.5, processor_counts, TEST_ITERATIONS, TEST_TIME_SECONDS);
 		} break;
 	case 9: {
