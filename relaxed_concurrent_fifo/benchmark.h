@@ -322,7 +322,7 @@ struct benchmark_bfs : benchmark_timed<> {
 				auto target = graph->edges[i].target;
 				if (distances[target].value.load(std::memory_order_relaxed) == std::numeric_limits<uint32_t>::max()) {
 					distances[target].value.store(d, std::memory_order_relaxed);
-					handle.push((d << 32) | target);
+					handle.push((static_cast<std::uint64_t>(d) << 32) | target);
 				}
 			}
 		}
