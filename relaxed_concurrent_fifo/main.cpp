@@ -90,7 +90,6 @@ static std::pair<uint64_t, uint32_t> sequential_bfs_multififo(const Graph& graph
 	std::vector<benchmark_bfs::AtomicDistance> distances(graph.num_nodes());
 	distances[0].value = 0;
 
-	std::cout << "HALLO " << graph.nodes[0] << std::endl;
 	nodes.push(graph.nodes[0]);
 
 	auto now = std::chrono::steady_clock::now().time_since_epoch().count();

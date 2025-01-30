@@ -305,11 +305,13 @@ struct benchmark_bfs : benchmark_timed<> {
 			termination_detection(info.num_threads) { }
 
 	template <typename FIFO>
-	void per_thread(int thread_index, typename FIFO::handle& handle, std::barrier<>& a) {
+	void per_thread(int thread_index, typename FIFO::handle& handlef, std::barrier<>& a) {
+		(void)handlef;
+		multififo::MultiFifo<uint64_t> nodes_(1, make_po2(graph.num_nodes()), 2, 2);
+		auto handle = nodes_.get_handle();
 		if (thread_index == 0) {
 			// We can't push 0 to the queues!
 			distances[0].value = 1;
-			std::cout << "HALLO OTHER" << graph->nodes[0] << std::endl;
 			handle.push(0);
 		}
 		a.arrive_and_wait();
