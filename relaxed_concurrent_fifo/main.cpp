@@ -541,8 +541,14 @@ int main() {
 			}
 
 			for (int i = 0; i < TEST_ITERATIONS; i++) {
-				auto [time, dist] = sequential_bfs_multififo(graph);
-				std::cout << "Sequential multififo time: " << time << "; Dist: " << dist + 1 << std::endl;
+				auto joined = std::async(&thread_pool::do_work, &pool, [&](int i, std::barrier<>& a) {
+					a.arrive_and_wait();
+					auto [time, dist] = sequential_bfs_multififo(graph);
+					std::cout << "Sequential multififo time: " << time << "; Dist: " << dist + 1 << std::endl;
+				}, 1, false);
+				// We signal, then start taking the time because some threads might not have arrived at the signal.
+				pool.signal_and_wait();
+				joined.wait();
 			}
 
 			std::vector<std::unique_ptr<benchmark_provider<benchmark_bfs>>> instances;
