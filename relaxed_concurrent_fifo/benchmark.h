@@ -315,7 +315,7 @@ struct benchmark_bfs : benchmark_timed<> {
 	template <typename FIFO>
 	void per_thread(int thread_index, typename FIFO::handle& handlef, std::barrier<>& a) {
 		(void)handlef;
-		multififo::MultiFifo<uint64_t> nodes_(1, make_po2(graph.num_nodes()), 2, 2);
+		multififo::MultiFifo<uint64_t> nodes_(1, make_po2(graph->num_nodes()), 2, 2);
 		auto handle = nodes_.get_handle();
 		if (thread_index == 0) {
 			// We can't push 0 to the queues!
