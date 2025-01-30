@@ -27,7 +27,7 @@ static constexpr size_t make_po2(size_t size) {
 }
 
 static std::pair<uint64_t, uint32_t> sequential_bfs(const Graph& graph) {
-	multififo::RingBuffer<uint32_t> nodes(make_po2(graph.num_nodes()));
+	multififo::RingBuffer<uint64_t> nodes(make_po2(graph.num_nodes()));
 	std::vector<uint32_t> distances(graph.num_nodes(), std::numeric_limits<uint32_t>::max());
 	distances[0] = 0;
 
@@ -51,7 +51,7 @@ static std::pair<uint64_t, uint32_t> sequential_bfs(const Graph& graph) {
 }
 
 static std::pair<uint64_t, uint32_t> sequential_bfs_padded(const Graph& graph) {
-	multififo::RingBuffer<uint32_t> nodes(make_po2(graph.num_nodes()));
+	multififo::RingBuffer<uint64_t> nodes(make_po2(graph.num_nodes()));
 	std::vector<benchmark_bfs::AtomicDistance> distances(graph.num_nodes());
 	distances[0].value = 0;
 
@@ -85,7 +85,7 @@ static std::pair<uint64_t, uint32_t> sequential_bfs_padded(const Graph& graph) {
 }
 
 static std::pair<uint64_t, uint32_t> sequential_bfs_multififo(const Graph& graph) {
-	multififo::MultiFifo<uint32_t> nodes_(1, make_po2(graph.num_nodes()), 2, 2);
+	multififo::MultiFifo<uint64_t> nodes_(1, make_po2(graph.num_nodes()), 2, 2);
 	auto nodes = nodes_.get_handle();
 	std::vector<benchmark_bfs::AtomicDistance> distances(graph.num_nodes());
 	distances[0].value = 0;
