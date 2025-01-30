@@ -309,20 +309,21 @@ struct benchmark_bfs : benchmark_timed<> {
 		if (thread_index == 0) {
 			// We can't push 0 to the queues!
 			distances[0].value = 1;
-			handle.push(1ull << 32);
+			std::cout << "HALLO OTHER" << graph->nodes[0] << std::endl;
+			handle.push(0);
 		}
 		a.arrive_and_wait();
 		auto now = std::chrono::steady_clock::now().time_since_epoch().count();
 		std::optional<uint64_t> node;
 		while ((node = handle.pop()).has_value()) {
 			uint64_t node_val = node.value();
-			uint64_t node_id = node_val & 0xffff'ffff;
+			uint64_t node_id = node_val;
 			auto d = distances[node_id].value.load(std::memory_order_relaxed) + 1;
 			for (auto i = graph->nodes[node_id]; i < graph->nodes[node_id + 1]; ++i) {
 				auto target = graph->edges[i].target;
 				if (distances[target].value.load(std::memory_order_relaxed) == std::numeric_limits<uint32_t>::max()) {
 					distances[target].value.store(d, std::memory_order_relaxed);
-					handle.push((static_cast<std::uint64_t>(d) << 32) | target);
+					handle.push(target);
 				}
 			}
 		}
