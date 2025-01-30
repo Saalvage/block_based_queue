@@ -304,6 +304,14 @@ struct benchmark_bfs : benchmark_timed<> {
 			distances(graph->num_nodes()),
 			termination_detection(info.num_threads) { }
 
+	static constexpr size_t make_po2(size_t size) {
+		size_t ret = 1;
+		while (size > ret) {
+			ret *= 2;
+		}
+		return ret;
+	}
+
 	template <typename FIFO>
 	void per_thread(int thread_index, typename FIFO::handle& handlef, std::barrier<>& a) {
 		(void)handlef;
