@@ -14,9 +14,12 @@
 #include <iostream>
 #include <execution>
 
+#ifdef _POSIX_VERSION
+#include <pthread.h>
+#endif // _POSIX_VERSION
+
 #include "replay_tree.hpp"
 
-#include "thread_pool.h"
 #include "block_based_queue.h"
 #include "contenders/multififo/multififo.hpp"
 #include "contenders/scal/scal_wrapper.h"
@@ -389,55 +392,59 @@ template <typename BENCHMARK>
 class benchmark_provider {
 public:
 	virtual ~benchmark_provider() = default;
-	virtual BENCHMARK test(thread_pool& pool, const benchmark_info& info, double prefill_amount) const = 0;
+	virtual BENCHMARK test(const benchmark_info& info, double prefill_amount) const = 0;
 	virtual const std::string& get_name() const = 0;
 
 protected:
 	template <fifo FIFO>
-	static BENCHMARK test_single(thread_pool& pool, FIFO& fifo, const benchmark_info& info, double prefill_amount) {
+	static BENCHMARK test_single(FIFO& fifo, const benchmark_info& info, double prefill_amount) {
 		std::vector<typename FIFO::handle> handles;
 		handles.reserve(info.num_threads);
-		std::atomic_size_t s = 0;
-		std::condition_variable cv;
-		std::mutex m;
-		// We prefill with all threads since this may improve performance for certain implementations.
-		pool.do_work([&](std::size_t idx, std::barrier<>& a) {
-			// We want to execute these in order so that the indices in the array are correct
-			// while still having been initialized by the correct thread.
-			// We cannot rely on the default constructability of handles.
-			std::unique_lock lock{m};
-			cv.wait(lock, [&] { return s == idx; });
+		for (int i = 0; i < info.num_threads; i++) {
 			handles.push_back(fifo.get_handle());
-			++s;
-			lock.unlock();
-			cv.notify_all();
-			a.arrive_and_wait();
-			// If PREFILL_IN_ORDER is set we sequentially fill the queue from a single thread.
-			if (BENCHMARK::PREFILL_IN_ORDER && idx != 0) {
-				return;
+		}
+		// We prefill from all handles since this may improve performance for certain implementations.
+		// TODO: Is there the possibility of the performance improvement coming from actually being filled concurrently?
+		for (std::size_t i = 0; i < prefill_amount * BENCHMARK::SIZE; i++) {
+			// If PREFILL_IN_ORDER is set we sequentially fill the queue from a single handle.
+			if (!handles[BENCHMARK::PREFILL_IN_ORDER ? 0 : (i % info.num_threads)].push(i + 1)) {
+				break;
 			}
-			for (std::size_t i = 0; i < prefill_amount * BENCHMARK::SIZE / (BENCHMARK::PREFILL_IN_ORDER ? 1 : info.num_threads); i++) {
-				if (!handles[idx].push(i + 1)) {
-					break;
-				}
-			}
-		}, info.num_threads, true);
+		}
 
+		std::barrier a{info.num_threads + 1};
 		std::atomic_bool over = false;
+		std::vector<std::jthread> threads(info.num_threads);
 		BENCHMARK b{info};
 
-		auto joined = std::async(&thread_pool::do_work, &pool, [&](int i, std::barrier<>& a) {
-			// Make sure handle is on the stack.
-			typename FIFO::handle handle = std::move(handles[i]);
-			if constexpr (BENCHMARK::HAS_TIMEOUT) {
-				b.template per_thread<FIFO>(i, handle, a, over);
-			} else {
-				b.template per_thread<FIFO>(i, handle, a);
-			}
-		}, info.num_threads, false);
+		for (int i = 0; i < info.num_threads; i++) {
+			threads[i] = std::jthread([&, i]() {
+#ifdef _POSIX_VERSION
+				cpu_set_t cpu_set;
+				CPU_ZERO(&cpu_set);
+				CPU_SET(i, &cpu_set);
+				if (pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpu_set)) {
+					throw std::runtime_error("Failed to set thread affinity!");
+				}
+#endif // _POSIX_VERSION
+				// Make sure handle is on the thread's stack.
+				typename FIFO::handle handle = std::move(handles[i]);
+				if constexpr (BENCHMARK::HAS_TIMEOUT) {
+					b.template per_thread<FIFO>(i, handle, a, over);
+				} else {
+					b.template per_thread<FIFO>(i, handle, a);
+				}
+			});
+		}
+
 		// We signal, then start taking the time because some threads might not have arrived at the signal.
-		pool.signal_and_wait();
+		a.arrive_and_wait();
 		auto start = std::chrono::steady_clock::now();
+		auto joined = std::async([&]() {
+			for (auto& thread : threads) {
+				thread.join();
+			}
+		});
 		if constexpr (BENCHMARK::HAS_TIMEOUT) {
 			std::this_thread::sleep_until(start + std::chrono::seconds(info.test_time_seconds));
 			over = true;
@@ -466,9 +473,9 @@ public:
 		return name;
 	}
 
-	BENCHMARK test(thread_pool& pool, const benchmark_info& info, double prefill_amount) const override {
+	BENCHMARK test(const benchmark_info& info, double prefill_amount) const override {
 		FIFO fifo = std::apply([&](Args... args) { return FIFO{ info.num_threads, BENCHMARK::SIZE, args... }; }, args);
-		return benchmark_provider<BENCHMARK>::template test_single<FIFO>(pool, fifo, info, prefill_amount);
+		return benchmark_provider<BENCHMARK>::template test_single<FIFO>(fifo, info, prefill_amount);
 	}
 
 private:
@@ -494,17 +501,17 @@ class benchmark_provider_relaxed : public benchmark_provider<BENCHMARK> {
 			return name;
 		}
 
-		BENCHMARK test(thread_pool& pool, const benchmark_info& info, double prefill_amount) const override {
+		BENCHMARK test(const benchmark_info& info, double prefill_amount) const override {
 			switch (info.num_threads) {
-			case 1: return test_helper<block_based_queue<std::size_t, 1 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(pool, info, prefill_amount);
-			case 2: return test_helper<block_based_queue<std::size_t, 2 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(pool, info, prefill_amount);
-			case 4: return test_helper<block_based_queue<std::size_t, 4 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(pool, info, prefill_amount);
-			case 8: return test_helper<block_based_queue<std::size_t, 8 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(pool, info, prefill_amount);
-			case 16: return test_helper<block_based_queue<std::size_t, 16 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(pool, info, prefill_amount);
-			case 32: return test_helper<block_based_queue<std::size_t, 32 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(pool, info, prefill_amount);
-			case 64: return test_helper<block_based_queue<std::size_t, 64 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(pool, info, prefill_amount);
-			case 128: return test_helper<block_based_queue<std::size_t, 128 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(pool, info, prefill_amount);
-			case 256: return test_helper<block_based_queue<std::size_t, 256 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(pool, info, prefill_amount);
+			case 1: return test_helper<block_based_queue<std::size_t, 1 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(info, prefill_amount);
+			case 2: return test_helper<block_based_queue<std::size_t, 2 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(info, prefill_amount);
+			case 4: return test_helper<block_based_queue<std::size_t, 4 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(info, prefill_amount);
+			case 8: return test_helper<block_based_queue<std::size_t, 8 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(info, prefill_amount);
+			case 16: return test_helper<block_based_queue<std::size_t, 16 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(info, prefill_amount);
+			case 32: return test_helper<block_based_queue<std::size_t, 32 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(info, prefill_amount);
+			case 64: return test_helper<block_based_queue<std::size_t, 64 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(info, prefill_amount);
+			case 128: return test_helper<block_based_queue<std::size_t, 128 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(info, prefill_amount);
+			case 256: return test_helper<block_based_queue<std::size_t, 256 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(info, prefill_amount);
 			default: throw std::runtime_error("Unsupported thread count!");
 			}
 		}
@@ -513,9 +520,9 @@ class benchmark_provider_relaxed : public benchmark_provider<BENCHMARK> {
 		std::string name;
 
 		template <typename FIFO>
-		static BENCHMARK test_helper(thread_pool& pool, const benchmark_info& info, double prefill_amount) {
+		static BENCHMARK test_helper(const benchmark_info& info, double prefill_amount) {
 			FIFO fifo{ info.num_threads, BENCHMARK::SIZE };
-			return benchmark_provider<BENCHMARK>::template test_single(pool, fifo, info, prefill_amount);
+			return benchmark_provider<BENCHMARK>::template test_single(fifo, info, prefill_amount);
 		}
 };
 

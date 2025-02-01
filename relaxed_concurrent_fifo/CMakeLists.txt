@@ -3,8 +3,7 @@
 #
 
 set(sources
-  main.cpp
-  thread_pool.cpp)
+  main.cpp)
 
 # Add source to this project's executable.
 add_executable (relaxed_concurrent_fifo ${sources})
