@@ -67,6 +67,7 @@ private:
 	static_assert(sizeof(block_t) == CELLS_PER_BLOCK * sizeof(T) + sizeof(header_t));
 
 	struct window_t {
+		alignas(std::hardware_destructive_interference_size) atomic_bitset<BLOCKS_PER_WINDOW, BITSET_TYPE> touched_set;
 		alignas(std::hardware_destructive_interference_size) atomic_bitset<BLOCKS_PER_WINDOW, BITSET_TYPE> filled_set;
 		alignas(std::hardware_destructive_interference_size) block_t blocks[BLOCKS_PER_WINDOW];
 	};
@@ -140,6 +141,7 @@ public:
 				window_index = fifo.write_window.load(std::memory_order_relaxed);
 				window = &fifo.get_window(window_index);
 				free_bit = window->filled_set.template claim_bit<false, true>(std::memory_order_relaxed);
+				// The touched set can be missed, which might trigger a reader to attempt to move, but the filled set will prevent the move from occuring.
 				if (free_bit == std::numeric_limits<std::size_t>::max()) {
 					// No more free bits, we move.
 					if (window_index + 1 - fifo.read_window.load(std::memory_order_relaxed) == fifo.window_count) {
@@ -150,6 +152,7 @@ public:
 					std::cout << "Write move " << (window_index + 1) << std::endl;
 #endif // LOG_WINDOW_MOVE
 				} else {
+					window->touched_set.set(free_bit, std::memory_order_relaxed);
 					break;
 				}
 			} while (true);
@@ -163,12 +166,36 @@ public:
 			std::size_t free_bit;
 			std::uint64_t window_index;
 			window_t* window;
+			bool dont_advance = false;
 			do {
+				bool is_ahead = false;
 				window_index = fifo.read_window.load(std::memory_order_relaxed);
+				if (!dont_advance && window_index + 1 == read_window) {
+					is_ahead = true;
+					window_index = read_window;
+				}
 				window = &fifo.get_window(window_index);
-				free_bit = window->filled_set.template claim_bit<true, false>(std::memory_order_relaxed);
+				free_bit = window->touched_set.template claim_bit<true, true>(std::memory_order_relaxed);
 				if (free_bit == std::numeric_limits<std::size_t>::max()) {
+					if (is_ahead) {
+						dont_advance = true;
+						continue;
+					}
+
 					std::uint64_t write_window = fifo.write_window.load(std::memory_order_relaxed);
+
+					// Don't go ahead if write_window is just ahead of us (so we don't have to force move).
+					if (!dont_advance && window_index + 1 != write_window) {
+						read_window = window_index + 1;
+						// A few redundant ops, fine for now.
+						continue;
+					}
+
+					free_bit = window->filled_set.template claim_bit<true, false>();
+					if (free_bit != std::numeric_limits<std::size_t>::max()) {
+						break;
+					}
+
 					if (write_window == window_index + 1) {
 						if (!fifo.get_window(write_window).filled_set.any(std::memory_order_relaxed)) {
 							return false;
@@ -221,6 +248,7 @@ public:
 					// We're abandoning an empty block!
 					window_t& window = fifo.get_window(write_window);
 					auto diff = write_block - window.blocks;
+					window.touched_set.reset(diff, std::memory_order_relaxed);
 					window.filled_set.reset(diff, std::memory_order_relaxed);
 				}
 				if (!claim_new_block_write()) {
