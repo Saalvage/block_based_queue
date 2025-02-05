@@ -3,103 +3,74 @@
 
 #include <atomic>
 
+template <size_t SIZE>
 struct atomic_binary_tree {
-	std::atomic<std::uint8_t> data = 0;
+	struct alignas(std::hardware_destructive_interference_size) tree_fragment {
+		std::atomic<std::uint8_t> data = 0;
+	};
+
+	static constexpr size_t FRAGMENT_COUNT = SIZE / 4 + SIZE / 4 / 4;
+	static constexpr size_t LEAF_COUNT = (FRAGMENT_COUNT + 1) / 2;
+	static constexpr size_t LEAF_START = LEAF_COUNT - 1;
+
+	tree_fragment fragments[FRAGMENT_COUNT];
 
 	int claim_bit() {
 		static thread_local std::random_device dev;
 		static thread_local std::minstd_rand rng{ dev() };
-		static thread_local std::uniform_int_distribution dist{ 0, static_cast<int>(3) };
+		static thread_local std::uniform_int_distribution dist_outer{ 0, static_cast<int>(LEAF_COUNT - 1) };
+		static thread_local std::uniform_int_distribution dist_inner{ 0, 3 };
 
-		std::uint8_t loaded = data.load(std::memory_order_relaxed);
-		while (true) {
-			int initial = 3 + dist(rng);
-			int prev = initial;
-			while ((loaded & (1 << initial)) && initial > 0) {
-				prev = initial;
-				initial = parent(initial);
+		// Select random starting leaf.
+		int idx = LEAF_START + dist_outer(rng);
+		int inner_idx = 3 + dist_inner(rng);
+
+		// Ascend to find highest 0 node.
+		bool succ = false;
+		while (!succ && idx > 0) {
+			auto loaded = fragments[idx].data.load();
+			while (loaded & (1 << inner_idx) && inner_idx > 0) {
+				inner_idx = parent(inner_idx);
 			}
-
-			if (initial < 0) {
-				return -1;
-			}
-
-			int mask = 0;
-			bool all_set = true;
-			if (prev != initial) {
-				prev = sibling(prev);
-				// Go down
-				while (prev < 3) {
-					mask |= 1 << prev;
-					if (!(loaded & (1 << left_child(prev)))) {
-						if (!(loaded & (1 << right_child(prev)))) {
-							all_set = false;
-							mask = 0;
-						}
-						// TODO: By default, always left child.
-						prev = left_child(prev);
-					} else {
-						prev = right_child(prev);
-					}
-				}
-			}
-
-			if ((loaded & (1 << prev))) {
-				return -1;
-			}
-
-			mask |= 1 << prev;
-
-			if (all_set) {
-				mask |= 1 << initial;
-				auto p = initial;
-				while ((loaded & (1 << sibling(p)))) {
-					p = parent(p);
-					mask |= 1 << p;
-				}
-			}
-
-			if (data.compare_exchange_strong(loaded, loaded | mask, std::memory_order_relaxed)) {
-				return prev - 3;
-			}
-		}
-	}
-
-	bool check_invariants() {
-		for (int i = 1; i < 7; i++) {
-			if ((data & (1 << i))) {
-				if (data & (1 << sibling(i))) {
-					if (!(data & (1 << parent(i)))) {
-						return false;
-					}
-				} else {
-					if (data & (1 << parent(i))) {
-						return false;
-					}
-				}
+			if (!(loaded & (1 << inner_idx))) {
+				succ = true;
 			} else {
-				if (data & (1 << parent(i))) {
-					return false;
-				}
+				// Position in parent.
+				// We could immediately take the parent, because we know that the entire child fragment is filled.
+				inner_idx = 3 + (idx - 1) % 4;
+				idx = parent<4>(idx);
 			}
 		}
-		return true;
+
+		auto remember_idx = idx;
+		auto remember_inner_idx = inner_idx;
+
+		// Descend to find bit.
+
+		// Ascend further to fulfill invariants.
+
+		return 0;
 	}
 
 private:
-	int parent(int index) {
+	static int parent(int index) {
 		return (index - 1) / 2;
 	}
 
-	int left_child(int index) {
+	template <size_t N>
+	static int parent(int index) {
+		return (index - 1) / N;
+	}
+
+	static int left_child(int index) {
 		return 2 * index + 1;
 	}
 
-	int right_child(int index) {
+	static int right_child(int index) {
 		return 2 * index + 2;
 	}
 
-	int sibling(int index) {
+	static int sibling(int index) {
 		return index % 2 == 0 ? index - 1 : index + 1;
 	}
 };
