@@ -3,6 +3,7 @@
 #include "lock_fifo.h"
 #include "block_based_queue.h"
 #include "concurrent_fifo.h"
+#include "cylinder_fifo.hpp"
 
 #include "contenders/LCRQ/wrapper.h"
 #include "contenders/LCRQ/MichaelScottQueue.hpp"
@@ -311,6 +312,7 @@ void add_all_parameter_tuning(std::vector<std::unique_ptr<benchmark_provider<BEN
 
 template <typename BENCHMARK>
 void add_all_benchmarking(std::vector<std::unique_ptr<benchmark_provider<BENCHMARK>>>& instances) {
+	instances.push_back(std::make_unique<benchmark_provider_cylinder<BENCHMARK>>("cfifo-8-256", 8, 256));
 	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 1, 7>>("bbq-1-7"));
 	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 2, 63>>("bbq-2-63"));
 	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 4, 127>>("bbq-4-127"));

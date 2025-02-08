@@ -21,6 +21,7 @@
 #include "replay_tree.hpp"
 
 #include "block_based_queue.h"
+#include "cylinder_fifo.hpp"
 #include "contenders/multififo/multififo.hpp"
 #include "contenders/scal/scal_wrapper.h"
 
@@ -491,6 +492,9 @@ using benchmark_provider_ss_kfifo = benchmark_provider_generic<ss_k_fifo<std::ui
 
 template <typename BENCHMARK>
 using benchmark_provider_multififo = benchmark_provider_generic<multififo::MultiFifo<std::uint64_t>, BENCHMARK, int, int>;
+
+template <typename BENCHMARK>
+using benchmark_provider_cylinder = benchmark_provider_generic<cylinder_fifo<std::uint64_t>, BENCHMARK, std::uint8_t, std::uint8_t>;
 
 template <typename BENCHMARK, std::size_t BLOCK_MULTIPLIER, std::size_t CELLS_PER_BLOCK, typename BITSET_TYPE = uint8_t>
 class benchmark_provider_relaxed : public benchmark_provider<BENCHMARK> {
