@@ -16,7 +16,6 @@
 #include <unordered_set>
 #include <iostream>
 
-#ifdef __GNUC__
 static constexpr std::size_t make_po2(std::size_t size) {
 	std::size_t ret = 1;
 	while (size > ret) {
@@ -30,7 +29,7 @@ static std::pair<std::uint64_t, std::uint32_t> sequential_bfs(const Graph& graph
 	std::vector<std::uint32_t> distances(graph.num_nodes(), std::numeric_limits<std::uint32_t>::max());
 	distances[0] = 0;
 
-	nodes.push(graph.nodes[0]);
+	nodes.push(static_cast<std::uint32_t>(graph.nodes[0]));
 
 	auto now = std::chrono::steady_clock::now().time_since_epoch().count();
 	while (!nodes.empty()) {
@@ -41,14 +40,13 @@ static std::pair<std::uint64_t, std::uint32_t> sequential_bfs(const Graph& graph
 			auto node_id = graph.edges[i].target;
 			if (distances[node_id] == std::numeric_limits<std::uint32_t>::max()) {
 				distances[node_id] = d;
-				nodes.push(node_id);
+				nodes.push(static_cast<std::uint32_t>(node_id));
 			}
 		}
 	}
 	auto end = std::chrono::steady_clock::now().time_since_epoch().count();
 	return std::pair(end - now, *std::max_element(distances.begin(), distances.end()));
 }
-#endif // __GNUC__
 
 /*static constexpr int COUNT = 512;
 
@@ -354,9 +352,7 @@ int main() {
 		"[7] Strong Scaling\n"
 		"[8] Bitset Size Comparison\n"
 		"[9] Producer-Consumer\n"
-#ifdef __GNUC__
 		"[10] BFS\n"
-#endif // __GNUC__
 		"Input: ";
 	std::cin >> input;
 
@@ -447,10 +443,7 @@ int main() {
 				{ processor_counts.back() }, TEST_ITERATIONS, TEST_TIME_SECONDS, producers, consumers);
 		}
 	} break;
-
-
-#ifdef __GNUC__
-		case 10: {
+	case 10: {
 			std::filesystem::path graph_file;
 			std::cout << "Please enter your graph file: ";
 			std::cin >> graph_file;
@@ -465,7 +458,6 @@ int main() {
 			add_all_benchmarking(instances);
 			run_benchmark<benchmark_bfs, benchmark_info_graph, Graph*>(std::format("bfs-{}", graph_file.filename().string()), instances, 0, processor_counts, TEST_ITERATIONS, 0, &graph);
 	} break;
-#endif // __GNUC__
 	}
 
 	return 0;
