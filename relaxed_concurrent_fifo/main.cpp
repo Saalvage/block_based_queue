@@ -326,7 +326,17 @@ void add_all_benchmarking(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 #endif // __GNUC__
 }
 
-int main() {
+template <typename BENCHMARK>
+void filter_benchmarks(std::vector<std::unique_ptr<benchmark_provider<BENCHMARK>>>& instances, std::unordered_set<std::string>& set, bool exclude) {
+	for (auto i = 0; i < instances.size(); i++) {
+		if (set.contains(instances[i]->get_name()) == exclude) {
+			instances.erase(instances.begin() + i);
+			i--;
+		}
+	}
+}
+
+int main(int argc, char** argv) {
 #ifndef NDEBUG
 	std::cout << "Running in debug mode!" << std::endl;
 #endif // NDEBUG
@@ -338,60 +348,125 @@ int main() {
 		processor_counts.emplace_back(i);
 	}
 
-	constexpr int TEST_ITERATIONS = 5;
-	constexpr int TEST_TIME_SECONDS = 5;
+	constexpr int TEST_ITERATIONS_DEFAULT = 2;
+	constexpr int TEST_TIME_SECONDS_DEFAULT = 5;
 
 	int input;
-	std::cout << "Which experiment to run?\n"
-		"[1] FIFO Comparison\n"
-		"[2] Parameter Tuning\n"
-		"[3] Quality\n"
-		"[4] Quality distribution\n"
-		"[5] Fill\n"
-		"[6] Empty\n"
-		"[7] Strong Scaling\n"
-		"[8] Bitset Size Comparison\n"
-		"[9] Producer-Consumer\n"
-		"[10] BFS\n"
-		"Input: ";
-	std::cin >> input;
+	if (argc > 1) {
+		if (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0) {
+			std::cout << "Usage: " << argv[0] << " <experiment_no> <graph_file>? [-h | --help] "
+				"[-t | --thread_count <count>] "
+				"[-s | --test_time_seconds <count> (default " << TEST_TIME_SECONDS_DEFAULT << ")] "
+				"[-r | --run_count <count> (default " << TEST_ITERATIONS_DEFAULT << ")]"
+				" ([-i | --include <fifo>]* | [-e | --exclude <fifo>]*)\n";
+			return 0;
+		}
+
+		input = std::strtol(argv[1], nullptr, 10);
+	} else {
+		std::cout << "Which experiment to run ? \n"
+			"[1] FIFO Comparison\n"
+			"[2] Parameter Tuning\n"
+			"[3] Quality\n"
+			"[4] Quality distribution\n"
+			"[5] Fill\n"
+			"[6] Empty\n"
+			"[7] Strong Scaling\n"
+			"[8] Bitset Size Comparison\n"
+			"[9] Producer-Consumer\n"
+			"[10] BFS\n"
+			"Input: ";
+		std::cin >> input;
+	}
+
+	auto test_its = TEST_ITERATIONS_DEFAULT;
+	auto test_time_secs = TEST_TIME_SECONDS_DEFAULT;
+
+	std::unordered_set<std::string> fifo_set;
+	bool is_exclude = true;
+
+	for (int i = input == 10 ? 3 : 2; i < argc; i++) {
+		if (strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--thread_count") == 0) {
+			i++;
+			char* arg = argv[i];
+			--arg;
+			processor_counts.clear();
+			do {
+				++arg;
+				processor_counts.push_back(std::strtol(arg, &arg, 10));
+			} while (*arg == ',');
+		} else if (strcmp(argv[i], "--iterations") == 0) {
+			i++;
+			test_its = std::strtol(argv[i], nullptr, 10);
+		} else if (strcmp(argv[i], "-s") == 0 || strcmp(argv[i], "--thread_count_seconds") == 0) {
+			i++;
+			test_time_secs = std::strtol(argv[i], nullptr, 10);
+		} else if (strcmp(argv[i], "-i") == 0 || strcmp(argv[i], "--include") == 0) {
+			i++;
+			if (is_exclude) {
+				if (!fifo_set.empty()) {
+					std::cerr << "Cannot specify -i and -e at the same time!" << std::endl;
+					return 1;
+				}
+				is_exclude = false;
+			}
+			fifo_set.emplace(argv[i]);
+		} else if (strcmp(argv[i], "-e") == 0 || strcmp(argv[i], "--exclude") == 0) {
+			i++;
+			if (!is_exclude) {
+				std::cerr << "Cannot specify -i and -e at the same time!" << std::endl;
+				return 1;
+			}
+			fifo_set.emplace(argv[i]);
+		} else {
+			std::cerr << std::format("Unknown argument \"{}\"!", argv[i]) << std::endl;
+			return 1;
+		}
+	}
 
 	switch (input) {
 	case 1: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_default>>> instances;
 		add_all_benchmarking(instances);
-		run_benchmark("comp", instances, 0.5, processor_counts, TEST_ITERATIONS, TEST_TIME_SECONDS);
+		filter_benchmarks(instances, fifo_set, is_exclude);
+		run_benchmark("comp", instances, 0.5, processor_counts, test_its, test_time_secs);
 		} break;
 	case 2: {
 		std::cout << "Benchmarking performance" << std::endl;
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_default>>> instances;
 		add_all_parameter_tuning(instances);
-		run_benchmark("pt-block", instances, 0.5, { processor_counts.back() }, TEST_ITERATIONS, TEST_TIME_SECONDS);
+		filter_benchmarks(instances, fifo_set, is_exclude);
+		run_benchmark("pt-block", instances, 0.5, { processor_counts.back() }, test_its, test_time_secs);
 
 		std::cout << "Benchmarking quality" << std::endl;
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_quality<>>>> instances_q;
 		add_all_parameter_tuning(instances_q);
-		run_benchmark("pt-quality", instances_q, 0.5, { processor_counts.back() }, TEST_ITERATIONS, 0);
+		filter_benchmarks(instances, fifo_set, is_exclude);
+		run_benchmark("pt-quality", instances_q, 0.5, { processor_counts.back() }, test_its, 0);
 		} break;
 	case 3: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_quality<>>>> instances;
 		add_all_benchmarking(instances);
-		run_benchmark("quality", instances, 0.5, processor_counts, TEST_ITERATIONS, TEST_TIME_SECONDS);
+		filter_benchmarks(instances, fifo_set, is_exclude);
+		run_benchmark("quality", instances, 0.5, processor_counts, test_its, test_time_secs);
 		} break;
 	case 4: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_quality<true>>>> instances;
 		add_all_benchmarking(instances);
-		run_benchmark("quality-max", instances, 0.5, { processor_counts.back()}, 1, TEST_TIME_SECONDS);
+		filter_benchmarks(instances, fifo_set, is_exclude);
+		run_benchmark("quality-max", instances, 0.5, { processor_counts.back()}, 1, test_time_secs);
 	} break;
 	case 5: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_fill>>> instances;
 		add_all_benchmarking(instances);
-		run_benchmark("fill", instances, 0, processor_counts, TEST_ITERATIONS, 10);
+		filter_benchmarks(instances, fifo_set, is_exclude);
+		run_benchmark("fill", instances, 0, processor_counts, test_its, 10);
 		} break;
 	case 6: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_empty>>> instances;
 		add_all_benchmarking(instances);
-		run_benchmark("empty", instances, 1, processor_counts, TEST_ITERATIONS, 10);
+		filter_benchmarks(instances, fifo_set, is_exclude);
+		run_benchmark("empty", instances, 1, processor_counts, test_its, 10);
 		} break;
 	case 7: {
 		static constexpr std::size_t THREADS = 128;
@@ -402,7 +477,7 @@ int main() {
 		instances.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<std::uint64_t, 2 * THREADS, 63>, benchmark_default>>("bbq-2-63"));
 		instances.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<std::uint64_t, 4 * THREADS, 127>, benchmark_default>>("bbq-4-127"));
 		instances.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<std::uint64_t, 8 * THREADS, 127>, benchmark_default>>("bbq-8-127"));
-		run_benchmark("ss-performance", instances, 0.5, processor_counts, TEST_ITERATIONS, TEST_TIME_SECONDS);
+		run_benchmark("ss-performance", instances, 0.5, processor_counts, test_its, test_time_secs);
 
 		std::cout << "Benchmarking quality" << std::endl;
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_quality<>>>> instances_q;
@@ -410,7 +485,7 @@ int main() {
 		instances_q.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<std::uint64_t, 2 * THREADS, 63>, benchmark_quality<>>>("bbq-2-63"));
 		instances_q.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<std::uint64_t, 4 * THREADS, 127>, benchmark_quality<>>>("bbq-4-127"));
 		instances_q.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<std::uint64_t, 8 * THREADS, 127>, benchmark_quality<>>>("bbq-8-127"));
-		run_benchmark("ss-quality", instances_q, 0.5, processor_counts, TEST_ITERATIONS, 0);
+		run_benchmark("ss-quality", instances_q, 0.5, processor_counts, test_its, 0);
 		} break;
 	case 8: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_default>>> instances;
@@ -430,33 +505,39 @@ int main() {
 		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 2, 63, std::uint64_t>>("64,bbq-2-63"));
 		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 4, 127, std::uint64_t>>("64,bbq-4-127"));
 		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 8, 127, std::uint64_t>>("64,bbq-8-127"));
-		run_benchmark("bitset-sizes", instances, 0.5, processor_counts, TEST_ITERATIONS, TEST_TIME_SECONDS);
+*/		run_benchmark("bitset-sizes", instances, 0.5, processor_counts, test_its, test_time_secs);
 		} break;
 	case 9: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_prodcon>>> instances;
 		add_all_benchmarking(instances);
+		filter_benchmarks(instances, fifo_set, is_exclude);
 		// TODO: This can be done nicer to account for different thread counts.
 		for (int producers = 8; producers < 128; producers += 8) {
 			auto consumers = 128 - producers;
 			run_benchmark<benchmark_prodcon, benchmark_info_prodcon, int, int>(
 				std::format("prodcon-{}-{}", producers, consumers), instances, 0.5,
-				{ processor_counts.back() }, TEST_ITERATIONS, TEST_TIME_SECONDS, producers, consumers);
+				{ processor_counts.back() }, test_its, test_time_secs, producers, consumers);
 		}
 	} break;
 	case 10: {
 			std::filesystem::path graph_file;
-			std::cout << "Please enter your graph file: ";
-			std::cin >> graph_file;
+			if (argc > 2) {
+				graph_file = argv[2];
+			} else {
+				std::cout << "Please enter your graph file: ";
+				std::cin >> graph_file;
+			}
 			Graph graph{ graph_file };
 
-			for (int i = 0; i < TEST_ITERATIONS; i++) {
+			for (int i = 0; i < test_its; i++) {
 				auto [time, dist] = sequential_bfs(graph);
 				std::cout << "Sequential time: " << time << "; Dist: " << dist + 1 << std::endl;
 			}
 
 			std::vector<std::unique_ptr<benchmark_provider<benchmark_bfs>>> instances;
 			add_all_benchmarking(instances);
-			run_benchmark<benchmark_bfs, benchmark_info_graph, Graph*>(std::format("bfs-{}", graph_file.filename().string()), instances, 0, processor_counts, TEST_ITERATIONS, 0, &graph);
+			filter_benchmarks(instances, fifo_set, is_exclude);
+			run_benchmark<benchmark_bfs, benchmark_info_graph, Graph*>(std::format("bfs-{}", graph_file.filename().string()), instances, 0, processor_counts, test_its, 0, &graph);
 	} break;
 	}
 
