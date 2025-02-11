@@ -328,7 +328,7 @@ void add_all_benchmarking(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 
 template <typename BENCHMARK>
 void filter_benchmarks(std::vector<std::unique_ptr<benchmark_provider<BENCHMARK>>>& instances, std::unordered_set<std::string>& set, bool exclude) {
-	for (auto i = 0; i < instances.size(); i++) {
+	for (std::size_t i = 0; i < instances.size(); i++) {
 		if (set.contains(instances[i]->get_name()) == exclude) {
 			instances.erase(instances.begin() + i);
 			i--;
@@ -505,7 +505,7 @@ int main(int argc, char** argv) {
 		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 2, 63, std::uint64_t>>("64,bbq-2-63"));
 		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 4, 127, std::uint64_t>>("64,bbq-4-127"));
 		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 8, 127, std::uint64_t>>("64,bbq-8-127"));
-*/		run_benchmark("bitset-sizes", instances, 0.5, processor_counts, test_its, test_time_secs);
+		run_benchmark("bitset-sizes", instances, 0.5, processor_counts, test_its, test_time_secs);
 		} break;
 	case 9: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_prodcon>>> instances;
