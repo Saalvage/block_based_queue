@@ -11,7 +11,7 @@
 #if !defined(INCLUDE_BBQ) \
 	&& !defined(INCLUDE_MULTIFIFO) \
 	&& !defined(INCLUDE_LCRQ) \
-	&& !defined(INCLUDE_CYLINDER) \
+	&& !defined(INCLUDE_CFIFO) \
 	&& !defined(INCLUDE_KFIFO)
 #define INCLUDE_ALL
 #endif
