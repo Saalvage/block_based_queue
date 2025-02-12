@@ -9,7 +9,6 @@ namespace multififo {
 template <typename Context>
 class Handle : public multififo::mode::StickRandom<2> {
     using mode_type = multififo::mode::StickRandom<2>;
-    using clock_type = typename Context::clock_type;
     Context *context_;
     using value_type = typename Context::value_type;
 
@@ -22,7 +21,7 @@ class Handle : public multififo::mode::StickRandom<2> {
                 it->unlock();
                 continue;
             }
-            auto tick = static_cast<std::uint64_t>(clock_type::now().time_since_epoch().count());
+            auto tick = __rdtsc();
             it->get_queue().push({tick, v});
             it->pushed();
             it->unlock();
