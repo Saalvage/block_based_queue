@@ -395,7 +395,7 @@ int main(int argc, char** argv) {
 				++arg;
 				processor_counts.push_back(std::strtol(arg, &arg, 10));
 			} while (*arg == ',');
-		} else if (strcmp(argv[i], "--iterations") == 0) {
+		} else if (strcmp(argv[i], "-r") == 0 || strcmp(argv[i], "--run_count") == 0) {
 			i++;
 			test_its = std::strtol(argv[i], nullptr, 10);
 		} else if (strcmp(argv[i], "-s") == 0 || strcmp(argv[i], "--thread_count_seconds") == 0) {
