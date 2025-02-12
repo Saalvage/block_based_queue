@@ -1,4 +1,5 @@
 ﻿#include "benchmark.h"
+#include "config.hpp"
 
 #include "lock_fifo.h"
 #include "block_based_queue.h"
@@ -221,120 +222,8 @@ void run_benchmark(const std::string& test_name, const std::vector<std::unique_p
 	}
 }
 
-template <typename BENCHMARK>
-void add_all_parameter_tuning(std::vector<std::unique_ptr<benchmark_provider<BENCHMARK>>>& instances) {
-	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 1, 1>>("1,1,bbq"));
-	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 1, 3>>("1,3,bbq"));
-	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 1, 7>>("1,7,bbq"));
-	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 1, 15>>("1,15,bbq"));
-	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 1, 31>>("1,31,bbq"));
-	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 1, 63>>("1,63,bbq"));
-	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 1, 127>>("1,127,bbq"));
-	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 2, 7>>("2,7,bbq"));
-	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 2, 15>>("2,15,bbq"));
-	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 2, 31>>("2,31,bbq"));
-	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 2, 63>>("2,63,bbq"));
-	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 2, 127>>("2,127,bbq"));
-	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 4, 7>>("4,7,bbq"));
-	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 4, 15>>("4,15,bbq"));
-	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 4, 31>>("4,31,bbq"));
-	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 4, 63>>("4,63,bbq"));
-	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 4, 127>>("4,127,bbq"));
-	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 8, 7>>("8,7,bbq"));
-	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 8, 15>>("8,15,bbq"));
-	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 8, 31>>("8,31,bbq"));
-	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 8, 63>>("8,63,bbq"));
-	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 8, 127>>("8,127,bbq"));
-	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 16, 7>>("16,7,bbq"));
-	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 16, 15>>("16,15,bbq"));
-	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 16, 31>>("16,31,bbq"));
-	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 16, 63>>("16,63,bbq"));
-	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 16, 127>>("16,127,bbq"));
-#ifdef __GNUC__
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("2,1,multififo", 2, 1));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("2,2,multififo", 2, 2));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("2,4,multififo", 2, 4));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("2,8,multififo", 2, 8));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("2,16,multififo", 2, 16));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("2,32,multififo", 2, 32));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("2,64,multififo", 2, 64));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("2,128,multififo", 2, 128));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("2,256,multififo", 2, 256));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("2,512,multififo", 2, 512));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("2,1024,multififo", 2, 1024));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("2,2048,multififo", 2, 2048));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("2,4096,multififo", 2, 4096));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4,1,multififo", 4, 1));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4,2,multififo", 4, 2));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4,4,multififo", 4, 4));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4,8,multififo", 4, 8));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4,16,multififo", 4, 16));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4,32,multififo", 4, 32));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4,64,multififo", 4, 64));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4,128,multififo", 4, 128));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4,256,multififo", 4, 256));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4,512,multififo", 4, 512));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4,1024,multififo", 4, 1024));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4,2048,multififo", 4, 2048));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4,4096,multififo", 4, 4096));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("8,1,multififo", 8, 1));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("8,2,multififo", 8, 2));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("8,4,multififo", 8, 4));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("8,8,multififo", 8, 8));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("8,16,multififo", 8, 16));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("8,32,multififo", 8, 32));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("8,64,multififo", 8, 64));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("8,128,multififo", 8, 128));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("8,256,multififo", 8, 256));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("8,512,multififo", 8, 512));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("8,1024,multififo", 8, 1024));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("8,2048,multififo", 8, 2048));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("8,4096,multififo", 8, 4096));
-	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("1,kfifo", 1));
-	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("2,kfifo", 2));
-	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("4,kfifo", 4));
-	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("8,kfifo", 8));
-	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("16,kfifo", 16));
-	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("32,kfifo", 32));
-	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("64,kfifo", 64));
-	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("128,kfifo", 128));
-	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("256,kfifo", 256));
-	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("512,kfifo", 512));
-	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("1024,kfifo", 1024));
-	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("2048,kfifo", 2048));
-	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("4096,kfifo", 4096));
-	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("8192,kfifo", 8192));
-	instances.push_back(std::make_unique<benchmark_provider_generic<adapter<std::uint64_t, LCRQWrapped>, BENCHMARK>>("lcrq"));
-#endif // __GNUC__
-}
-
-template <typename BENCHMARK>
-void add_all_benchmarking(std::vector<std::unique_ptr<benchmark_provider<BENCHMARK>>>& instances) {
-	instances.push_back(std::make_unique<benchmark_provider_cylinder<BENCHMARK>>("cfifo-8-256", 8, 256));
-	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 1, 7>>("bbq-1-7"));
-	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 2, 63>>("bbq-2-63"));
-	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 4, 127>>("bbq-4-127"));
-	instances.push_back(std::make_unique<benchmark_provider_relaxed<BENCHMARK, 8, 127>>("bbq-8-127"));
-#ifdef __GNUC__
-	instances.push_back(std::make_unique<benchmark_provider_ws_kfifo<BENCHMARK>>("ws-1-kfifo", 1));
-	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("ss-512-kfifo", 512));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("2-2-multififo", 2, 2));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4-16-multififo", 4, 16));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4-128-multififo", 4, 128));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4-256-multififo", 4, 256));
-	instances.push_back(std::make_unique<benchmark_provider_generic<adapter<std::uint64_t, LCRQWrapped>, BENCHMARK>>("lcrq"));
-#endif // __GNUC__
-}
-
-template <typename BENCHMARK>
-void filter_benchmarks(std::vector<std::unique_ptr<benchmark_provider<BENCHMARK>>>& instances, std::unordered_set<std::string>& set, bool exclude) {
-	for (std::size_t i = 0; i < instances.size(); i++) {
-		if (set.contains(instances[i]->get_name()) == exclude) {
-			instances.erase(instances.begin() + i);
-			i--;
-		}
-	}
-}
+#define BFS_INDEX 8
+#define STR(x) #x
 
 int main(int argc, char** argv) {
 #ifndef NDEBUG
@@ -366,15 +255,13 @@ int main(int argc, char** argv) {
 	} else {
 		std::cout << "Which experiment to run ? \n"
 			"[1] FIFO Comparison\n"
-			"[2] Parameter Tuning\n"
-			"[3] Quality\n"
-			"[4] Quality distribution\n"
-			"[5] Fill\n"
-			"[6] Empty\n"
-			"[7] Strong Scaling\n"
-			"[8] Bitset Size Comparison\n"
-			"[9] Producer-Consumer\n"
-			"[10] BFS\n"
+			"[2] Quality\n"
+			"[3] Quality distribution\n"
+			"[4] Fill\n"
+			"[5] Empty\n"
+			"[6] Strong Scaling\n"
+			"[7] Producer-Consumer\n"
+			"[" STR(BFS_INDEX) "] BFS\n"
 			"Input: ";
 		std::cin >> input;
 	}
@@ -385,7 +272,7 @@ int main(int argc, char** argv) {
 	std::unordered_set<std::string> fifo_set;
 	bool is_exclude = true;
 
-	for (int i = input == 10 ? 3 : 2; i < argc; i++) {
+	for (int i = input == BFS_INDEX ? 3 : 2; i < argc; i++) {
 		if (strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--thread_count") == 0) {
 			i++;
 			char* arg = argv[i];
@@ -427,90 +314,32 @@ int main(int argc, char** argv) {
 	switch (input) {
 	case 1: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_default>>> instances;
-		add_all_benchmarking(instances);
-		filter_benchmarks(instances, fifo_set, is_exclude);
+		add_instances(instances, fifo_set, is_exclude);
 		run_benchmark("comp", instances, 0.5, processor_counts, test_its, test_time_secs);
 		} break;
 	case 2: {
-		std::cout << "Benchmarking performance" << std::endl;
-		std::vector<std::unique_ptr<benchmark_provider<benchmark_default>>> instances;
-		add_all_parameter_tuning(instances);
-		filter_benchmarks(instances, fifo_set, is_exclude);
-		run_benchmark("pt-block", instances, 0.5, { processor_counts.back() }, test_its, test_time_secs);
-
-		std::cout << "Benchmarking quality" << std::endl;
-		std::vector<std::unique_ptr<benchmark_provider<benchmark_quality<>>>> instances_q;
-		add_all_parameter_tuning(instances_q);
-		filter_benchmarks(instances, fifo_set, is_exclude);
-		run_benchmark("pt-quality", instances_q, 0.5, { processor_counts.back() }, test_its, 0);
-		} break;
-	case 3: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_quality<>>>> instances;
-		add_all_benchmarking(instances);
-		filter_benchmarks(instances, fifo_set, is_exclude);
+		add_instances(instances, fifo_set, is_exclude);
 		run_benchmark("quality", instances, 0.5, processor_counts, test_its, test_time_secs);
 		} break;
 	case 4: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_quality<true>>>> instances;
-		add_all_benchmarking(instances);
-		filter_benchmarks(instances, fifo_set, is_exclude);
-		run_benchmark("quality-max", instances, 0.5, { processor_counts.back()}, 1, test_time_secs);
+		add_instances(instances, fifo_set, is_exclude);
+		run_benchmark("quality-max", instances, 0.5, { processor_counts.back() }, 1, test_time_secs);
 	} break;
 	case 5: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_fill>>> instances;
-		add_all_benchmarking(instances);
-		filter_benchmarks(instances, fifo_set, is_exclude);
+		add_instances(instances, fifo_set, is_exclude);
 		run_benchmark("fill", instances, 0, processor_counts, test_its, 10);
 		} break;
 	case 6: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_empty>>> instances;
-		add_all_benchmarking(instances);
-		filter_benchmarks(instances, fifo_set, is_exclude);
+		add_instances(instances, fifo_set, is_exclude);
 		run_benchmark("empty", instances, 1, processor_counts, test_its, 10);
 		} break;
 	case 7: {
-		static constexpr std::size_t THREADS = 128;
-
-		std::cout << "Benchmarking performance" << std::endl;
-		std::vector<std::unique_ptr<benchmark_provider<benchmark_default>>> instances;
-		instances.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<std::uint64_t, THREADS, 7>, benchmark_default>>("bbq-1-7"));
-		instances.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<std::uint64_t, 2 * THREADS, 63>, benchmark_default>>("bbq-2-63"));
-		instances.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<std::uint64_t, 4 * THREADS, 127>, benchmark_default>>("bbq-4-127"));
-		instances.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<std::uint64_t, 8 * THREADS, 127>, benchmark_default>>("bbq-8-127"));
-		run_benchmark("ss-performance", instances, 0.5, processor_counts, test_its, test_time_secs);
-
-		std::cout << "Benchmarking quality" << std::endl;
-		std::vector<std::unique_ptr<benchmark_provider<benchmark_quality<>>>> instances_q;
-		instances_q.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<std::uint64_t, THREADS, 7>, benchmark_quality<>>>("bbq-1-7"));
-		instances_q.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<std::uint64_t, 2 * THREADS, 63>, benchmark_quality<>>>("bbq-2-63"));
-		instances_q.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<std::uint64_t, 4 * THREADS, 127>, benchmark_quality<>>>("bbq-4-127"));
-		instances_q.push_back(std::make_unique<benchmark_provider_generic<block_based_queue<std::uint64_t, 8 * THREADS, 127>, benchmark_quality<>>>("bbq-8-127"));
-		run_benchmark("ss-quality", instances_q, 0.5, processor_counts, test_its, 0);
-		} break;
-	case 8: {
-		std::vector<std::unique_ptr<benchmark_provider<benchmark_default>>> instances;
-		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 1, 7, uint8_t>>("8,bbq-1-7"));
-		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 2, 63, uint8_t>>("8,bbq-2-63"));
-		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 4, 127, uint8_t>>("8,bbq-4-127"));
-		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 8, 127, uint8_t>>("8,bbq-8-127"));
-		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 1, 7, std::uint16_t>>("16,bbq-1-7"));
-		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 2, 63, std::uint16_t>>("16,bbq-2-63"));
-		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 4, 127, std::uint16_t>>("16,bbq-4-127"));
-		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 8, 127, std::uint16_t>>("16,bbq-8-127"));
-		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 1, 7, std::uint32_t>>("32,bbq-1-7"));
-		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 2, 63, std::uint32_t>>("32,bbq-2-63"));
-		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 4, 127, std::uint32_t>>("32,bbq-4-127"));
-		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 8, 127, std::uint32_t>>("32,bbq-8-127"));
-		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 1, 7, std::uint64_t>>("64,bbq-1-7"));
-		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 2, 63, std::uint64_t>>("64,bbq-2-63"));
-		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 4, 127, std::uint64_t>>("64,bbq-4-127"));
-		instances.push_back(std::make_unique<benchmark_provider_relaxed<benchmark_default, 8, 127, std::uint64_t>>("64,bbq-8-127"));
-		run_benchmark("bitset-sizes", instances, 0.5, processor_counts, test_its, test_time_secs);
-		} break;
-	case 9: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_prodcon>>> instances;
-		add_all_benchmarking(instances);
-		filter_benchmarks(instances, fifo_set, is_exclude);
+		add_instances(instances, fifo_set, is_exclude);
 		// TODO: This can be done nicer to account for different thread counts.
 		for (int producers = 8; producers < 128; producers += 8) {
 			auto consumers = 128 - producers;
@@ -519,7 +348,7 @@ int main(int argc, char** argv) {
 				{ processor_counts.back() }, test_its, test_time_secs, producers, consumers);
 		}
 	} break;
-	case 10: {
+	case BFS_INDEX: {
 			std::filesystem::path graph_file;
 			if (argc > 2) {
 				graph_file = argv[2];
@@ -535,8 +364,7 @@ int main(int argc, char** argv) {
 			}
 
 			std::vector<std::unique_ptr<benchmark_provider<benchmark_bfs>>> instances;
-			add_all_benchmarking(instances);
-			filter_benchmarks(instances, fifo_set, is_exclude);
+			add_instances(instances, fifo_set, is_exclude);
 			run_benchmark<benchmark_bfs, benchmark_info_graph, Graph*>(std::format("bfs-{}", graph_file.filename().string()), instances, 0, processor_counts, test_its, 0, &graph);
 	} break;
 	}
