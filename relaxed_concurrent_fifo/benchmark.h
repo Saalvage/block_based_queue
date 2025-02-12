@@ -465,7 +465,7 @@ protected:
 template <fifo FIFO, typename BENCHMARK, typename... Args>
 class benchmark_provider_generic : public benchmark_provider<BENCHMARK> {
 public:
-	benchmark_provider_generic(std::string_view name, Args&&... args) : name(std::vformat(name, std::make_format_args(args...))), args(args...) {}
+	benchmark_provider_generic(std::string_view name, Args... args) : name(std::vformat(name, std::make_format_args(args...))), args(args...) {}
 
 	const std::string& get_name() const override {
 		return name;
@@ -491,7 +491,7 @@ template <typename BENCHMARK>
 using benchmark_provider_multififo = benchmark_provider_generic<multififo::MultiFifo<std::uint64_t>, BENCHMARK, int, int>;
 
 template <typename BENCHMARK>
-using benchmark_provider_cylinder = benchmark_provider_generic<cylinder_fifo<std::uint64_t>, BENCHMARK, std::uint8_t, std::uint8_t>;
+using benchmark_provider_cylinder = benchmark_provider_generic<cylinder_fifo<std::uint64_t>, BENCHMARK, int, int>;
 
 template <typename BENCHMARK, std::size_t BLOCK_MULTIPLIER, std::size_t CELLS_PER_BLOCK, typename BITSET_TYPE = uint8_t>
 class benchmark_provider_relaxed : public benchmark_provider<BENCHMARK> {

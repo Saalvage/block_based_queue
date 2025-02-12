@@ -7,11 +7,11 @@
 template <typename T, typename FIFO = concurrent_fifo<T>>
 class cylinder_fifo {
 private:
-	const std::size_t fifo_count;
-	const std::uint8_t stickiness;
+	const int fifo_count;
+	const int stickiness;
 
-	alignas(std::hardware_destructive_interference_size) std::atomic_uint8_t read_index;
-	alignas(std::hardware_destructive_interference_size) std::atomic_uint8_t write_index;
+	alignas(std::hardware_destructive_interference_size) std::atomic<int> read_index;
+	alignas(std::hardware_destructive_interference_size) std::atomic<int> write_index;
 
 	std::vector<FIFO> buffer;
 
@@ -20,14 +20,14 @@ public:
 	private:
 		cylinder_fifo& fifo;
 
-		std::uint8_t read_index;
-		std::uint8_t write_index;
+		int read_index;
+		int write_index;
 
 		FIFO* read_fifo;
 		FIFO* write_fifo;
 
-		std::uint8_t read_stick = 0;
-		std::uint8_t write_stick = 0;
+		int read_stick = 0;
+		int write_stick = 0;
 
 	public:
 		handle(cylinder_fifo& fifo) : fifo(fifo) { }
@@ -43,7 +43,7 @@ public:
 				return true;
 			}
 
-			for (std::size_t i = 1; i < fifo.fifo_count; i++) {
+			for (int i = 1; i < fifo.fifo_count; i++) {
 				if (fifo.buffer[(write_index + i) % fifo.fifo_count].push(std::move(t))) {
 					write_stick--;
 					return true;
@@ -65,7 +65,7 @@ public:
 				return popped;
 			}
 
-			for (std::size_t i = 1; i < fifo.fifo_count; i++) {
+			for (int i = 1; i < fifo.fifo_count; i++) {
 				popped = fifo.buffer[(read_index + i) % fifo.fifo_count].pop();
 				if (popped) {
 					return popped;
@@ -76,7 +76,7 @@ public:
 		}
 	};
 
-	cylinder_fifo(int num_threads, size_t size, std::uint8_t queues_per_thread, std::uint8_t stickiness)
+	cylinder_fifo(int num_threads, std::size_t size, int queues_per_thread, int stickiness)
 			: fifo_count(num_threads * queues_per_thread), stickiness(stickiness) {
 		buffer = std::vector<FIFO>(num_threads * queues_per_thread, FIFO(0, size / queues_per_thread));
 	}
