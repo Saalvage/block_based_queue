@@ -68,7 +68,7 @@ static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 	}
 #endif
 
-#if defined(__GNUC__) && (defined(INCLUDE_MULTIFIFO) || defined(INCLUDE_ALL))
+#if defined(INCLUDE_MULTIFIFO) || defined(INCLUDE_ALL)
 #ifdef PARAMETER_TUNING
 	for (int queues_per_thread = 2; queues_per_thread <= 8; queues_per_thread *= 2) {
 		for (int stickiness = 1; stickiness <= 4096; stickiness *= 2) {
@@ -83,7 +83,7 @@ static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 #endif // PARAMETER_TUNING
 #endif
 
-#if defined (__GNUC__) && (defined(INCLUDE_KFIFO) || defined(INCLUDE_ALL))
+#if defined(INCLUDE_KFIFO) || defined(INCLUDE_ALL)
 #ifdef PARAMETER_TUNING
 	for (int k = 1; k <= 8192; k *= 2) {
 		instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("{},kfifo", k));
