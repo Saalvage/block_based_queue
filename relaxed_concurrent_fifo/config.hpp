@@ -61,77 +61,36 @@ static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 #endif
 
 #if defined(INCLUDE_CFIFO) || defined(INCLUDE_ALL)
-	instances.push_back(std::make_unique<benchmark_provider_cylinder<BENCHMARK>>("cfifo-8-256", 8, 256));
+	for (int queues_per_thread = 2; queues_per_thread <= 8; queues_per_thread *= 2) {
+		for (int stickiness = 1; stickiness <= 4096; stickiness *= 2) {
+			instances.push_back(std::make_unique<benchmark_provider_cylinder<BENCHMARK>>("cfifo-{},{}", queues_per_thread, stickiness));
+		}
+	}
 #endif
 
 #if defined(__GNUC__) && (defined(INCLUDE_MULTIFIFO) || defined(INCLUDE_ALL))
 #ifdef PARAMETER_TUNING
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("2,1,multififo", 2, 1));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("2,2,multififo", 2, 2));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("2,4,multififo", 2, 4));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("2,8,multififo", 2, 8));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("2,16,multififo", 2, 16));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("2,32,multififo", 2, 32));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("2,64,multififo", 2, 64));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("2,128,multififo", 2, 128));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("2,256,multififo", 2, 256));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("2,512,multififo", 2, 512));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("2,1024,multififo", 2, 1024));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("2,2048,multififo", 2, 2048));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("2,4096,multififo", 2, 4096));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4,1,multififo", 4, 1));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4,2,multififo", 4, 2));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4,4,multififo", 4, 4));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4,8,multififo", 4, 8));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4,16,multififo", 4, 16));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4,32,multififo", 4, 32));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4,64,multififo", 4, 64));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4,128,multififo", 4, 128));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4,256,multififo", 4, 256));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4,512,multififo", 4, 512));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4,1024,multififo", 4, 1024));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4,2048,multififo", 4, 2048));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4,4096,multififo", 4, 4096));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("8,1,multififo", 8, 1));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("8,2,multififo", 8, 2));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("8,4,multififo", 8, 4));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("8,8,multififo", 8, 8));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("8,16,multififo", 8, 16));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("8,32,multififo", 8, 32));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("8,64,multififo", 8, 64));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("8,128,multififo", 8, 128));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("8,256,multififo", 8, 256));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("8,512,multififo", 8, 512));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("8,1024,multififo", 8, 1024));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("8,2048,multififo", 8, 2048));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("8,4096,multififo", 8, 4096));
+	for (int queues_per_thread = 2; queues_per_thread <= 8; queues_per_thread *= 2) {
+		for (int stickiness = 1; stickiness <= 4096; stickiness *= 2) {
+			instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("{},{}-multififo", queues_per_thread, stickiness));
+		}
+	}
 #else // PARAMETER_TUNING
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("2-2-multififo", 2, 2));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4-16-multififo", 4, 16));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4-128-multififo", 4, 128));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("4-256-multififo", 4, 256));
+	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("{}-{}-multififo", 2, 2));
+	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("{}-{}-multififo", 4, 16));
+	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("{}-{}-multififo", 4, 128));
+	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("{}-{}-multififo", 4, 256));
 #endif // PARAMETER_TUNING
 #endif
 
 #if defined (__GNUC__) && (defined(INCLUDE_KFIFO) || defined(INCLUDE_ALL))
 #ifdef PARAMETER_TUNING
-	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("1,kfifo", 1));
-	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("2,kfifo", 2));
-	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("4,kfifo", 4));
-	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("8,kfifo", 8));
-	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("16,kfifo", 16));
-	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("32,kfifo", 32));
-	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("64,kfifo", 64));
-	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("128,kfifo", 128));
-	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("256,kfifo", 256));
-	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("512,kfifo", 512));
-	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("1024,kfifo", 1024));
-	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("2048,kfifo", 2048));
-	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("4096,kfifo", 4096));
-	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("8192,kfifo", 8192));
+	for (int k = 1; k <= 8192; k *= 2) {
+		instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("{},kfifo", k));
+	}
 #else // PARAMETER_TUNING
-	instances.push_back(std::make_unique<benchmark_provider_ws_kfifo<BENCHMARK>>("ws-1-kfifo", 1));
-	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("ss-512-kfifo", 512));
+	instances.push_back(std::make_unique<benchmark_provider_ws_kfifo<BENCHMARK>>("ws-{}-kfifo", 1));
+	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("ss-{}-kfifo", 512));
 #endif // PARAMETER_TUNING
 #endif
 

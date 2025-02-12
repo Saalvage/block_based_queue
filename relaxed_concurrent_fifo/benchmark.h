@@ -465,7 +465,7 @@ protected:
 template <fifo FIFO, typename BENCHMARK, typename... Args>
 class benchmark_provider_generic : public benchmark_provider<BENCHMARK> {
 public:
-	benchmark_provider_generic(std::string name, Args&&... args) : name(std::move(name)), args(args...) { }
+	benchmark_provider_generic(std::string_view name, Args&&... args) : name(std::vformat(name, std::make_format_args(args...))), args(args...) {}
 
 	const std::string& get_name() const override {
 		return name;
