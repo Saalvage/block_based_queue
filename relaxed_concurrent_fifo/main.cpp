@@ -222,9 +222,6 @@ void run_benchmark(const std::string& test_name, const std::vector<std::unique_p
 	}
 }
 
-#define BFS_INDEX 8
-#define STR(x) #x
-
 int main(int argc, char** argv) {
 #ifndef NDEBUG
 	std::cout << "Running in debug mode!" << std::endl;
@@ -254,14 +251,13 @@ int main(int argc, char** argv) {
 		input = std::strtol(argv[1], nullptr, 10);
 	} else {
 		std::cout << "Which experiment to run ? \n"
-			"[1] FIFO Comparison\n"
+			"[1] Performance\n"
 			"[2] Quality\n"
 			"[3] Quality distribution\n"
 			"[4] Fill\n"
 			"[5] Empty\n"
-			"[6] Strong Scaling\n"
-			"[7] Producer-Consumer\n"
-			"[" STR(BFS_INDEX) "] BFS\n"
+			"[6] Producer-Consumer\n"
+			"[7] BFS\n"
 			"Input: ";
 		std::cin >> input;
 	}
@@ -272,7 +268,7 @@ int main(int argc, char** argv) {
 	std::unordered_set<std::string> fifo_set;
 	bool is_exclude = true;
 
-	for (int i = input == BFS_INDEX ? 3 : 2; i < argc; i++) {
+	for (int i = input == 8 ? 3 : 2; i < argc; i++) {
 		if (strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--thread_count") == 0) {
 			i++;
 			char* arg = argv[i];
@@ -322,22 +318,22 @@ int main(int argc, char** argv) {
 		add_instances(instances, fifo_set, is_exclude);
 		run_benchmark("quality", instances, 0.5, processor_counts, test_its, test_time_secs);
 		} break;
-	case 4: {
+	case 3: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_quality<true>>>> instances;
 		add_instances(instances, fifo_set, is_exclude);
 		run_benchmark("quality-max", instances, 0.5, { processor_counts.back() }, 1, test_time_secs);
 	} break;
-	case 5: {
+	case 4: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_fill>>> instances;
 		add_instances(instances, fifo_set, is_exclude);
 		run_benchmark("fill", instances, 0, processor_counts, test_its, 10);
 		} break;
-	case 6: {
+	case 5: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_empty>>> instances;
 		add_instances(instances, fifo_set, is_exclude);
 		run_benchmark("empty", instances, 1, processor_counts, test_its, 10);
 		} break;
-	case 7: {
+	case 6: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_prodcon>>> instances;
 		add_instances(instances, fifo_set, is_exclude);
 		// TODO: This can be done nicer to account for different thread counts.
@@ -348,7 +344,7 @@ int main(int argc, char** argv) {
 				{ processor_counts.back() }, test_its, test_time_secs, producers, consumers);
 		}
 	} break;
-	case BFS_INDEX: {
+	case 7: {
 			std::filesystem::path graph_file;
 			if (argc > 2) {
 				graph_file = argv[2];
