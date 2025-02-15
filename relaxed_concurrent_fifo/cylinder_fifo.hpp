@@ -3,17 +3,24 @@
 
 #include <atomic>
 #include "concurrent_fifo.h"
+#include "contenders/multififo/ring_buffer.hpp"
+#include "contenders/multififo/queue_guard.hpp"
 
-template <typename T, typename FIFO = concurrent_fifo<T>>
+template <typename T>
 class cylinder_fifo {
 private:
-	const int fifo_count;
+	const int queue_count;
 	const int stickiness;
 
 	alignas(std::hardware_destructive_interference_size) std::atomic<int> read_index;
 	alignas(std::hardware_destructive_interference_size) std::atomic<int> write_index;
 
-	std::vector<FIFO> buffer;
+	using fifo_t = multififo::RingBuffer<T>;
+	using guard_t = multififo::QueueGuard<fifo_t>;
+	using alloc_t = std::allocator<guard_t>;
+	using alloc_traits_t = std::allocator_traits<alloc_t>;
+	[[no_unique_address]] alloc_t alloc;
+	guard_t* queues;
 
 public:
 	class handle {
@@ -23,8 +30,8 @@ public:
 		int read_index;
 		int write_index;
 
-		FIFO* read_fifo;
-		FIFO* write_fifo;
+		guard_t* read_fifo;
+		guard_t* write_fifo;
 
 		int read_stick = 0;
 		int write_stick = 0;
@@ -33,52 +40,54 @@ public:
 		handle(cylinder_fifo& fifo) : fifo(fifo) { }
 
 		bool push(T t) {
-			if (write_stick-- == 0) {
-				write_index = fifo.write_index.fetch_add(1, std::memory_order_relaxed) % fifo.fifo_count;
+			while (write_stick-- == 0 || !write_fifo->try_lock()) {
+				write_index = fifo.write_index.fetch_add(1, std::memory_order_relaxed) % fifo.queue_count;
 				write_stick = fifo.stickiness;
-				write_fifo = &fifo.buffer[write_index];
+				write_fifo = &fifo.queues[write_index];
 			}
 
-			if (write_fifo->push(std::move(t))) {
-				return true;
+			if (write_fifo->get_queue().full()) {
+				write_fifo->unlock();
+				return false;
 			}
 
-			for (int i = 1; i < fifo.fifo_count; i++) {
-				if (fifo.buffer[(write_index + i) % fifo.fifo_count].push(std::move(t))) {
-					write_stick--;
-					return true;
-				}
-			}
-
-			return false;
+			write_fifo->get_queue().push(std::move(t));
+			write_fifo->unlock();
+			return true;
 		}
 
 		std::optional<T> pop() {
-			if (read_stick-- == 0) {
-				read_index = fifo.read_index.fetch_add(1, std::memory_order_relaxed) % fifo.fifo_count;
+			while (read_stick-- == 0 || !read_fifo->try_lock()) {
+				read_index = fifo.read_index.fetch_add(1, std::memory_order_relaxed) % fifo.queue_count;
 				read_stick = fifo.stickiness;
-				read_fifo = &fifo.buffer[read_index];
+				read_fifo = &fifo.queues[read_index];
 			}
 
-			auto popped = read_fifo->pop();
-			if (popped) {
-				return popped;
+			if (read_fifo->get_queue().empty()) {
+				read_fifo->unlock();
+				return std::nullopt;
 			}
 
-			for (int i = 1; i < fifo.fifo_count; i++) {
-				popped = fifo.buffer[(read_index + i) % fifo.fifo_count].pop();
-				if (popped) {
-					return popped;
-				}
-			}
-
-			return std::nullopt;
+			auto ret = read_fifo->get_queue().top();
+			read_fifo->get_queue().pop();
+			read_fifo->unlock();
+			return ret;
 		}
 	};
 
 	cylinder_fifo(int num_threads, std::size_t size, int queues_per_thread, int stickiness)
-			: fifo_count(num_threads * queues_per_thread), stickiness(stickiness) {
-		buffer = std::vector<FIFO>(num_threads * queues_per_thread, FIFO(0, size / queues_per_thread));
+			: queue_count(num_threads * queues_per_thread), stickiness(stickiness) {
+		queues = alloc_traits_t::allocate(alloc, queue_count);
+		for (auto it = queues; it != queues + queue_count; ++it) {
+			alloc_traits_t::construct(alloc, it, fifo_t(size / queues_per_thread));
+		}
+	}
+
+	~cylinder_fifo() {
+		for (auto* it = queues; it != queues + queue_count; ++it) {
+			alloc_traits_t::destroy(alloc, it);
+		}
+		alloc_traits_t::deallocate(alloc, queues, queue_count);
 	}
 
 	handle get_handle() {
