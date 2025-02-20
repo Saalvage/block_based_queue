@@ -9,6 +9,12 @@
 #pragma warning(pop)
 #endif // _WIN32
 
+#ifdef _WIN32
+#include <intrin.h>
+#else
+#include <x86intrin.h>
+#endif
+
 #include <algorithm>
 #include <array>
 #include <cstddef>
@@ -90,7 +96,7 @@ class StickRandom {
                     count_ = 0;
                     return false;
                 }
-                auto tick = static_cast<std::uint64_t>(Context::clock_type::now().time_since_epoch().count());
+                auto tick = __rdtsc();
                 guard.get_queue().push({tick, v});
                 guard.pushed();
                 guard.unlock();

@@ -31,6 +31,8 @@ public:
 		buffer = std::make_unique<T[]>(capacity);
 	}
 
+	lock_fifo(const lock_fifo& other) : lock_fifo(0, other.capacity) { }
+
 	bool push(T t) {
 		std::scoped_lock lock(mut);
 

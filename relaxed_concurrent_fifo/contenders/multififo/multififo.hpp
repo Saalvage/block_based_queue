@@ -45,7 +45,6 @@ class MultiFifo {
        public:
         using value_type = MultiFifo::value_type;
         using guard_type = MultiFifo::guard_type;
-        using clock_type = std::chrono::steady_clock;
 
        private:
         int num_queues_{};

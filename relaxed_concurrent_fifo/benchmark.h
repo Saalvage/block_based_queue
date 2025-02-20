@@ -21,11 +21,13 @@
 #include "replay_tree.hpp"
 
 #include "block_based_queue.h"
-#include "contenders/multififo/multififo.hpp"
+#include "cylinder_fifo.hpp"
 #include "contenders/scal/scal_wrapper.h"
+#include "contenders/multififo/multififo.hpp"
+#include "contenders/multififo/util/termination_detection.hpp"
+#include "contenders/multififo/util/graph.hpp"
 
 #ifdef __GNUC__
-#include <filesystem>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
@@ -37,8 +39,6 @@
 template <typename T>
 using LCRQWrapped = LCRQueue<T>;
 
-#include "contenders/multififo/util/graph.hpp"
-#include "contenders/multififo/util/termination_detection.hpp"
 #pragma GCC diagnostic pop
 #endif // __GNUC__
 
@@ -56,11 +56,9 @@ struct benchmark_info_prodcon : public benchmark_info {
 	int consumers;
 };
 
-#ifdef __GNUC__
 struct benchmark_info_graph : public benchmark_info {
 	Graph* graph;
 };
-#endif // __GNUC__
 
 template <bool HAS_TIMEOUT_T = true, bool RECORD_TIME_T = false, bool PREFILL_IN_ORDER_T = false, std::size_t SIZE_T = 0>
 struct benchmark_base {
@@ -288,8 +286,6 @@ struct benchmark_prodcon : benchmark_default {
 	}
 };
 
-#ifdef __GNUC__
-
 struct benchmark_bfs : benchmark_timed<> {
 	struct Counter {
 		long long pushed_nodes{ 0 };
@@ -297,12 +293,16 @@ struct benchmark_bfs : benchmark_timed<> {
 		long long processed_nodes{ 0 };
 	};
 
+#ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Winterference-size"
+#endif // __GNUC__
 	struct alignas(std::hardware_destructive_interference_size) AtomicDistance {
 		std::atomic<std::uint32_t> value{ std::numeric_limits<std::uint32_t>::max() };
 	};
+#ifdef __GNUC__
 #pragma GCC diagnostic pop
+#endif // __GNUC__
 
 	Graph* graph;
 	std::vector<AtomicDistance> distances;
@@ -318,7 +318,7 @@ struct benchmark_bfs : benchmark_timed<> {
 	template <typename FIFO>
 	void process_node(std::uint64_t node, typename FIFO::handle& handle, Counter& counter) {
 		std::uint64_t node_id = node & 0xffff'ffff;
-		std::uint64_t node_dist = node >> 32;
+		std::uint32_t node_dist = node >> 32;
 		auto current_distance = distances[node_id].value.load(std::memory_order_relaxed);
 		if (node_dist > current_distance) {
 			++counter.ignored_nodes;
@@ -330,7 +330,7 @@ struct benchmark_bfs : benchmark_timed<> {
 			auto old_d = distances[target].value.load(std::memory_order_relaxed);
 			while (d < old_d) {
 				if (distances[target].value.compare_exchange_weak(old_d, d, std::memory_order_relaxed)) {
-					handle.push((d << 32) | target);
+					handle.push((static_cast<std::uint64_t>(d) << 32) | target);
 					++counter.pushed_nodes;
 					break;
 				}
@@ -385,8 +385,6 @@ struct benchmark_bfs : benchmark_timed<> {
 		stream << time_nanos << ',' << longest_distance << ',' << total_counts.pushed_nodes << ',' << total_counts.processed_nodes << ',' << total_counts.ignored_nodes;
 	}
 };
-
-#endif // __GNUC__
 
 template <typename BENCHMARK>
 class benchmark_provider {
@@ -467,7 +465,7 @@ protected:
 template <fifo FIFO, typename BENCHMARK, typename... Args>
 class benchmark_provider_generic : public benchmark_provider<BENCHMARK> {
 public:
-	benchmark_provider_generic(std::string name, Args&&... args) : name(std::move(name)), args(args...) { }
+	benchmark_provider_generic(std::string_view name, Args... args) : name(std::vformat(name, std::make_format_args(args...))), args(args...) {}
 
 	const std::string& get_name() const override {
 		return name;
@@ -491,6 +489,9 @@ using benchmark_provider_ss_kfifo = benchmark_provider_generic<ss_k_fifo<std::ui
 
 template <typename BENCHMARK>
 using benchmark_provider_multififo = benchmark_provider_generic<multififo::MultiFifo<std::uint64_t>, BENCHMARK, int, int>;
+
+template <typename BENCHMARK>
+using benchmark_provider_cylinder = benchmark_provider_generic<cylinder_fifo<std::uint64_t>, BENCHMARK, int, int>;
 
 template <typename BENCHMARK, std::size_t BLOCK_MULTIPLIER, std::size_t CELLS_PER_BLOCK, typename BITSET_TYPE = uint8_t>
 class benchmark_provider_relaxed : public benchmark_provider<BENCHMARK> {

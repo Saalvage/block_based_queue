@@ -42,6 +42,8 @@ public:
 		}
 	}
 
+	concurrent_fifo(const concurrent_fifo& other) : concurrent_fifo(0, other.capacity) { }
+
 	bool push(T t) {
 		std::size_t slot;
 
