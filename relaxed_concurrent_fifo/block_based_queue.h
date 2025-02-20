@@ -213,25 +213,36 @@ public:
 			std::uint64_t ei = header->epoch_and_indices.load(std::memory_order_relaxed);
 			std::uint16_t index;
 			bool claimed = false;
-			while (get_epoch(ei) != static_cast<std::uint16_t>(write_window) || (index = get_write_index(ei)) == CELLS_PER_BLOCK || !header->epoch_and_indices.compare_exchange_weak(ei, ei + 1, std::memory_order_relaxed)) {
-				// We need this in case of a spurious claim where we claim a bit, but can't place an element inside,
-				// because the write window was already forced-moved.
-				// This is safe to do because writers are exclusive.
-				if (claimed && (index = get_write_index(ei)) == 0) {
-					// We're abandoning an empty block!
-					window_t& window = fifo.get_window(write_window);
-					auto diff = write_block - window.blocks;
-					window.filled_set.reset(diff, std::memory_order_relaxed);
-				}
-				if (!claim_new_block_write()) {
-					return false;
-				}
-				claimed = true;
-				header = &write_block->header;
-				ei = header->epoch_and_indices.load(std::memory_order_relaxed);
-			}
 
-			write_block->cells[index].store(std::move(t), std::memory_order_relaxed);
+			bool failure = true;
+			while (failure) {
+				T old = 0;
+				while (get_epoch(ei) != static_cast<std::uint16_t>(write_window) || (index = get_write_index(ei)) == CELLS_PER_BLOCK
+					|| !write_block->cells[index].compare_exchange_weak(old, std::move(t), std::memory_order_relaxed)) {
+					// We need this in case of a spurious claim where we claim a bit, but can't place an element inside,
+					// because the write window was already forced-moved.
+					// This is safe to do because writers are exclusive.
+					if (claimed && (index = get_write_index(ei)) == 0) {
+						// We're abandoning an empty block!
+						window_t& window = fifo.get_window(write_window);
+						auto diff = write_block - window.blocks;
+						window.filled_set.reset(diff, std::memory_order_relaxed);
+					}
+					if (!claim_new_block_write()) {
+						return false;
+					}
+					claimed = true;
+					header = &write_block->header;
+					ei = header->epoch_and_indices.load(std::memory_order_relaxed);
+					old = 0;
+				}
+
+				failure = !header->epoch_and_indices.compare_exchange_strong(ei, ei + 1, std::memory_order_relaxed);
+				if (failure) {
+					// The header changed, we need to undo our write and try again.
+					write_block->cells[index].store(0, std::memory_order_relaxed);
+				}
+			}
 
 			return true;
 		}
@@ -250,9 +261,8 @@ public:
 				ei = header->epoch_and_indices.load(std::memory_order_relaxed);
 			}
 
-			T ret;
-			while ((ret = std::move(read_block->cells[index].load(std::memory_order_relaxed))) == 0) { }
-			read_block->cells[index].store(0, std::memory_order_relaxed);
+			T ret = read_block->cells[index].exchange(0, std::memory_order_relaxed);
+			assert(ret != 0);
 
 			std::uint16_t finished_index = get_read_finished_index(header->epoch_and_indices.fetch_add(1 << 16, std::memory_order_relaxed)) + 1;
 			// We need the >= here because between the read of ei and the fetch_add above both a write and a finished read might have occurred
