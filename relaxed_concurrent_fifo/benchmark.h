@@ -22,6 +22,7 @@
 
 #include "block_based_queue.h"
 #include "cylinder_fifo.hpp"
+#include "contenders/2D/wrapper.hpp"
 #include "contenders/scal/scal_wrapper.h"
 #include "contenders/multififo/multififo.hpp"
 #include "contenders/multififo/util/termination_detection.hpp"
@@ -370,7 +371,7 @@ struct benchmark_bfs : benchmark_timed<> {
 		});
 
 		auto longest_distance =
-        std::max_element(distances.begin(), distances.end(), [](auto const& a, auto const& b) {
+        std::max_element(distances.begin(), distances.end(), [](auto const& a, auto const& b) -> bool {
             auto a_val = a.value.load(std::memory_order_relaxed);
             auto b_val = b.value.load(std::memory_order_relaxed);
             if (b_val == std::numeric_limits<long long>::max()) {
@@ -493,7 +494,10 @@ using benchmark_provider_multififo = benchmark_provider_generic<multififo::Multi
 template <typename BENCHMARK>
 using benchmark_provider_cylinder = benchmark_provider_generic<cylinder_fifo<std::uint64_t>, BENCHMARK, int, int>;
 
-template <typename BENCHMARK, std::size_t BLOCK_MULTIPLIER, std::size_t CELLS_PER_BLOCK, typename BITSET_TYPE = uint8_t>
+template <typename BENCHMARK>
+using benchmark_provider_2Dd = benchmark_provider_generic<wrapper_2Dd_queue, BENCHMARK, width_t, std::uint64_t>;
+
+template <typename BENCHMARK, std::size_t BLOCK_MULTIPLIER, std::size_t CELLS_PER_BLOCK, typename BITSET_TYPE = std::uint8_t>
 class benchmark_provider_relaxed : public benchmark_provider<BENCHMARK> {
 	public:
 		benchmark_provider_relaxed(std::string name) : name(std::move(name)) { }
