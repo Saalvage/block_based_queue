@@ -212,26 +212,15 @@ public:
 			header_t* header = &write_block->header;
 			std::uint64_t ei = header->epoch_and_indices.load(std::memory_order_relaxed);
 			std::uint16_t index;
-			bool claimed = false;
 
 			bool failure = true;
 			while (failure) {
 				T old = 0;
 				while (get_epoch(ei) != static_cast<std::uint16_t>(write_window) || (index = get_write_index(ei)) == CELLS_PER_BLOCK
 					|| !write_block->cells[index].compare_exchange_weak(old, std::move(t), std::memory_order_relaxed)) {
-					// We need this in case of a spurious claim where we claim a bit, but can't place an element inside,
-					// because the write window was already forced-moved.
-					// This is safe to do because writers are exclusive.
-					if (claimed && (index = get_write_index(ei)) == 0) {
-						// We're abandoning an empty block!
-						window_t& window = fifo.get_window(write_window);
-						auto diff = write_block - window.blocks;
-						window.filled_set.reset(diff, std::memory_order_relaxed);
-					}
 					if (!claim_new_block_write()) {
 						return false;
 					}
-					claimed = true;
 					header = &write_block->header;
 					ei = header->epoch_and_indices.load(std::memory_order_relaxed);
 					old = 0;
@@ -241,6 +230,7 @@ public:
 				if (failure) {
 					// The header changed, we need to undo our write and try again.
 					write_block->cells[index].store(0, std::memory_order_relaxed);
+					// We do NOT unclaim the block's bit here, readers handle empty blocks by themselves.
 				}
 			}
 
@@ -259,6 +249,18 @@ public:
 				}
 				header = &read_block->header;
 				ei = header->epoch_and_indices.load(std::memory_order_relaxed);
+				if (get_write_index(ei) == 0) {
+					// We need this in case of a spurious claim where a bit was claimed, but the writer couldn't place an element inside,
+					// because the write window was already forced-moved.
+					if (header->epoch_and_indices.compare_exchange_strong(ei, (read_window + fifo.window_count) << 48, std::memory_order_relaxed)) {
+						// We're abandoning an empty block!
+						window_t& window = fifo.get_window(read_window);
+						auto diff = read_block - window.blocks;
+						window.filled_set.reset(diff, std::memory_order_relaxed);
+					}
+					// If the CAS fails, the only thing that could've occurred was the write index being increased,
+					// making us able to read an element from the block.
+				}
 			}
 
 			T ret = read_block->cells[index].exchange(0, std::memory_order_relaxed);
