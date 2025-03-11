@@ -274,11 +274,12 @@ public:
 				// Apply local read index update.
 				ei = (ei & 0xffff'0000'ffff'ffffull) | (static_cast<std::uint64_t>(index) << 32);
 				// Before we mark this block as empty, we make it unavailable for other readers and writers of this epoch.
-				auto res = header->epoch_and_indices.compare_exchange_strong(ei, (read_window + fifo.window_count) << 48, std::memory_order_relaxed);
-				assert(res);
-				window_t& window = fifo.get_window(read_window);
-				auto diff = read_block - window.blocks;
-				window.filled_set.reset(diff, std::memory_order_relaxed);
+				if (header->epoch_and_indices.compare_exchange_strong(ei, (read_window + fifo.window_count) << 48, std::memory_order_relaxed)) {
+					window_t& window = fifo.get_window(read_window);
+					auto diff = read_block - window.blocks;
+					window.filled_set.reset(diff, std::memory_order_relaxed);
+				}
+				// else a different read thread has already wrapped up this block.
 			}
 
 			return ret;
