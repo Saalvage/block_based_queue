@@ -55,8 +55,7 @@ private:
 
 	// We use 64 bit return types here to avoid potential deficits through 16-bit comparisons.
 	static constexpr std::uint16_t get_epoch(std::uint64_t ei) { return ei >> 48; }
-	static constexpr std::uint16_t get_read_started_index(std::uint64_t ei) { return (ei >> 32) & 0xffff; }
-	static constexpr std::uint16_t get_read_finished_index(std::uint64_t ei) { return (ei >> 16) & 0xffff; }
+	static constexpr std::uint16_t get_read_index(std::uint64_t ei) { return (ei >> 32) & 0xffff; }
 	static constexpr std::uint16_t get_write_index(std::uint64_t ei) { return ei & 0xffff; }
 	static constexpr std::uint64_t epoch_to_header(std::uint64_t epoch) { return epoch << 48; }
 
@@ -108,7 +107,7 @@ public:
 		for (std::size_t i = 0; i < window_count; i++) {
 			for (std::size_t j = 0; j < BLOCKS_PER_WINDOW; j++) {
 				std::uint64_t val = buffer[i].blocks[j].header.epoch_and_indices;
-				os << get_epoch(val) << " " << get_read_started_index(val) << " " << get_read_finished_index(val) << " " << get_write_index(val) << " | ";
+				os << get_epoch(val) << " " << get_read_index(val) << " " << " " << get_write_index(val) << " | ";
 			}
 			os << "\n======================\n";
 		}
@@ -256,7 +255,7 @@ public:
 			std::uint64_t ei = header->epoch_and_indices.load(std::memory_order_relaxed);
 			std::uint16_t index;
 
-			while (get_epoch(ei) != static_cast<std::uint16_t>(read_window) || (index = get_read_started_index(ei)) == get_write_index(ei)
+			while (get_epoch(ei) != static_cast<std::uint16_t>(read_window) || (index = get_read_index(ei)) == get_write_index(ei)
 				|| !header->epoch_and_indices.compare_exchange_weak(ei, ei + (1ull << 32), std::memory_order_relaxed)) {
 				if (!claim_new_block_read()) {
 					return std::nullopt;
@@ -287,22 +286,17 @@ public:
 			T ret = read_block->cells[index].exchange(0, std::memory_order_relaxed);
 			assert(ret != 0);
 
-			std::uint16_t finished_index = get_read_finished_index(header->epoch_and_indices.fetch_add(1 << 16, std::memory_order_relaxed)) + 1;
 			// We need the >= here because between the read of ei and the fetch_add above both a write and a finished read might have occurred
 			// that make our finished_index > our (outdated) write index.
-			if (finished_index >= get_write_index(ei)) {
+			if (index == get_write_index(ei)) {
 				// Apply local read index update.
-				ei = (ei & (0xffffull << 48)) | (static_cast<std::uint64_t>(finished_index) << 32) | (static_cast<std::uint64_t>(finished_index) << 16) | finished_index;
+				ei = (ei & 0xffff'0000'ffff'ffffull) | (static_cast<std::uint64_t>(index) << 32);
 				// Before we mark this block as empty, we make it unavailable for other readers and writers of this epoch.
-				if (header->epoch_and_indices.compare_exchange_strong(ei, (read_window + fifo.window_count) << 48, std::memory_order_relaxed)) {
-					window_t& window = fifo.get_window(read_window);
-					auto diff = read_block - window.blocks;
-					window.filled_set.reset(diff, std::memory_order_relaxed);
-
-					// We don't need to invalidate the read window because it has been changed already.	
-				} else {
-					assert(finished_index < CELLS_PER_BLOCK);
-				}
+				auto res = header->epoch_and_indices.compare_exchange_strong(ei, (read_window + fifo.window_count) << 48, std::memory_order_relaxed);
+				assert(res);
+				window_t& window = fifo.get_window(read_window);
+				auto diff = read_block - window.blocks;
+				window.filled_set.reset(diff, std::memory_order_relaxed);
 			}
 
 			return ret;
