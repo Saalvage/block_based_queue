@@ -270,7 +270,7 @@ int main(int argc, char** argv) {
 	std::unordered_set<std::string> fifo_set;
 	bool is_exclude = true;
 
-	for (int i = input == 8 ? 3 : 2; i < argc; i++) {
+	for (int i = input == 7 ? 3 : 2; i < argc; i++) {
 		if (strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--thread_count") == 0) {
 			i++;
 			char* arg = argv[i];
