@@ -120,6 +120,7 @@ public:
 		block_based_queue& fifo;
 
 		// Doing it like this avoids having to have a special case for first-time initialization, while only claiming a block on first use.
+		// TODO: Could this cause issues? Even though it is thread_local it may be shared across handles!
 		static inline thread_local block_t dummy_block{header_t{0xffffull << 48}, {}};
 	
 		block_t* read_block = &dummy_block;
@@ -248,8 +249,10 @@ public:
 					return std::nullopt;
 				}
 				header = &read_block->header;
+				// TODO: With 2 threads there seems to exist a condition where suspiciously low epochs are encountered
+				// and the blocks immediately abandoned. Is this just because of overflowing? Investigate.
 				ei = header->epoch_and_indices.load(std::memory_order_relaxed);
-				if (get_write_index(ei) == 0) {
+				if (get_write_index(ei) == 0 && get_epoch(ei) == static_cast<std::uint16_t>(read_window)) {
 					// We need this in case of a spurious claim where a bit was claimed, but the writer couldn't place an element inside,
 					// because the write window was already forced-moved.
 					if (header->epoch_and_indices.compare_exchange_strong(ei, (read_window + fifo.window_count) << 48, std::memory_order_relaxed)) {
