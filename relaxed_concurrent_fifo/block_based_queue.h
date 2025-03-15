@@ -192,7 +192,20 @@ public:
 #endif // LOG_WINDOW_MOVE
 					}
 
-					fifo.read_window.compare_exchange_strong(window_index, window_index + 1, std::memory_order_relaxed);
+					// TODO: Remove this.
+					bool all_correct = true;
+					window_t& new_window = fifo.get_window(window_index);
+					std::uint64_t next_epoch = epoch_to_header(window_index + fifo.window_count);
+					for (std::size_t i = 0; i < BLOCKS_PER_WINDOW; i++) {
+						if (get_epoch(new_window.blocks[i].header.epoch_and_indices) != get_epoch(next_epoch)) {
+							new_window.filled_set.set(i);
+							all_correct = false;
+							break;
+						}
+					}
+					if (all_correct) {
+						fifo.read_window.compare_exchange_strong(window_index, window_index + 1, std::memory_order_relaxed);
+					}
 #if LOG_WINDOW_MOVE
 					std::cout << "Read move " << (window_index + 1) << std::endl;
 #endif // LOG_WINDOW_MOVE
@@ -252,7 +265,12 @@ public:
 				// TODO: With 2 threads there seems to exist a condition where suspiciously low epochs are encountered
 				// and the blocks immediately abandoned. Is this just because of overflowing? Investigate.
 				ei = header->epoch_and_indices.load(std::memory_order_relaxed);
-				if (get_write_index(ei) == 0 && get_epoch(ei) == static_cast<std::uint16_t>(read_window)) {
+				// TODO: The problem here is that if epoch == (read_window + fifo.window_count) we only reset the bit, which might lead to lost
+				// writes, because for the write the block header didn't change, so it fills the block, but the bit is unset.
+				// But if we simply ignore that case, then we're stuck because the bit will be set forever.
+				// We cannot differentiate if it is a spurious claim from the LAST epoch (must reset bit),
+				// or a regular one from the current one (must NOT reset bit).
+				if (get_write_index(ei) == 0) {
 					// We need this in case of a spurious claim where a bit was claimed, but the writer couldn't place an element inside,
 					// because the write window was already forced-moved.
 					if (header->epoch_and_indices.compare_exchange_strong(ei, (read_window + fifo.window_count) << 48, std::memory_order_relaxed)) {
