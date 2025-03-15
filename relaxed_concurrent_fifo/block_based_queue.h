@@ -269,7 +269,7 @@ public:
 				// But if we simply ignore that case, then we're stuck because the bit will be set forever.
 				// We cannot differentiate if it is a spurious claim from the LAST epoch (must reset bit),
 				// or a regular one from the current one (must NOT reset bit).
-				if (get_write_index(ei) == 0) {
+				if (get_write_index(ei) == get_read_index(ei)) {
 					// We need this in case of a spurious claim where a bit was claimed, but the writer couldn't place an element inside,
 					// because the write window was already forced-moved.
 					if (header->epoch_and_indices.compare_exchange_strong(ei, (read_window + fifo.window_count) << 48, std::memory_order_relaxed)) {
