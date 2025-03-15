@@ -7,6 +7,8 @@
 
 #include "benchmark.h"
 
+#define INCLUDE_MULTIFIFO
+
 // By default, include all.
 #if !defined(INCLUDE_BBQ) \
 	&& !defined(INCLUDE_MULTIFIFO) \

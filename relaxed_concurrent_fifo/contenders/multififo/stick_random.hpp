@@ -54,12 +54,12 @@ class StickRandom {
         }
         while (true) {
             std::size_t best = pop_index_[0];
-            auto best_tick = ctx.queue_guards()[best].top_tick();
+            auto best_size = ctx.queue_guards()[best].size();
             for (std::size_t i = 1; i < static_cast<std::size_t>(num_pop_candidates); ++i) {
-                auto tick = ctx.queue_guards()[pop_index_[i]].top_tick();
-                if (tick < best_tick) {
+                auto size = ctx.queue_guards()[pop_index_[i]].size();
+                if (size > best_size) {
                     best = pop_index_[i];
-                    best_tick = tick;
+                    best_size = size;
                 }
             }
             auto& guard = ctx.queue_guards()[best];
@@ -69,7 +69,7 @@ class StickRandom {
                     count_ = 0;
                     return std::nullopt;
                 }
-                auto v = guard.get_queue().top().value;
+                auto v = guard.get_queue().top();
                 guard.get_queue().pop();
                 guard.popped();
                 guard.unlock();
@@ -96,8 +96,7 @@ class StickRandom {
                     count_ = 0;
                     return false;
                 }
-                auto tick = __rdtsc();
-                guard.get_queue().push({tick, v});
+                guard.get_queue().push(v);
                 guard.pushed();
                 guard.unlock();
                 --count_;
