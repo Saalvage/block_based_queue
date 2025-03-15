@@ -330,7 +330,9 @@ struct benchmark_bfs : benchmark_timed<> {
 			auto old_d = distances[target].value.load(std::memory_order_relaxed);
 			while (d < old_d) {
 				if (distances[target].value.compare_exchange_weak(old_d, d, std::memory_order_relaxed)) {
-					handle.push((static_cast<std::uint64_t>(d) << 32) | target);
+					if (!handle.push((static_cast<std::uint64_t>(d) << 32) | target)) {
+						throw std::runtime_error("Push failed!");
+					}
 					++counter.pushed_nodes;
 					break;
 				}

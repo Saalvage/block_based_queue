@@ -72,7 +72,7 @@ static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 #ifdef PARAMETER_TUNING
 	for (int queues_per_thread = 2; queues_per_thread <= 8; queues_per_thread *= 2) {
 		for (int stickiness = 1; stickiness <= 4096; stickiness *= 2) {
-			instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("{},{}-multififo", queues_per_thread, stickiness));
+			instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("{},{},multififo", queues_per_thread, stickiness));
 		}
 	}
 #else // PARAMETER_TUNING
