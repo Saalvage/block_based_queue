@@ -23,7 +23,8 @@
 #pragma GCC diagnostic ignored "-Winterference-size"
 #endif // __GNUC__
 
-template <typename T, std::size_t BLOCKS_PER_WINDOW_RAW = 1, std::size_t CELLS_PER_BLOCK = 7, typename BITSET_TYPE = uint8_t>
+template <typename T, std::size_t BLOCKS_PER_WINDOW_RAW = 1, std::size_t CELLS_PER_BLOCK = 7,
+std::size_t MAX_PUSH_LAG = std::numeric_limits<std::size_t>::max(), typename BITSET_TYPE = uint8_t>
 class block_based_queue {
 private:
 	static constexpr std::size_t make_po2(std::size_t size) {
@@ -232,11 +233,20 @@ public:
 		bool push(T t) {
 			assert(t != 0);
 
+			bool lag = false;
+			if constexpr (MAX_PUSH_LAG != std::numeric_limits<decltype(MAX_PUSH_LAG)>::max()) {
+				if (fifo.write_window.load(std::memory_order_relaxed) - write_window > MAX_PUSH_LAG) {
+					lag = true;
+				}
+			}
+
 			header_t* header = &write_block->header;
 			std::uint64_t ei = header->epoch_and_indices.load(std::memory_order_relaxed);
 			std::uint16_t index;
 			bool claimed = false;
-			while (get_epoch(ei) != static_cast<std::uint16_t>(write_window) || (index = get_write_index(ei)) == CELLS_PER_BLOCK || !header->epoch_and_indices.compare_exchange_weak(ei, ei + 1, std::memory_order_relaxed)) {
+			while (lag || get_epoch(ei) != static_cast<std::uint16_t>(write_window) || (index = get_write_index(ei)) == CELLS_PER_BLOCK || !header->epoch_and_indices.compare_exchange_weak(ei, ei + 1, std::memory_order_relaxed)) {
+				lag = false;
+
 				// We need this in case of a spurious claim where we claim a bit, but can't place an element inside,
 				// because the write window was already forced-moved.
 				// This is safe to do because writers are exclusive.
