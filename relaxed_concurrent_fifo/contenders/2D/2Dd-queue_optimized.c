@@ -1,3 +1,8 @@
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#pragma GCC diagnostic ignored "-Wunused-variable"
+
 #include "2Dd-queue_optimized.h"
 #include "2Dd-window_optimized.c"
 
@@ -381,3 +386,5 @@ mqueue_t* queue_register(mqueue_t* set, int thread_id)
 
 	return set;
 }
+
+#pragma GCC diagnostic pop

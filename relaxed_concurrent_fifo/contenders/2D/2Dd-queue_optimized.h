@@ -1,3 +1,5 @@
+#pragma GCC system_header
+
 #ifndef TWODd_queue_elastic
 #define TWODd_queue_elastic
 

@@ -22,7 +22,6 @@
 
 #include "block_based_queue.h"
 #include "cylinder_fifo.hpp"
-#include "contenders/2D/wrapper.hpp"
 #include "contenders/scal/scal_wrapper.h"
 #include "contenders/multififo/multififo.hpp"
 #include "contenders/multififo/util/termination_detection.hpp"
@@ -35,6 +34,7 @@
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 #pragma GCC diagnostic ignored "-Wvla"
 
+#include "contenders/2D/wrapper.hpp"
 #include "contenders/LCRQ/LCRQueue.hpp"
 
 template <typename T>
@@ -397,20 +397,6 @@ public:
 protected:
 	template <fifo FIFO>
 	static BENCHMARK test_single(FIFO& fifo, const benchmark_info& info, double prefill_amount) {
-		std::vector<typename FIFO::handle> handles;
-		handles.reserve(info.num_threads);
-		for (int i = 0; i < info.num_threads; i++) {
-			handles.push_back(fifo.get_handle());
-		}
-		// We prefill from all handles since this may improve performance for certain implementations.
-		// TODO: Is there the possibility of the performance improvement coming from actually being filled concurrently?
-		for (std::size_t i = 0; i < prefill_amount * BENCHMARK::SIZE; i++) {
-			// If PREFILL_IN_ORDER is set we sequentially fill the queue from a single handle.
-			if (!handles[BENCHMARK::PREFILL_IN_ORDER ? 0 : (i % info.num_threads)].push(i + 1)) {
-				break;
-			}
-		}
-
 		std::barrier a{info.num_threads + 1};
 		std::atomic_bool over = false;
 		std::vector<std::jthread> threads(info.num_threads);
@@ -426,8 +412,22 @@ protected:
 					throw std::runtime_error("Failed to set thread affinity!");
 				}
 #endif // _POSIX_VERSION
-				// Make sure handle is on the thread's stack.
-				typename FIFO::handle handle = std::move(handles[i]);
+
+				// Make sure handle is acquired on the thread it will be used on.
+				typename FIFO::handle handle = fifo.get_handle();
+
+				// If PREFILL_IN_ORDER is set we sequentially fill the queue from a single handle.
+				std::size_t prefill = BENCHMARK::PREFILL_IN_ORDER
+					? (i == 0 ? prefill_amount * BENCHMARK::SIZE : 0)
+					: prefill_amount * BENCHMARK::SIZE / info.num_threads;
+
+				// We prefill from all handles since this may improve performance for certain implementations.
+				for (std::size_t i = 0; i < prefill; i++) {
+					if (!handle.push(i + 1)) {
+						break;
+					}
+				}
+
 				if constexpr (BENCHMARK::HAS_TIMEOUT) {
 					b.template per_thread<FIFO>(i, handle, a, over);
 				} else {
@@ -494,8 +494,10 @@ using benchmark_provider_multififo = benchmark_provider_generic<multififo::Multi
 template <typename BENCHMARK>
 using benchmark_provider_cylinder = benchmark_provider_generic<cylinder_fifo<std::uint64_t>, BENCHMARK, int, int>;
 
+#ifdef __GNUC__
 template <typename BENCHMARK>
 using benchmark_provider_2Dd = benchmark_provider_generic<wrapper_2Dd_queue, BENCHMARK, width_t, std::uint64_t>;
+#endif // __GNUC__
 
 template <typename BENCHMARK, std::size_t BLOCK_MULTIPLIER, std::size_t CELLS_PER_BLOCK, typename BITSET_TYPE = std::uint8_t>
 class benchmark_provider_relaxed : public benchmark_provider<BENCHMARK> {

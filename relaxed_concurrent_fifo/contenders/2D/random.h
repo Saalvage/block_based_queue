@@ -1,3 +1,5 @@
+#pragma GCC system_header
+
 /*
  *   File: random.h
  *   Author: Vincent Gramoli <vincent.gramoli@sydney.edu.au>,

@@ -1,3 +1,7 @@
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+
 /*
 	*   Author: Kåre von Geijer
 	*
@@ -112,3 +116,6 @@ typedef struct thread_data
 	uint32_t id;
 	DS_TYPE* set;
 } thread_data_t;
+
+
+#pragma GCC diagnostic pop
