@@ -87,9 +87,17 @@ class StickRandom {
             refresh_pop_index(ctx.num_queues());
             count_ = ctx.stickiness();
         }
-        std::size_t push_index = rng_() % num_pop_candidates;
         while (true) {
-            auto& guard = ctx.queue_guards()[pop_index_[push_index]];
+            std::size_t best = pop_index_[0];
+            auto best_size = ctx.queue_guards()[best].size();
+            for (std::size_t i = 1; i < static_cast<std::size_t>(num_pop_candidates); ++i) {
+                auto size = ctx.queue_guards()[pop_index_[i]].size();
+                if (size < best_size) {
+                    best = pop_index_[i];
+                    best_size = size;
+                }
+            }
+            auto& guard = ctx.queue_guards()[pop_index_[best]];
             if (guard.try_lock()) {
                 if (guard.get_queue().full()) {
                     guard.unlock();
