@@ -143,6 +143,7 @@ public:
 		block_based_queue& fifo;
 
 		// Doing it like this avoids having to have a special case for first-time initialization, while only claiming a block on first use.
+		// TODO: Could this cause issues? Even though it is thread_local it may be shared across handles!
 		static inline thread_local block_t dummy_block{header_t{0xffffull << 48}, {}};
 	
 		block_t* read_block = &dummy_block;
@@ -214,7 +215,20 @@ public:
 #endif // LOG_WINDOW_MOVE
 					}
 
-					fifo.read_window.compare_exchange_strong(window_index, window_index + 1, std::memory_order_relaxed);
+					// TODO: Remove this.
+					bool all_correct = true;
+					window_t& new_window = fifo.get_window(window_index);
+					std::uint64_t next_epoch = epoch_to_header(window_index + fifo.window_count);
+					for (std::size_t i = 0; i < BLOCKS_PER_WINDOW; i++) {
+						if (get_epoch(new_window.blocks[i].header.epoch_and_indices) != get_epoch(next_epoch)) {
+							new_window.filled_set.set(i);
+							all_correct = false;
+							break;
+						}
+					}
+					if (all_correct) {
+						fifo.read_window.compare_exchange_strong(window_index, window_index + 1, std::memory_order_relaxed);
+					}
 #if LOG_WINDOW_MOVE
 					std::cout << "Read move " << (window_index + 1) << std::endl;
 #endif // LOG_WINDOW_MOVE
@@ -235,26 +249,27 @@ public:
 			header_t* header = &write_block->header;
 			std::uint64_t ei = header->epoch_and_indices.load(std::memory_order_relaxed);
 			std::uint16_t index;
-			bool claimed = false;
-			while (get_epoch(ei) != static_cast<std::uint16_t>(write_window) || (index = get_write_index(ei)) == CELLS_PER_BLOCK || !header->epoch_and_indices.compare_exchange_weak(ei, ei + 1, std::memory_order_relaxed)) {
-				// We need this in case of a spurious claim where we claim a bit, but can't place an element inside,
-				// because the write window was already forced-moved.
-				// This is safe to do because writers are exclusive.
-				if (claimed && (index = get_write_index(ei)) == 0) {
-					// We're abandoning an empty block!
-					window_t& window = fifo.get_window(write_window);
-					auto diff = write_block - window.blocks;
-					window.filled_set.reset(diff, std::memory_order_relaxed);
-				}
-				if (!claim_new_block_write()) {
-					return false;
-				}
-				claimed = true;
-				header = &write_block->header;
-				ei = header->epoch_and_indices.load(std::memory_order_relaxed);
-			}
 
-			write_block->cells[index].store(std::move(t), std::memory_order_relaxed);
+			bool failure = true;
+			while (failure) {
+				T old = 0;
+				while (get_epoch(ei) != static_cast<std::uint16_t>(write_window) || (index = get_write_index(ei)) == CELLS_PER_BLOCK
+					|| !write_block->cells[index].compare_exchange_weak(old, std::move(t), std::memory_order_relaxed)) {
+					if (!claim_new_block_write()) {
+						return false;
+					}
+					header = &write_block->header;
+					ei = header->epoch_and_indices.load(std::memory_order_relaxed);
+					old = 0;
+				}
+
+				failure = !header->epoch_and_indices.compare_exchange_strong(ei, ei + 1, std::memory_order_relaxed);
+				if (failure) {
+					// The header changed, we need to undo our write and try again.
+					write_block->cells[index].store(0, std::memory_order_relaxed);
+					// We do NOT unclaim the block's bit here, readers handle empty blocks by themselves.
+				}
+			}
 
 			return true;
 		}
@@ -270,12 +285,30 @@ public:
 					return std::nullopt;
 				}
 				header = &read_block->header;
+				// TODO: With 2 threads there seems to exist a condition where suspiciously low epochs are encountered
+				// and the blocks immediately abandoned. Is this just because of overflowing? Investigate.
 				ei = header->epoch_and_indices.load(std::memory_order_relaxed);
+				// TODO: The problem here is that if epoch == (read_window + fifo.window_count) we only reset the bit, which might lead to lost
+				// writes, because for the write the block header didn't change, so it fills the block, but the bit is unset.
+				// But if we simply ignore that case, then we're stuck because the bit will be set forever.
+				// We cannot differentiate if it is a spurious claim from the LAST epoch (must reset bit),
+				// or a regular one from the current one (must NOT reset bit).
+				if (get_write_index(ei) == 0) {
+					// We need this in case of a spurious claim where a bit was claimed, but the writer couldn't place an element inside,
+					// because the write window was already forced-moved.
+					if (header->epoch_and_indices.compare_exchange_strong(ei, (read_window + fifo.window_count) << 48, std::memory_order_relaxed)) {
+						// We're abandoning an empty block!
+						window_t& window = fifo.get_window(read_window);
+						auto diff = read_block - window.blocks;
+						window.filled_set.reset(diff, std::memory_order_relaxed);
+					}
+					// If the CAS fails, the only thing that could've occurred was the write index being increased,
+					// making us able to read an element from the block.
+				}
 			}
 
-			T ret;
-			while ((ret = std::move(read_block->cells[index].load(std::memory_order_relaxed))) == 0) { }
-			read_block->cells[index].store(0, std::memory_order_relaxed);
+			T ret = read_block->cells[index].exchange(0, std::memory_order_relaxed);
+			assert(ret != 0);
 
 			std::uint16_t finished_index = get_read_finished_index(header->epoch_and_indices.fetch_add(1 << 16, std::memory_order_relaxed)) + 1;
 			// We need the >= here because between the read of ei and the fetch_add above both a write and a finished read might have occurred
