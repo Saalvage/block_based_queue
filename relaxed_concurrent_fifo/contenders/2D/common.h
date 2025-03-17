@@ -41,8 +41,8 @@
 
 	#define STRING_LENGTH  8
 
-	typedef intptr_t skey_t;
-	typedef intptr_t sval_t;
+	typedef uint64_t skey_t;
+	typedef uint64_t sval_t;
 
 	typedef struct strkey_t
 	{
