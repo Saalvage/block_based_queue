@@ -54,12 +54,12 @@ class StickRandom {
         }
         while (true) {
             std::size_t best = queue_index_[0];
-            auto best_size = ctx.queue_guards()[best].size();
+            auto best_push_count = ctx.queue_guards()[best].size();
             for (std::size_t i = 1; i < static_cast<std::size_t>(stick_queues); ++i) {
-                auto size = ctx.queue_guards()[queue_index_[i]].size();
-                if (size < best_size) {
+                auto push_count = ctx.queue_guards()[queue_index_[i]].push_count();
+                if (push_count < best_push_count) {
                     best = queue_index_[i];
-                    best_size = size;
+                    best_push_count = push_count;
                 }
             }
             auto& guard = ctx.queue_guards()[best];
@@ -88,12 +88,12 @@ class StickRandom {
         }
         while (true) {
             std::size_t best = queue_index_[0];
-            auto best_size = ctx.queue_guards()[best].size();
+            auto best_pop_count = ctx.queue_guards()[best].pop_count();
             for (std::size_t i = 1; i < static_cast<std::size_t>(stick_queues); ++i) {
-                auto size = ctx.queue_guards()[queue_index_[i]].size();
-                if (size > best_size) {
+                auto pop_count = ctx.queue_guards()[queue_index_[i]].pop_count();
+                if (pop_count < best_pop_count) {
                     best = queue_index_[i];
-                    best_size = size;
+                    best_pop_count = pop_count;
                 }
             }
             auto & guard = ctx.queue_guards()[best];

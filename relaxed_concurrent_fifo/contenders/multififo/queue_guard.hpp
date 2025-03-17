@@ -21,7 +21,8 @@ namespace multififo {
 template <typename Queue>
 class alignas(build_config::l1_cache_line_size) QueueGuard {
     using queue_type = Queue;
-    std::atomic<std::uint64_t> size_ = 0;
+    std::atomic<std::uint64_t> push_count_ = 0;
+    std::atomic<std::uint64_t> pop_count_ = 0;
     std::atomic_uint32_t lock_ = 0;
     queue_type queue_;
 
@@ -32,8 +33,16 @@ class alignas(build_config::l1_cache_line_size) QueueGuard {
     }
 
     [[nodiscard]] std::uint64_t size() const noexcept {
-        return size_.load(std::memory_order_relaxed);
+        return push_count_.load(std::memory_order_relaxed) - pop_count_.load(std::memory_order_relaxed);
     }
+
+	[[nodiscard]] std::uint64_t push_count() const noexcept {
+		return push_count_.load(std::memory_order_relaxed);
+	}
+
+	[[nodiscard]] std::uint64_t pop_count() const noexcept {
+		return pop_count_.load(std::memory_order_relaxed);
+	}
 
     [[nodiscard]] bool empty() const noexcept {
         return size() == 0;
@@ -61,11 +70,11 @@ class alignas(build_config::l1_cache_line_size) QueueGuard {
     }
 
     void popped() {
-        size_.fetch_sub(1, std::memory_order_relaxed);
+        pop_count_.fetch_add(1, std::memory_order_relaxed);
     }
 
     void pushed() {
-        size_.fetch_add(1, std::memory_order_relaxed);
+        push_count_.fetch_add(1, std::memory_order_relaxed);
     }
 
     void unlock() {
