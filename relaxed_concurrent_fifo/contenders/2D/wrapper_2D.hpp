@@ -38,13 +38,13 @@ public:
 
     ~wrapper_2Dd_queue() {
         // How can you not offer this functionality built-in??
-		auto handle = get_handle();
-		while (handle.pop().has_value()) { }
-		for (int i = 0; i < queue->width; i++) {
-			ssfree(queue->get_array[i].descriptor.node);
-		}
-		ssfree(queue->get_array);
-		ssfree(queue->put_array);
+        auto handle = get_handle();
+        while (handle.pop().has_value()) { }
+        for (int i = 0; i < queue->width; i++) {
+            ssfree(queue->get_array[i].descriptor.node);
+        }
+        ssfree(queue->get_array);
+        ssfree(queue->put_array);
         ssfree(queue);
     }
 };

@@ -34,7 +34,8 @@
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 #pragma GCC diagnostic ignored "-Wvla"
 
-#include "contenders/2D/wrapper.hpp"
+#include "contenders/2D/wrapper_dcbo.hpp"
+#include "contenders/2D/wrapper_2D.hpp"
 #include "contenders/LCRQ/LCRQueue.hpp"
 
 template <typename T>
@@ -497,6 +498,9 @@ using benchmark_provider_cylinder = benchmark_provider_generic<cylinder_fifo<std
 #ifdef __GNUC__
 template <typename BENCHMARK>
 using benchmark_provider_2Dd = benchmark_provider_generic<wrapper_2Dd_queue, BENCHMARK, width_t, std::uint64_t>;
+
+template <typename BENCHMARK>
+using benchmark_provider_dcbo = benchmark_provider_generic<wrapper_dcbo_queue, BENCHMARK, std::uint32_t>;
 #endif // __GNUC__
 
 template <typename BENCHMARK, std::size_t BLOCK_MULTIPLIER, std::size_t CELLS_PER_BLOCK, typename BITSET_TYPE = std::uint8_t>

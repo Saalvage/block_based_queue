@@ -7,7 +7,6 @@
 
 #include "benchmark.h"
 
-#define INCLUDE_2D
 
 // By default, include all.
 #if !defined(INCLUDE_BBQ) \
@@ -15,6 +14,7 @@
 	&& !defined(INCLUDE_LCRQ) \
 	&& !defined(INCLUDE_CFIFO) \
 	&& !defined(INCLUDE_KFIFO) \
+	&& !defined(INCLUDE_DCBO) \
 	&& !defined(INCLUDE_2D)
 #define INCLUDE_ALL
 #endif
@@ -95,6 +95,12 @@ static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 	instances.push_back(std::make_unique<benchmark_provider_ws_kfifo<BENCHMARK>>("ws-{}-kfifo", 1));
 	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("ss-{}-kfifo", 512));
 #endif // PARAMETER_TUNING
+#endif
+
+#if defined(__GNUC__) && (defined(INCLUDE_DCBO) || defined(INCLUDE_ALL))
+	for (int w = 1; w <= 8; w *= 2) {
+		instances.push_back(std::make_unique<benchmark_provider_dcbo<BENCHMARK>>("{}-dcbo", w));
+	}
 #endif
 
 #if defined (__GNUC__) && (defined(INCLUDE_2D) || defined(INCLUDE_ALL))
