@@ -97,7 +97,7 @@ class StickRandom {
                     best_size = size;
                 }
             }
-            auto& guard = ctx.queue_guards()[pop_index_[best]];
+            auto& guard = ctx.queue_guards()[best];
             if (guard.try_lock()) {
                 if (guard.get_queue().full()) {
                     guard.unlock();
