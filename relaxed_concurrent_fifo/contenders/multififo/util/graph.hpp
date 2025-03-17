@@ -24,6 +24,12 @@ struct Graph {
         std::size_t num_nodes = 0;
         std::size_t num_edges = 0;
         file >> c;
+
+        while (c == 'c') {
+            file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+            file >> c;
+        }
+
         if (c != 'p') {
             throw std::runtime_error("Invalid graph format");
         }
@@ -31,6 +37,16 @@ struct Graph {
         file >> skip;
         file >> num_nodes;
         file >> num_edges;
+
+        std::cout << num_nodes << std::endl;
+        std::cout << num_edges << std::endl;
+
+        file >> c;
+        while (c == 'c') {
+            file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+            file >> c;
+        }
+        file.unget();
 
         std::vector<std::pair<std::size_t, Edge>> edge_list;
         nodes.resize(num_nodes + 1);

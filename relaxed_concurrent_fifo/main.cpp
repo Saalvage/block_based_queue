@@ -244,6 +244,7 @@ int main(int argc, char** argv) {
 				"[-t | --thread_count <count>] "
 				"[-s | --test_time_seconds <count> (default " << TEST_TIME_SECONDS_DEFAULT << ")] "
 				"[-r | --run_count <count> (default " << TEST_ITERATIONS_DEFAULT << ")]"
+				"[-f | --prefill <factor>]"
 				" ([-i | --include <fifo>]* | [-e | --exclude <fifo>]*)\n";
 			return 0;
 		}
@@ -262,13 +263,14 @@ int main(int argc, char** argv) {
 		std::cin >> input;
 	}
 
+	std::optional<double> prefill_override;
 	auto test_its = TEST_ITERATIONS_DEFAULT;
 	auto test_time_secs = TEST_TIME_SECONDS_DEFAULT;
 
 	std::unordered_set<std::string> fifo_set;
 	bool is_exclude = true;
 
-	for (int i = input == 8 ? 3 : 2; i < argc; i++) {
+	for (int i = input == 7 ? 3 : 2; i < argc; i++) {
 		if (strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--thread_count") == 0) {
 			i++;
 			char* arg = argv[i];
@@ -284,6 +286,9 @@ int main(int argc, char** argv) {
 		} else if (strcmp(argv[i], "-s") == 0 || strcmp(argv[i], "--thread_count_seconds") == 0) {
 			i++;
 			test_time_secs = std::strtol(argv[i], nullptr, 10);
+		}  else if (strcmp(argv[i], "-f") == 0 || strcmp(argv[i], "--prefill") == 0) {
+			i++;
+			prefill_override = std::strtod(argv[i], nullptr);
 		} else if (strcmp(argv[i], "-i") == 0 || strcmp(argv[i], "--include") == 0) {
 			i++;
 			if (is_exclude) {
@@ -311,27 +316,27 @@ int main(int argc, char** argv) {
 	case 1: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_default>>> instances;
 		add_instances(instances, fifo_set, is_exclude);
-		run_benchmark("comp", instances, 0.5, processor_counts, test_its, test_time_secs);
+		run_benchmark("comp", instances, prefill_override.value_or(0.5), processor_counts, test_its, test_time_secs);
 		} break;
 	case 2: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_quality<>>>> instances;
 		add_instances(instances, fifo_set, is_exclude);
-		run_benchmark("quality", instances, 0.5, processor_counts, test_its, test_time_secs);
+		run_benchmark("quality", instances, prefill_override.value_or(0.5), processor_counts, test_its, test_time_secs);
 		} break;
 	case 3: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_quality<true>>>> instances;
 		add_instances(instances, fifo_set, is_exclude);
-		run_benchmark("quality-max", instances, 0.5, { processor_counts.back() }, 1, test_time_secs);
+		run_benchmark("quality-max", instances, prefill_override.value_or(0.5), { processor_counts.back() }, 1, test_time_secs);
 	} break;
 	case 4: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_fill>>> instances;
 		add_instances(instances, fifo_set, is_exclude);
-		run_benchmark("fill", instances, 0, processor_counts, test_its, 10);
+		run_benchmark("fill", instances, prefill_override.value_or(0), processor_counts, test_its, 10);
 		} break;
 	case 5: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_empty>>> instances;
 		add_instances(instances, fifo_set, is_exclude);
-		run_benchmark("empty", instances, 1, processor_counts, test_its, 10);
+		run_benchmark("empty", instances, prefill_override.value_or(1), processor_counts, test_its, 10);
 		} break;
 	case 6: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_prodcon>>> instances;
@@ -340,7 +345,7 @@ int main(int argc, char** argv) {
 		for (int producers = 8; producers < 128; producers += 8) {
 			auto consumers = 128 - producers;
 			run_benchmark<benchmark_prodcon, benchmark_info_prodcon, int, int>(
-				std::format("prodcon-{}-{}", producers, consumers), instances, 0.5,
+				std::format("prodcon-{}-{}", producers, consumers), instances, prefill_override.value_or(0.5),
 				{ processor_counts.back() }, test_its, test_time_secs, producers, consumers);
 		}
 	} break;

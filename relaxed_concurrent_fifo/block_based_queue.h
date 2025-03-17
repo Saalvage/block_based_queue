@@ -40,8 +40,31 @@ private:
 	const std::size_t window_count;
 	const std::size_t window_count_mod_mask;
 
-	std::size_t size() const {
+	std::size_t capacity() const {
 		return window_count * BLOCKS_PER_WINDOW * CELLS_PER_BLOCK;
+	}
+
+	// This method includes windows in its search which should not contain any blocks.
+	std::size_t size_full() const {
+		std::size_t filled_cells = 0;
+		for (std::size_t i = 0; i < window_count; i++) {
+			for (std::size_t j = 0; j < BLOCKS_PER_WINDOW; j++) {
+				auto ei = get_window(i).blocks[j].header.epoch_and_indices.load();
+				filled_cells += get_write_index(ei) - get_read_finished_index(ei);
+			}
+		}
+		return filled_cells;
+	}
+
+	std::size_t size() const {
+		std::size_t filled_cells = 0;
+		for (std::size_t i = read_window; i <= write_window; i++) {
+			for (std::size_t j = 0; j < BLOCKS_PER_WINDOW; j++) {
+				auto ei = get_window(i).blocks[j].header.epoch_and_indices.load();
+				filled_cells += get_write_index(ei) - get_read_finished_index(ei);
+			}
+		}
+		return filled_cells;
 	}
 
 	static_assert(sizeof(T) == 8);
