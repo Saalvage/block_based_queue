@@ -21,8 +21,7 @@ class Handle : public multififo::mode::StickRandom<2> {
                 it->unlock();
                 continue;
             }
-            auto tick = __rdtsc();
-            it->get_queue().push({tick, v});
+            it->get_queue().push(v);
             it->pushed();
             it->unlock();
             return true;
@@ -39,7 +38,7 @@ class Handle : public multififo::mode::StickRandom<2> {
                 it->unlock();
                 continue;
             }
-            auto v = it->get_queue().top().value;
+            auto v = it->get_queue().top();
             it->get_queue().pop();
             it->popped();
             it->unlock();
