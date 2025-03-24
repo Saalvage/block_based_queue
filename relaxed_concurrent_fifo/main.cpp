@@ -233,9 +233,9 @@ static std::size_t random_index(T val) {
 	int off = dist_inner(rng);
 	val = std::rotr(val, off);
 	if constexpr (SEEK_ONE) {
-		return (std::countr_zero(val) + SIZE - off) % SIZE;
+		return (std::countr_zero(val) + off) % SIZE;
 	} else {
-		return (std::countr_one(val) + SIZE - off) % SIZE;
+		return (std::countr_one(val) + off) % SIZE;
 	}
 }
 
