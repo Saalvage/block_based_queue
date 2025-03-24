@@ -302,21 +302,26 @@ public:
 				return std::numeric_limits<std::size_t>::max();
 			}
 			std::size_t idxOuter = random_index<true>(mask);
-			std::size_t idxInner = random_index<IS_SET>(loaded.m256i_u32[idxOuter]);
-			std::size_t fullIndex = idxOuter * 32 + idxInner;
-			if constexpr (SET) {
-				ARR_TYPE mask = 1 << (fullIndex % bit_count);
-				if constexpr (IS_SET) {
-					if (!(data[fullIndex / bit_count].fetch_and(~mask, order) & mask)) {
-						continue;
+			std::uint32_t inner = loaded.m256i_u32[idxOuter];
+			do {
+				std::size_t idxInner = random_index<IS_SET>(inner);
+				std::size_t fullIndex = idxOuter * 32 + idxInner;
+				if constexpr (SET) {
+					if constexpr (IS_SET) {
+						if (reset(fullIndex, order)) {
+							return fullIndex;
+						}
+						inner &= ~(1 << (fullIndex % 32));
+					} else {
+						if (set(fullIndex, order)) {
+							return fullIndex;
+						}
+						inner |= 1 << (fullIndex % 32);
 					}
 				} else {
-					if (data[fullIndex / bit_count].fetch_or(mask, order) & mask) {
-						continue;
-					}
+					return fullIndex;
 				}
-			}
-			return fullIndex;
+			} while (IS_SET ? inner != 0 : inner != (std::uint32_t)(-1));
 		}
 	}
 };
