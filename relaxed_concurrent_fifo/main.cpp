@@ -222,6 +222,105 @@ void run_benchmark(const std::string& test_name, const std::vector<std::unique_p
 	}
 }
 
+template <bool SEEK_ONE, typename T>
+static std::size_t random_index(T val) {
+	static constexpr std::size_t SIZE = sizeof(T) * 8;
+
+	static thread_local std::random_device dev;
+	static thread_local std::minstd_rand rng{ dev() };
+	static thread_local std::uniform_int_distribution dist_inner{ 0, static_cast<int>(SIZE - 1) };
+
+	int off = dist_inner(rng);
+	val = std::rotr(val, off);
+	if constexpr (SEEK_ONE) {
+		return (std::countr_zero(val) + SIZE - off) % SIZE;
+	} else {
+		return (std::countr_one(val) + SIZE - off) % SIZE;
+	}
+}
+
+template <>
+class atomic_bitset<256, std::uint8_t> {
+private:
+	using ARR_TYPE = std::uint8_t;
+	static constexpr std::size_t N = 256;
+	static constexpr std::size_t bit_count = sizeof(ARR_TYPE) * 8;
+	static constexpr std::size_t array_members = N / bit_count;
+	std::array<std::atomic<uint8_t>, array_members> data;
+
+	// This requirement could be lifted in exchange for a more complicated implementation of the claim bit function.
+	static_assert(N % bit_count == 0, "Bit count must be dividable by size of array type!");
+
+public:
+	[[nodiscard]] static constexpr std::size_t size() { return N; }
+
+	/// <summary>
+	/// Sets a specified bit in the bitset to 1.
+	/// </summary>
+	/// <param name="index">The index of the bit to set.</param>
+	/// <returns>Whether the bit has been newly set. false means the bit had already been 1.</returns>
+	constexpr bool set(std::size_t index, std::memory_order order = std::memory_order_seq_cst) {
+		assert(index < size());
+		return set_bit_atomic<true>(data[index / bit_count], index % bit_count, order);
+	}
+
+	/// <summary>
+	/// Resets a specified bit in the bitset to 0.
+	/// </summary>
+	/// <param name="index">The index of the bit to reset.</param>
+	/// <returns>Whether the bit has been newly reset. false means the bit had already been 0.</returns>
+	constexpr bool reset(std::size_t index, std::memory_order order = std::memory_order_seq_cst) {
+		assert(index < size());
+		return set_bit_atomic<false>(data[index / bit_count], index % bit_count, order);
+	}
+
+	[[nodiscard]] bool test(std::size_t index, std::memory_order order = std::memory_order_seq_cst) const {
+		assert(index < size());
+		return data[index / bit_count].load(order) & (1ull << (index % bit_count));
+	}
+
+	[[nodiscard]] bool operator[](std::size_t index) const {
+		return test(index);
+	}
+
+	[[nodiscard]] bool any(std::memory_order order = std::memory_order_seq_cst) const {
+		return _mm256_cmpeq_epu64_mask(_mm256_load_si256((__m256i*)(data.data())), _mm256_setzero_si256());
+	}
+
+	template <bool IS_SET, bool SET>
+	std::size_t claim_bit(std::memory_order order = std::memory_order_seq_cst) {
+		while (true) {
+			auto loaded = _mm256_load_si256((__m256i*)(data.data()));
+			__m256i cmp;
+			if constexpr (IS_SET) {
+				cmp = _mm256_setzero_si256();
+			} else {
+				cmp = _mm256_set1_epi64x(-1);
+			}
+			std::uint8_t mask = _mm256_cmpneq_epu32_mask(loaded, cmp);
+			if (mask == 0) {
+				return std::numeric_limits<std::size_t>::max();
+			}
+			std::size_t idxOuter = random_index<true>(mask);
+			std::size_t idxInner = random_index<IS_SET>(loaded.m256i_u32[idxOuter]);
+			std::size_t fullIndex = idxOuter * 32 + idxInner;
+			if constexpr (SET) {
+				ARR_TYPE mask = 1 << (fullIndex % bit_count);
+				if constexpr (IS_SET) {
+					if (!(data[fullIndex / bit_count].fetch_and(~mask, order) & mask)) {
+						continue;
+					}
+				} else {
+					if (data[fullIndex / bit_count].fetch_or(mask, order) & mask) {
+						continue;
+					}
+				}
+			}
+			return fullIndex;
+		}
+	}
+};
+
 int main(int argc, char** argv) {
 #ifndef NDEBUG
 	std::cout << "Running in debug mode!" << std::endl;
