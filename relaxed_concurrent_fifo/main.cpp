@@ -302,7 +302,13 @@ public:
 				return std::numeric_limits<std::size_t>::max();
 			}
 			std::size_t idxOuter = random_index<true>(mask);
-			std::uint32_t inner = loaded.m256i_u32[idxOuter];
+			std::uint32_t inner =
+#ifdef _MSC_VER
+			loaded.m256i_u32[idxOuter];
+#else	
+			// TODO: Surely this can be done in a better way?
+			_mm256_cvtsi256_si32(_mm256_permutevar8x32_epi32(loaded, _mm256_set_epi32((int)idxOuter, 0, 0, 0, 0, 0, 0, 0)));
+#endif
 			do {
 				std::size_t idxInner = random_index<IS_SET>(inner);
 				std::size_t fullIndex = idxOuter * 32 + idxInner;
