@@ -44,9 +44,9 @@ private:
 
     template <bool IS_SET, bool SET>
     static constexpr std::size_t claim_bit_singular(std::atomic<ARR_TYPE>& data, int initial_rot, std::memory_order order) {
-        auto raw = data.load(order);
         ARR_TYPE rotated;
         while (true) {
+            auto raw = data.load(order);
             rotated = std::rotr(raw, initial_rot);
             int counted = IS_SET ? std::countr_zero(rotated) : std::countr_one(rotated);
             if (counted == bit_count) {
@@ -54,17 +54,13 @@ private:
             }
             std::size_t original_index = (initial_rot + counted) % bit_count;
             if constexpr (SET) {
-                ARR_TYPE test;
-                while (true) {
-                    if constexpr (IS_SET) {
-                        test = raw & ~(1ull << original_index);
-                    } else {
-                        test = raw | (1ull << original_index);
+                ARR_TYPE mask = 1ull << original_index;
+                if constexpr (IS_SET) {
+                    if (data.fetch_and(~mask, order) & mask) {
+                        return original_index;
                     }
-                    if (test == raw) {
-                        break;
-                    }
-                    if (data.compare_exchange_weak(raw, test, order)) {
+                } else {
+                    if (!(data.fetch_or(mask, order) & mask)) {
                         return original_index;
                     }
                 }
