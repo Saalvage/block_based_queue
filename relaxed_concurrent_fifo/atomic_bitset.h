@@ -23,20 +23,21 @@ constexpr bool set_bit_atomic(std::atomic<T>& data, std::size_t index, std::memo
     }
 }
 
+template <typename T>
+struct cache_aligned_t {
+    alignas(std::hardware_destructive_interference_size) std::atomic<T> atomic;
+    std::atomic<T>* operator->() { return &atomic; }
+    const std::atomic<T>* operator->() const { return &atomic; }
+    operator std::atomic<T>& () { return atomic; }
+    operator const std::atomic<T>& () const { return atomic; }
+};
+
 template <std::size_t N, typename ARR_TYPE = uint8_t>
 class atomic_bitset {
 private:
-    struct wrapper {
-        alignas(std::hardware_destructive_interference_size) std::atomic<ARR_TYPE> atomic;
-        std::atomic<ARR_TYPE>* operator->() { return &atomic; }
-        const std::atomic<ARR_TYPE>* operator->() const { return &atomic; }
-        operator std::atomic<ARR_TYPE>&() { return atomic; }
-        operator const std::atomic<ARR_TYPE>&() const { return atomic; }
-    };
-
     static constexpr std::size_t bit_count = sizeof(ARR_TYPE) * 8;
     static constexpr std::size_t array_members = N / bit_count;
-    std::array<wrapper, array_members> data;
+    std::array<cache_aligned_t<ARR_TYPE>, array_members> data;
 
     // This requirement could be lifted in exchange for a more complicated implementation of the claim bit function.
     static_assert(N % bit_count == 0, "Bit count must be dividable by size of array type!");

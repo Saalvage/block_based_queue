@@ -7,14 +7,25 @@
 #include <random>
 #include <new>
 #include <optional>
-#include <ostream>
 
 #include "fifo.h"
 #include "atomic_bitset.h"
 
-#define LOG_WINDOW_MOVE 0
+#ifndef BBQ_LOG_WINDOW_MOVE
+#define BBQ_LOG_WINDOW_MOVE 0
+#endif
 
-#if LOG_WINDOW_MOVE
+#ifndef BBQ_LOG_CREATION_SIZE
+#define BBQ_LOG_CREATION_SIZE 0
+#endif
+
+#define BBQ_DEBUG_FUNCTIONS 0
+
+#if BBQ_DEBUG_FUNCTIONS
+#include <ostream>
+#endif
+
+#if BBQ_LOG_WINDOW_MOVE || BBQ_LOG_CREATION_SIZE
 #include <iostream>
 #endif
 
@@ -23,32 +34,44 @@
 #pragma GCC diagnostic ignored "-Winterference-size"
 #endif // __GNUC__
 
-template <typename T, std::size_t BLOCKS_PER_WINDOW_RAW = 1, std::size_t CELLS_PER_BLOCK = 7, typename BITSET_TYPE = uint8_t>
+struct header_t {
+	// 16 bits epoch, 16 bits read started index, 16 bits read finished index, 16 bits write index
+	std::atomic_uint64_t epoch_and_indices;
+};
+
+template <typename T, std::size_t CELLS_PER_BLOCK>
+struct block {
+	static_assert(sizeof(header_t) == 8);
+	header_t header;
+	std::array<std::atomic<T>, CELLS_PER_BLOCK> cells;
+};
+
+template <typename BLOCK_T, std::size_t BLOCKS_PER_WINDOW, typename BITSET_T>
+struct window {
+	alignas(std::hardware_destructive_interference_size) atomic_bitset<BLOCKS_PER_WINDOW, BITSET_T> filled_set;
+	alignas(std::hardware_destructive_interference_size) BLOCK_T blocks[BLOCKS_PER_WINDOW];
+};
+
+template <typename T, std::size_t LOG_BLOCKS_PER_WINDOW, std::size_t CELLS_PER_BLOCK, typename BITSET_T>
 class block_based_queue {
 private:
-	static constexpr std::size_t make_po2(std::size_t size) {
-		std::size_t ret = 1;
-		while (size > ret) {
-			ret *= 2;
-		}
-		return ret;
-	}
+	// PO2 for modulo performance.
+	static constexpr std::size_t blocks_per_window = 1ull << LOG_BLOCKS_PER_WINDOW;
+	// At least as big as the bitset's type.
+	static_assert(blocks_per_window >= sizeof(BITSET_T) * 8);
 
-	// PO2 for modulo performance and at least as big as the bitset type.
-	static constexpr std::size_t BLOCKS_PER_WINDOW = std::max(sizeof(BITSET_TYPE) * 8, make_po2(BLOCKS_PER_WINDOW_RAW));
-
-	const std::size_t window_count;
-	const std::size_t window_count_mod_mask;
+	std::size_t window_count;
+	std::size_t window_count_mod_mask;
 
 	std::size_t capacity() const {
-		return window_count * BLOCKS_PER_WINDOW * CELLS_PER_BLOCK;
+		return window_count * blocks_per_window * CELLS_PER_BLOCK;
 	}
 
-	// This method includes windows in its search which should not contain any blocks.
+#if BBQ_DEBUG_FUNCTIONS
 	std::size_t size_full() const {
 		std::size_t filled_cells = 0;
 		for (std::size_t i = 0; i < window_count; i++) {
-			for (std::size_t j = 0; j < BLOCKS_PER_WINDOW; j++) {
+			for (std::size_t j = 0; j < blocks_per_window; j++) {
 				auto ei = get_window(i).blocks[j].header.epoch_and_indices.load();
 				filled_cells += get_write_index(ei) - get_read_finished_index(ei);
 			}
@@ -59,41 +82,30 @@ private:
 	std::size_t size() const {
 		std::size_t filled_cells = 0;
 		for (std::size_t i = read_window; i <= write_window; i++) {
-			for (std::size_t j = 0; j < BLOCKS_PER_WINDOW; j++) {
+			for (std::size_t j = 0; j < blocks_per_window; j++) {
 				auto ei = get_window(i).blocks[j].header.epoch_and_indices.load();
 				filled_cells += get_write_index(ei) - get_read_finished_index(ei);
 			}
 		}
 		return filled_cells;
 	}
-
-	static_assert(sizeof(T) == 8);
-	static_assert(sizeof(std::atomic<T>) == 8);
-
-	struct header_t {
-		// 16 bits epoch, 16 bits read started index, 16 bits read finished index, 16 bits write index
-		std::atomic_uint64_t epoch_and_indices;
-	};
-	static_assert(sizeof(header_t) == 8);
+#endif // BBQ_RELAXED_DEBUG_FUNCTIONS
 
 	// We use 64 bit return types here to avoid potential deficits through 16-bit comparisons.
-	static constexpr std::uint16_t get_epoch(std::uint64_t ei) { return ei >> 48; }
-	static constexpr std::uint16_t get_read_index(std::uint64_t ei) { return (ei >> 32) & 0xffff; }
-	static constexpr std::uint16_t get_write_index(std::uint64_t ei) { return ei & 0xffff; }
+	static constexpr std::uint64_t get_epoch(std::uint64_t ei) { return ei >> 48; }
+	static constexpr std::uint64_t mask_epoch(std::uint64_t window_index) { return window_index & 0xffff; }
+	static constexpr std::uint64_t get_read_index(std::uint64_t ei) { return (ei >> 32) & 0xffff; }
+	static constexpr std::uint64_t get_write_index(std::uint64_t ei) { return ei & 0xffff; }
 	static constexpr std::uint64_t epoch_to_header(std::uint64_t epoch) { return epoch << 48; }
 
-	struct block_t {
-		header_t header;
-		std::array<std::atomic<T>, CELLS_PER_BLOCK> cells;
-	};
+	using block_t = block<T, CELLS_PER_BLOCK>;
 	static_assert(sizeof(block_t) == CELLS_PER_BLOCK * sizeof(T) + sizeof(header_t));
 
-	struct window_t {
-		alignas(std::hardware_destructive_interference_size) atomic_bitset<BLOCKS_PER_WINDOW, BITSET_TYPE> filled_set;
-		alignas(std::hardware_destructive_interference_size) block_t blocks[BLOCKS_PER_WINDOW];
-	};
+	// Doing it like this avoids having to have a special case for first-time initialization, while only claiming a block on first use.
+	static inline block_t dummy_block{ header_t{0xffffull << 48}, {} };
 
-	const std::unique_ptr<window_t[]> buffer;
+	using window_t = window<block_t, blocks_per_window, BITSET_T>;
+	std::unique_ptr<window_t[]> buffer;
 
 	window_t& get_window(std::size_t index) const {
 		return buffer[index & window_count_mod_mask];
@@ -104,31 +116,37 @@ private:
 
 public:
 	// TODO: Remove unused parameter!!
-	block_based_queue([[maybe_unused]] int thread_count, std::size_t size) :
-			window_count(std::max<std::size_t>(4, make_po2(size / BLOCKS_PER_WINDOW / CELLS_PER_BLOCK))),
+	block_based_queue([[maybe_unused]] int thread_count, std::size_t min_size) :
+			window_count(std::max<std::size_t>(4, std::bit_ceil(min_size / blocks_per_window / CELLS_PER_BLOCK))),
 			window_count_mod_mask(window_count - 1),
 			buffer(std::make_unique<window_t[]>(window_count)) {
+#if BBQ_LOG_CREATION_SIZE
+		std::cout << "Window count: " << window_count << std::endl;
+		std::cout << "Block count: " << blocks_per_window << std::endl;
+#endif // BBQ_LOG_CREATION_SIZE
+
 		read_window = window_count;
 		write_window = window_count + 1;
 		for (std::size_t i = 1; i < window_count; i++) {
 			window_t& window = buffer[i];
-			for (std::size_t j = 0; j < BLOCKS_PER_WINDOW; j++) {
+			for (std::size_t j = 0; j < blocks_per_window; j++) {
 				header_t& header = window.blocks[j].header;
 				header.epoch_and_indices = (window_count + i) << 48;
 			}
 		}
 		window_t& window = buffer[0];
-		for (std::size_t j = 0; j < BLOCKS_PER_WINDOW; j++) {
+		for (std::size_t j = 0; j < blocks_per_window; j++) {
 			header_t& header = window.blocks[j].header;
 			header.epoch_and_indices = (window_count * 2) << 48;
 		}
 	}
 
+#ifdef BBQ_DEBUG_FUNCTIONS
 	std::ostream& operator<<(std::ostream& os) const {
 		os << "Printing block_based_queue:\n"
 			<< "Read: " << read_window << "; Write: " << write_window << '\n';
 		for (std::size_t i = 0; i < window_count; i++) {
-			for (std::size_t j = 0; j < BLOCKS_PER_WINDOW; j++) {
+			for (std::size_t j = 0; j < blocks_per_window; j++) {
 				std::uint64_t val = buffer[i].blocks[j].header.epoch_and_indices;
 				os << get_epoch(val) << " " << get_read_index(val) << " " << " " << get_write_index(val) << " | ";
 			}
@@ -136,18 +154,16 @@ public:
 		}
 		return os;
 	}
+#endif // BBQ_RELAXED_DEBUG_FUNCTIONS
 
 	class handle {
 	private:
 		block_based_queue& fifo;
-
-		// Doing it like this avoids having to have a special case for first-time initialization, while only claiming a block on first use.
-		// TODO: Could this cause issues? Even though it is thread_local it may be shared across handles!
-		static inline thread_local block_t dummy_block{header_t{0xffffull << 48}, {}};
 	
 		block_t* read_block = &dummy_block;
 		block_t* write_block = &dummy_block;
 
+		// These need to be 64-bit because we use them index into the window buffer.
 		std::uint64_t write_window = 0;
 		std::uint64_t read_window = 0;
 
@@ -169,9 +185,9 @@ public:
 						return false;
 					}
 					fifo.write_window.compare_exchange_strong(window_index, window_index + 1, std::memory_order_relaxed);
-#if LOG_WINDOW_MOVE
+#if BBQ_LOG_WINDOW_MOVE
 					std::cout << "Write move " << (window_index + 1) << std::endl;
-#endif // LOG_WINDOW_MOVE
+#endif // BBQ_LOG_WINDOW_MOVE
 				} else {
 					break;
 				}
@@ -202,16 +218,16 @@ public:
 						// the read window from being moved before all blocks have either been claimed or invalidated.
 						window_t& new_window = fifo.get_window(write_window);
 						std::uint64_t next_epoch = epoch_to_header(write_window + fifo.window_count);
-						for (std::size_t i = 0; i < BLOCKS_PER_WINDOW; i++) {
+						for (std::size_t i = 0; i < blocks_per_window; i++) {
 							// We can't rely on the bitset here because it might be experiencing a spurious claim.
 
 							std::uint64_t ei = epoch_to_header(write_window); // All empty with current epoch.
 							new_window.blocks[i].header.epoch_and_indices.compare_exchange_strong(ei, next_epoch, std::memory_order_relaxed);
 						}
 						fifo.write_window.compare_exchange_strong(write_window, write_window + 1, std::memory_order_relaxed);
-#if LOG_WINDOW_MOVE
+#if BBQ_LOG_WINDOW_MOVE
 						std::cout << "Write force move " << (write_window + 1) << std::endl;
-#endif // LOG_WINDOW_MOVE
+#endif // BBQ_LOG_WINDOW_MOVE
 					}
 
 					// TODO: Remove this.
@@ -228,9 +244,9 @@ public:
 					if (all_correct) {
 						fifo.read_window.compare_exchange_strong(window_index, window_index + 1, std::memory_order_relaxed);
 					}
-#if LOG_WINDOW_MOVE
+#if BBQ_LOG_WINDOW_MOVE
 					std::cout << "Read move " << (window_index + 1) << std::endl;
-#endif // LOG_WINDOW_MOVE
+#endif // BBQ_LOG_WINDOW_MOVE
 				} else {
 					break;
 				}
@@ -247,12 +263,12 @@ public:
 
 			header_t* header = &write_block->header;
 			std::uint64_t ei = header->epoch_and_indices.load(std::memory_order_relaxed);
-			std::uint16_t index;
+			std::uint64_t index;
 
 			bool failure = true;
 			while (failure) {
 				T old = 0;
-				while (get_epoch(ei) != static_cast<std::uint16_t>(write_window) || (index = get_write_index(ei)) == CELLS_PER_BLOCK
+				while (get_epoch(ei) != mask_epoch(write_window) || (index = get_write_index(ei)) == CELLS_PER_BLOCK
 					|| !write_block->cells[index].compare_exchange_weak(old, std::move(t), std::memory_order_relaxed)) {
 					if (!claim_new_block_write()) {
 						return false;
@@ -276,9 +292,9 @@ public:
 		std::optional<T> pop() {
 			header_t* header = &read_block->header;
 			std::uint64_t ei = header->epoch_and_indices.load(std::memory_order_relaxed);
-			std::uint16_t index;
+			std::uint64_t index;
 
-			while (get_epoch(ei) != static_cast<std::uint16_t>(read_window) || (index = get_read_index(ei)) == get_write_index(ei)
+			while (get_epoch(ei) != mask_epoch(read_window) || (index = get_read_index(ei)) == get_write_index(ei)
 				|| !header->epoch_and_indices.compare_exchange_weak(ei, ei + (1ull << 32), std::memory_order_relaxed)) {
 				if (!claim_new_block_read()) {
 					return std::nullopt;
@@ -329,7 +345,12 @@ public:
 
 	handle get_handle() { return handle(*this); }
 };
-static_assert(fifo<block_based_queue<std::uint64_t>, std::uint64_t>);
+static_assert(fifo<block_based_queue<std::uint64_t, 8, 7, std::uint8_t>, std::uint64_t>);
+
+template <typename T, std::size_t MIN_BLOCKS_PER_WINDOW = 1, std::size_t CELLS_PER_BLOCK = 7, typename BITSET_T = std::uint8_t>
+using bbq_min_block_count =
+	block_based_queue<T, std::bit_width(std::max(8 * sizeof(BITSET_T),
+		std::bit_ceil(MIN_BLOCKS_PER_WINDOW))) - 1, CELLS_PER_BLOCK, BITSET_T>;
 
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
