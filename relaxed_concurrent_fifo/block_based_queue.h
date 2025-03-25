@@ -92,10 +92,11 @@ private:
 #endif // BBQ_RELAXED_DEBUG_FUNCTIONS
 
 	// We use 64 bit return types here to avoid potential deficits through 16-bit comparisons.
-	static constexpr std::uint16_t get_epoch(std::uint64_t ei) { return ei >> 48 & 0xffff; }
-	static constexpr std::uint16_t get_read_started_index(std::uint64_t ei) { return (ei >> 32) & 0xffff; }
-	static constexpr std::uint16_t get_read_finished_index(std::uint64_t ei) { return (ei >> 16) & 0xffff; }
-	static constexpr std::uint16_t get_write_index(std::uint64_t ei) { return ei & 0xffff; }
+	static constexpr std::uint64_t get_epoch(std::uint64_t ei) { return ei >> 48 & 0xffff; }
+	static constexpr std::uint64_t mask_epoch(std::uint64_t window_index) { return window_index & 0xffff; }
+	static constexpr std::uint64_t get_read_started_index(std::uint64_t ei) { return (ei >> 32) & 0xffff; }
+	static constexpr std::uint64_t get_read_finished_index(std::uint64_t ei) { return (ei >> 16) & 0xffff; }
+	static constexpr std::uint64_t get_write_index(std::uint64_t ei) { return ei & 0xffff; }
 	static constexpr std::uint64_t epoch_to_header(std::uint64_t epoch) { return epoch << 48; }
 
 	using block_t = block<T, CELLS_PER_BLOCK>;
@@ -163,6 +164,7 @@ public:
 		block_t* read_block = &dummy_block;
 		block_t* write_block = &dummy_block;
 
+		// These need to be 64-bit because we use them index into the window buffer.
 		std::uint64_t write_window = 0;
 		std::uint64_t read_window = 0;
 
@@ -249,9 +251,9 @@ public:
 
 			header_t* header = &write_block->header;
 			std::uint64_t ei = header->epoch_and_indices.load(std::memory_order_relaxed);
-			std::uint16_t index;
+			std::uint64_t index;
 			bool claimed = false;
-			while (get_epoch(ei) != static_cast<std::uint16_t>(write_window) || (index = get_write_index(ei)) == CELLS_PER_BLOCK || !header->epoch_and_indices.compare_exchange_weak(ei, ei + 1, std::memory_order_relaxed)) {
+			while (get_epoch(ei) != mask_epoch(write_window) || (index = get_write_index(ei)) == CELLS_PER_BLOCK || !header->epoch_and_indices.compare_exchange_weak(ei, ei + 1, std::memory_order_relaxed)) {
 				// We need this in case of a spurious claim where we claim a bit, but can't place an element inside,
 				// because the write window was already forced-moved.
 				// This is safe to do because writers are exclusive.
@@ -277,9 +279,9 @@ public:
 		std::optional<T> pop() {
 			header_t* header = &read_block->header;
 			std::uint64_t ei = header->epoch_and_indices.load(std::memory_order_relaxed);
-			std::uint16_t index;
+			std::uint64_t index;
 
-			while (get_epoch(ei) != static_cast<std::uint16_t>(read_window) || (index = get_read_started_index(ei)) == get_write_index(ei)
+			while (get_epoch(ei) != mask_epoch(read_window) || (index = get_read_started_index(ei)) == get_write_index(ei)
 				|| !header->epoch_and_indices.compare_exchange_weak(ei, ei + (1ull << 32), std::memory_order_relaxed)) {
 				if (!claim_new_block_read()) {
 					return std::nullopt;
@@ -292,12 +294,12 @@ public:
 			while ((ret = std::move(read_block->cells[index].load(std::memory_order_relaxed))) == 0) { }
 			read_block->cells[index].store(0, std::memory_order_relaxed);
 
-			std::uint16_t finished_index = get_read_finished_index(header->epoch_and_indices.fetch_add(1 << 16, std::memory_order_relaxed)) + 1;
+			std::uint64_t finished_index = get_read_finished_index(header->epoch_and_indices.fetch_add(1 << 16, std::memory_order_relaxed)) + 1;
 			// We need the >= here because between the read of ei and the fetch_add above both a write and a finished read might have occurred
 			// that make our finished_index > our (outdated) write index.
 			if (finished_index >= get_write_index(ei)) {
 				// Apply local read index update.
-				ei = (ei & (0xffffull << 48)) | (static_cast<std::uint64_t>(finished_index) << 32) | (static_cast<std::uint64_t>(finished_index) << 16) | finished_index;
+				ei = (ei & (0xffffull << 48)) | (finished_index << 32) | (finished_index << 16) | finished_index;
 				// Before we mark this block as empty, we make it unavailable for other readers and writers of this epoch.
 				if (header->epoch_and_indices.compare_exchange_strong(ei, (read_window + fifo.window_count) << 48, std::memory_order_relaxed)) {
 					window_t& window = fifo.get_window(read_window);
