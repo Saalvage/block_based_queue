@@ -234,7 +234,7 @@ public:
 					bool all_correct = true;
 					window_t& new_window = fifo.get_window(window_index);
 					std::uint64_t next_epoch = epoch_to_header(window_index + fifo.window_count);
-					for (std::size_t i = 0; i < BLOCKS_PER_WINDOW; i++) {
+					for (std::size_t i = 0; i < blocks_per_window; i++) {
 						if (get_epoch(new_window.blocks[i].header.epoch_and_indices) != get_epoch(next_epoch)) {
 							new_window.filled_set.set(i);
 							all_correct = false;
