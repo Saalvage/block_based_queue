@@ -368,7 +368,7 @@ int main(int argc, const char** argv) {
 			seglist.push_back(temp);
 		}
 		argv2.resize(seglist.size() + 1);
-		for (int i = 0; i < seglist.size(); i++) {
+		for (std::size_t i = 0; i < seglist.size(); i++) {
 			argv2[i + 1] = seglist[i].c_str();
 		}
 		argc = static_cast<int>(argv2.size());
