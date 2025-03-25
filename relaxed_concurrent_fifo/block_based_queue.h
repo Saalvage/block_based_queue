@@ -16,7 +16,7 @@
 #endif
 
 #ifndef BBQ_LOG_CREATION_SIZE
-#define BBQ_LOG_CREATION_SIZE 1
+#define BBQ_LOG_CREATION_SIZE 0
 #endif
 
 #define BBQ_DEBUG_FUNCTIONS 0
@@ -34,15 +34,15 @@
 #pragma GCC diagnostic ignored "-Winterference-size"
 #endif // __GNUC__
 
-struct header {
+struct header_t {
 	// 16 bits epoch, 16 bits read started index, 16 bits read finished index, 16 bits write index
 	std::atomic_uint64_t epoch_and_indices;
 };
 
 template <typename T, std::size_t CELLS_PER_BLOCK>
 struct block {
-	static_assert(sizeof(header) == 8);
-	header header;
+	static_assert(sizeof(header_t) == 8);
+	header_t header;
 	std::array<std::atomic<T>, CELLS_PER_BLOCK> cells;
 };
 
@@ -99,10 +99,10 @@ private:
 	static constexpr std::uint64_t epoch_to_header(std::uint64_t epoch) { return epoch << 48; }
 
 	using block_t = block<T, CELLS_PER_BLOCK>;
-	static_assert(sizeof(block_t) == CELLS_PER_BLOCK * sizeof(T) + sizeof(header));
+	static_assert(sizeof(block_t) == CELLS_PER_BLOCK * sizeof(T) + sizeof(header_t));
 
 	// Doing it like this avoids having to have a special case for first-time initialization, while only claiming a block on first use.
-	static inline block_t dummy_block{ header{0xffffull << 48}, {} };
+	static inline block_t dummy_block{ header_t{0xffffull << 48}, {} };
 
 	using window_t = window<block_t, blocks_per_window, BITSET_T>;
 	std::unique_ptr<window_t[]> buffer;
@@ -130,13 +130,13 @@ public:
 		for (std::size_t i = 1; i < window_count; i++) {
 			window_t& window = buffer[i];
 			for (std::size_t j = 0; j < blocks_per_window; j++) {
-				header& header = window.blocks[j].header;
+				header_t& header = window.blocks[j].header;
 				header.epoch_and_indices = (window_count + i) << 48;
 			}
 		}
 		window_t& window = buffer[0];
 		for (std::size_t j = 0; j < blocks_per_window; j++) {
-			header& header = window.blocks[j].header;
+			header_t& header = window.blocks[j].header;
 			header.epoch_and_indices = (window_count * 2) << 48;
 		}
 	}
@@ -247,7 +247,7 @@ public:
 		bool push(T t) {
 			assert(t != 0);
 
-			header* header = &write_block->header;
+			header_t* header = &write_block->header;
 			std::uint64_t ei = header->epoch_and_indices.load(std::memory_order_relaxed);
 			std::uint16_t index;
 			bool claimed = false;
@@ -275,7 +275,7 @@ public:
 		}
 
 		std::optional<T> pop() {
-			header* header = &read_block->header;
+			header_t* header = &read_block->header;
 			std::uint64_t ei = header->epoch_and_indices.load(std::memory_order_relaxed);
 			std::uint16_t index;
 
