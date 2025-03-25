@@ -513,15 +513,15 @@ class benchmark_provider_relaxed : public benchmark_provider<BENCHMARK> {
 
 		BENCHMARK test(const benchmark_info& info, double prefill_amount) const override {
 			switch (info.num_threads) {
-			case 1: return test_helper<block_based_queue<std::size_t, 1 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(info, prefill_amount);
-			case 2: return test_helper<block_based_queue<std::size_t, 2 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(info, prefill_amount);
-			case 4: return test_helper<block_based_queue<std::size_t, 4 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(info, prefill_amount);
-			case 8: return test_helper<block_based_queue<std::size_t, 8 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(info, prefill_amount);
-			case 16: return test_helper<block_based_queue<std::size_t, 16 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(info, prefill_amount);
-			case 32: return test_helper<block_based_queue<std::size_t, 32 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(info, prefill_amount);
-			case 64: return test_helper<block_based_queue<std::size_t, 64 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(info, prefill_amount);
-			case 128: return test_helper<block_based_queue<std::size_t, 128 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(info, prefill_amount);
-			case 256: return test_helper<block_based_queue<std::size_t, 256 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(info, prefill_amount);
+			case 1: return test_helper<bbq_min_block_count<std::size_t, 1 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(info, prefill_amount);
+			case 2: return test_helper<bbq_min_block_count<std::size_t, 2 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(info, prefill_amount);
+			case 4: return test_helper<bbq_min_block_count<std::size_t, 4 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(info, prefill_amount);
+			case 8: return test_helper<bbq_min_block_count<std::size_t, 8 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(info, prefill_amount);
+			case 16: return test_helper<bbq_min_block_count<std::size_t, 16 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(info, prefill_amount);
+			case 32: return test_helper<bbq_min_block_count<std::size_t, 32 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(info, prefill_amount);
+			case 64: return test_helper<bbq_min_block_count<std::size_t, 64 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(info, prefill_amount);
+			case 128: return test_helper<bbq_min_block_count<std::size_t, 128 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(info, prefill_amount);
+			case 256: return test_helper<bbq_min_block_count<std::size_t, 256 * BLOCK_MULTIPLIER, CELLS_PER_BLOCK, BITSET_TYPE>>(info, prefill_amount);
 			default: throw std::runtime_error("Unsupported thread count!");
 			}
 		}
