@@ -128,7 +128,7 @@ public:
 	block_based_queue([[maybe_unused]] int thread_count, std::size_t min_size) :
 			window_count(std::max<std::size_t>(4, std::bit_ceil(min_size / blocks_per_window / CELLS_PER_BLOCK))),
 			window_count_mod_mask(window_count - 1),
-			window_count_log2(std::bit_width(window_count)),
+			window_count_log2(std::bit_width(window_count) - 1),
 			buffer(std::make_unique<window_t[]>(window_count)) {
 #if BBQ_LOG_CREATION_SIZE
 		std::cout << "Window count: " << window_count << std::endl;
