@@ -142,7 +142,7 @@ public:
 		}
 	}
 
-#ifdef BBQ_DEBUG_FUNCTIONS
+#if BBQ_DEBUG_FUNCTIONS
 	std::ostream& operator<<(std::ostream& os) const {
 		os << "Printing block_based_queue:\n"
 			<< "Read: " << read_window << "; Write: " << write_window << '\n';
