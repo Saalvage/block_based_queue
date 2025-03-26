@@ -329,7 +329,7 @@ public:
 			// that make our finished_index > our (outdated) write index.
 			if (index == get_write_index(ei)) {
 				// Apply local read index update.
-				ei = (ei & 0xffff'0000'ffff'ffffull) | (static_cast<std::uint64_t>(index) << 32);
+				ei = (ei & 0xffff'0000'ffff'ffffull) | (index << 32);
 				// Before we mark this block as empty, we make it unavailable for other readers and writers of this epoch.
 				if (header->epoch_and_indices.compare_exchange_strong(ei, (read_window + fifo.window_count) << 48, std::memory_order_relaxed)) {
 					window_t& window = fifo.get_window(read_window);
