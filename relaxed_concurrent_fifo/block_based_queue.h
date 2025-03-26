@@ -265,18 +265,10 @@ public:
 			std::uint64_t ei = header->epoch_and_indices.load(std::memory_order_relaxed);
 			std::uint64_t index;
 
-			if (get_epoch(ei) != mask_epoch(write_window) || (index = get_write_index(ei)) == CELLS_PER_BLOCK) {
-				if (!claim_new_block_write()) {
-					return false;
-				}
-				header = &write_block->header;
-				ei = header->epoch_and_indices.load(std::memory_order_relaxed);
-				index = 0;
-			}
-
 			while (true) {
 				T old = 0;
-				if (write_block->cells[index].compare_exchange_strong(old, std::move(t), std::memory_order_relaxed)) {
+				if (get_epoch(ei) == mask_epoch(write_window) && (index = get_write_index(ei)) != CELLS_PER_BLOCK
+					&& write_block->cells[index].compare_exchange_strong(old, std::move(t), std::memory_order_relaxed)) {
 					if (header->epoch_and_indices.compare_exchange_strong(ei, ei + 1, std::memory_order_relaxed)) {
 						return true;
 					}
@@ -290,7 +282,6 @@ public:
 				}
 				header = &write_block->header;
 				ei = header->epoch_and_indices.load(std::memory_order_relaxed);
-				index = 0;
 			}
 		}
 
