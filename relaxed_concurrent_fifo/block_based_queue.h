@@ -126,19 +126,19 @@ public:
 		std::cout << "Block count: " << blocks_per_window << std::endl;
 #endif // BBQ_LOG_CREATION_SIZE
 
-		read_window = window_count;
-		write_window = window_count + 1;
+		read_window = 0;
+		write_window = 1;
+		window_t& window = buffer[0];
+		for (std::size_t j = 0; j < blocks_per_window; j++) {
+			header_t& header = window.blocks[j].header;
+			header.epoch_and_indices = window_count << 48;
+		}
 		for (std::size_t i = 1; i < window_count; i++) {
 			window_t& window = buffer[i];
 			for (std::size_t j = 0; j < blocks_per_window; j++) {
 				header_t& header = window.blocks[j].header;
-				header.epoch_and_indices = (window_count + i) << 48;
+				header.epoch_and_indices = i << 48;
 			}
-		}
-		window_t& window = buffer[0];
-		for (std::size_t j = 0; j < blocks_per_window; j++) {
-			header_t& header = window.blocks[j].header;
-			header.epoch_and_indices = (window_count * 2) << 48;
 		}
 	}
 
