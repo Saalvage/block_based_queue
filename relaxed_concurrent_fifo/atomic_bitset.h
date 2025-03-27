@@ -126,22 +126,21 @@ public:
     }
 
     template <claim_value VALUE, claim_mode MODE>
-    std::size_t claim_bit(std::memory_order order = std::memory_order_seq_cst) {
-        static thread_local std::random_device dev;
-        static thread_local std::minstd_rand rng{ dev() };
-        static thread_local std::uniform_int_distribution dist_inner{ 0, static_cast<int>(N - 1) };
-        static thread_local std::uniform_int_distribution dist_outer{ 0, static_cast<int>(array_members - 1) };
-
+    std::size_t claim_bit(int starting_bit, std::memory_order order = std::memory_order_seq_cst) {
+        assert(starting_bit < size());
         int off;
+        int initial_rot;
         if constexpr (array_members > 1) {
-            off = dist_outer(rng);
+            off = starting_bit / bit_count;
+            initial_rot = starting_bit % bit_count;
         } else {
+            initial_rot = starting_bit;
             off = 0;
         }
-        auto initial_rot = dist_inner(rng);
         for (std::size_t i = 0; i < data.size(); i++) {
             auto index = (i + off) % data.size();
-            if (auto ret = claim_bit_singular<VALUE, MODE>(data[index], initial_rot, order); ret != std::numeric_limits<std::size_t>::max()) {
+            if (auto ret = claim_bit_singular<VALUE, MODE>(data[index], initial_rot, order);
+                    ret != std::numeric_limits<std::size_t>::max()) {
                 return ret + index * bit_count;
             }
         }
