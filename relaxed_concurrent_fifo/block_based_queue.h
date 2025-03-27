@@ -179,7 +179,7 @@ public:
 			do {
 				window_index = fifo.write_window.load(std::memory_order_relaxed);
 				window = &fifo.get_window(window_index);
-				free_bit = window->filled_set.template claim_bit<false, true>(std::memory_order_relaxed);
+				free_bit = window->filled_set.template claim_bit<claim_value::ZERO, claim_mode::READ_WRITE>(std::memory_order_relaxed);
 				if (free_bit == std::numeric_limits<std::size_t>::max()) {
 					// No more free bits, we move.
 					if (window_index + 1 - fifo.read_window.load(std::memory_order_relaxed) == fifo.window_count) {
@@ -206,7 +206,7 @@ public:
 			do {
 				window_index = fifo.read_window.load(std::memory_order_relaxed);
 				window = &fifo.get_window(window_index);
-				free_bit = window->filled_set.template claim_bit<true, false>(std::memory_order_relaxed);
+				free_bit = window->filled_set.template claim_bit<claim_value::ONE, claim_mode::READ_ONLY>(std::memory_order_relaxed);
 				if (free_bit == std::numeric_limits<std::size_t>::max()) {
 					std::uint64_t write_window = fifo.write_window.load(std::memory_order_relaxed);
 					if (write_window == window_index + 1) {

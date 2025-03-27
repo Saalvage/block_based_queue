@@ -173,7 +173,7 @@ void test_continuous_bitset_claim() {
 				b[i] = true;
 			}
 		}
-		auto result = a.template claim_bit<true, true>();
+		auto result = a.template claim_bit<claim_value::ONE, claim_mode::READ_WRITE>();
 		if (result != std::numeric_limits<std::size_t>::max() && (a[result] || !b[result])) {
 			throw std::runtime_error("Incorrect!");
 		}
