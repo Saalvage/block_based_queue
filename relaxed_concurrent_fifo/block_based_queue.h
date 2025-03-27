@@ -278,7 +278,7 @@ public:
 					old = 0;
 				}
 
-				failure = !header->epoch_and_indices.compare_exchange_strong(ei, ei + 1, std::memory_order_relaxed);
+				failure = !header->epoch_and_indices.compare_exchange_strong(ei, ei + 1, std::memory_order_release);
 				if (failure) {
 					// The header changed, we need to undo our write and try again.
 					write_block->cells[index].store(0, std::memory_order_relaxed);
@@ -295,7 +295,7 @@ public:
 			std::uint64_t index;
 
 			while (get_epoch(ei) != mask_epoch(read_window) || (index = get_read_index(ei)) == get_write_index(ei)
-				|| !header->epoch_and_indices.compare_exchange_weak(ei, ei + (1ull << 32), std::memory_order_relaxed)) {
+				|| !header->epoch_and_indices.compare_exchange_weak(ei, ei + (1ull << 32), std::memory_order_acquire)) {
 				if (!claim_new_block_read()) {
 					return std::nullopt;
 				}
