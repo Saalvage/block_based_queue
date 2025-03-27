@@ -3,6 +3,8 @@
 
 #include "benchmark_provider_base.hpp"
 
+#include <format>
+
 template <fifo FIFO, typename BENCHMARK, typename... Args>
 class benchmark_provider_generic : public benchmark_provider<BENCHMARK> {
 public:

@@ -3,6 +3,8 @@
 
 #include "benchmark_base.hpp"
 
+#include <optional>
+
 #include "../contenders/multififo/util/graph.hpp"
 #include "../contenders/multififo/util/termination_detection.hpp"
 
