@@ -112,6 +112,8 @@ private:
 	static constexpr std::uint64_t mask_epoch(std::uint64_t window_index) { return window_index & 0xffff; }
 	static constexpr std::uint64_t get_read_index(std::uint64_t ei) { return (ei >> 32) & 0xffff; }
 	static constexpr std::uint64_t get_write_index(std::uint64_t ei) { return ei & 0xffff; }
+	static constexpr std::uint64_t increment_write_index(std::uint64_t ei) { return ei + 1; }
+	static constexpr std::uint64_t increment_read_index(std::uint64_t ei) { return ei + (1ull << 32); }
 	static constexpr std::uint64_t epoch_to_header(std::uint64_t epoch) { return epoch << 48; }
 
 	using block_t = block<T, CELLS_PER_BLOCK>;
@@ -146,13 +148,13 @@ public:
 		window_t& window = buffer[0];
 		for (std::size_t j = 0; j < blocks_per_window; j++) {
 			header_t& header = window.blocks[j].header;
-			header.epoch_and_indices = window_count << 48;
+			header.epoch_and_indices = epoch_to_header(window_count);
 		}
 		for (std::size_t i = 1; i < window_count; i++) {
 			window_t& window = buffer[i];
 			for (std::size_t j = 0; j < blocks_per_window; j++) {
 				header_t& header = window.blocks[j].header;
-				header.epoch_and_indices = i << 48;
+				header.epoch_and_indices = epoch_to_header(i);
 			}
 		}
 	}
@@ -296,7 +298,7 @@ public:
 					old = 0;
 				}
 
-				failure = !header->epoch_and_indices.compare_exchange_strong(ei, ei + 1, std::memory_order_release);
+				failure = !header->epoch_and_indices.compare_exchange_strong(ei, increment_write_index(ei), std::memory_order_release);
 				if (failure) {
 					// The header changed, we need to undo our write and try again.
 					write_block->cells[index].store(0, std::memory_order_relaxed);
@@ -313,7 +315,7 @@ public:
 			std::uint64_t index;
 
 			while (get_epoch(ei) != mask_epoch(read_window) || (index = get_read_index(ei)) == get_write_index(ei)
-				|| !header->epoch_and_indices.compare_exchange_weak(ei, ei + (1ull << 32), std::memory_order_acquire)) {
+				|| !header->epoch_and_indices.compare_exchange_weak(ei, increment_read_index(ei), std::memory_order_acquire)) {
 				if (!claim_new_block_read()) {
 					return std::nullopt;
 				}
@@ -329,7 +331,7 @@ public:
 				if (get_write_index(ei) == get_read_index(ei)) {
 					// We need this in case of a spurious claim where a bit was claimed, but the writer couldn't place an element inside,
 					// because the write window was already forced-moved.
-					if (header->epoch_and_indices.compare_exchange_strong(ei, (read_window + fifo.window_count) << 48, std::memory_order_relaxed)) {
+					if (header->epoch_and_indices.compare_exchange_strong(ei, epoch_to_header(read_window + fifo.window_count), std::memory_order_relaxed)) {
 						// We're abandoning an empty block!
 						window_t& window = fifo.get_window(read_window);
 						auto diff = read_block - window.blocks;
@@ -349,7 +351,7 @@ public:
 				// Apply local read index update.
 				ei = (ei & 0xffff'0000'ffff'ffffull) | (index << 32);
 				// Before we mark this block as empty, we make it unavailable for other readers and writers of this epoch.
-				if (header->epoch_and_indices.compare_exchange_strong(ei, (read_window + fifo.window_count) << 48, std::memory_order_relaxed)) {
+				if (header->epoch_and_indices.compare_exchange_strong(ei, epoch_to_header(read_window + fifo.window_count), std::memory_order_relaxed)) {
 					window_t& window = fifo.get_window(read_window);
 					auto diff = read_block - window.blocks;
 					window.filled_set.reset(diff, std::memory_order_relaxed);
