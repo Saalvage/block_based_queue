@@ -13,6 +13,16 @@
 #pragma GCC diagnostic ignored "-Winterference-size"
 #endif // __GNUC__
 
+enum class claim_value {
+    ZERO = 0,
+    ONE = 1,
+};
+
+enum class claim_mode {
+    READ_WRITE,
+    READ_ONLY,
+};
+
 template <bool SET, typename T>
 constexpr bool set_bit_atomic(std::atomic<T>& data, std::size_t index, std::memory_order order = std::memory_order_seq_cst) {
     T mask = static_cast<T>(1) << index;
@@ -42,21 +52,21 @@ private:
     // This requirement could be lifted in exchange for a more complicated implementation of the claim bit function.
     static_assert(N % bit_count == 0, "Bit count must be dividable by size of array type!");
 
-    template <bool IS_SET, bool SET>
+    template <claim_value VALUE, claim_mode MODE>
     static constexpr std::size_t claim_bit_singular(std::atomic<ARR_TYPE>& data, int initial_rot, std::memory_order order) {
         auto raw = data.load(order);
         ARR_TYPE rotated;
         while (true) {
             rotated = std::rotr(raw, initial_rot);
-            int counted = IS_SET ? std::countr_zero(rotated) : std::countr_one(rotated);
+            int counted = VALUE == claim_value::ONE ? std::countr_zero(rotated) : std::countr_one(rotated);
             if (counted == bit_count) {
                 return std::numeric_limits<std::size_t>::max();
             }
             std::size_t original_index = (initial_rot + counted) % bit_count;
-            if constexpr (SET) {
+            if constexpr (MODE == claim_mode::READ_WRITE) {
                 ARR_TYPE test;
                 while (true) {
-                    if constexpr (IS_SET) {
+                    if constexpr (VALUE == claim_value::ONE) {
                         test = raw & ~(1ull << original_index);
                     } else {
                         test = raw | (1ull << original_index);
@@ -115,23 +125,22 @@ public:
         return false;
     }
 
-    template <bool IS_SET, bool SET>
-    std::size_t claim_bit(std::memory_order order = std::memory_order_seq_cst) {
-        static thread_local std::random_device dev;
-        static thread_local std::minstd_rand rng{ dev() };
-        static thread_local std::uniform_int_distribution dist_inner{ 0, static_cast<int>(N - 1) };
-        static thread_local std::uniform_int_distribution dist_outer{ 0, static_cast<int>(array_members - 1) };
-
+    template <claim_value VALUE, claim_mode MODE>
+    std::size_t claim_bit(int starting_bit, std::memory_order order = std::memory_order_seq_cst) {
+        assert(starting_bit < size());
         int off;
+        int initial_rot;
         if constexpr (array_members > 1) {
-            off = dist_outer(rng);
+            off = starting_bit / bit_count;
+            initial_rot = starting_bit % bit_count;
         } else {
+            initial_rot = starting_bit;
             off = 0;
         }
-        auto initial_rot = dist_inner(rng);
         for (std::size_t i = 0; i < data.size(); i++) {
             auto index = (i + off) % data.size();
-            if (auto ret = claim_bit_singular<IS_SET, SET>(data[index], initial_rot, order); ret != std::numeric_limits<std::size_t>::max()) {
+            if (auto ret = claim_bit_singular<VALUE, MODE>(data[index], initial_rot, order);
+                    ret != std::numeric_limits<std::size_t>::max()) {
                 return ret + index * bit_count;
             }
         }

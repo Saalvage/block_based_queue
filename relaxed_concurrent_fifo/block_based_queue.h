@@ -50,6 +50,22 @@ template <typename BLOCK_T, std::size_t BLOCKS_PER_WINDOW, typename BITSET_T>
 struct window {
 	alignas(std::hardware_destructive_interference_size) atomic_bitset<BLOCKS_PER_WINDOW, BITSET_T> filled_set;
 	alignas(std::hardware_destructive_interference_size) BLOCK_T blocks[BLOCKS_PER_WINDOW];
+
+	BLOCK_T* try_get_write_block(int starting_bit) {
+		std::size_t free_bit = filled_set.template claim_bit<claim_value::ZERO, claim_mode::READ_WRITE>(starting_bit);
+		if (free_bit == std::numeric_limits<std::size_t>::max()) {
+			return nullptr;
+		}
+		return &blocks[free_bit];
+	}
+
+	BLOCK_T* try_get_read_block(int starting_bit) {
+		std::size_t free_bit = filled_set.template claim_bit<claim_value::ONE, claim_mode::READ_ONLY>(starting_bit);
+		if (free_bit == std::numeric_limits<std::size_t>::max()) {
+			return nullptr;
+		}
+		return &blocks[free_bit];
+	}
 };
 
 template <typename T, std::size_t LOG_BLOCKS_PER_WINDOW, std::size_t CELLS_PER_BLOCK, typename BITSET_T>
@@ -167,19 +183,23 @@ public:
 		std::uint64_t write_window = 0;
 		std::uint64_t read_window = 0;
 
-		handle(block_based_queue& fifo) : fifo(fifo) { }
+		std::minstd_rand rng;
+
+		handle(block_based_queue& fifo, std::random_device::result_type seed) : fifo(fifo), rng(seed) { }
 
 		friend block_based_queue;
 
+		int random_bit_index() {
+			return std::uniform_int_distribution<int>(0, blocks_per_window - 1)(rng);
+		}
+
 		bool claim_new_block_write() {
-			std::size_t free_bit;
+			block_t* new_block;
 			std::uint64_t window_index;
-			window_t* window;
 			do {
 				window_index = fifo.write_window.load(std::memory_order_relaxed);
-				window = &fifo.get_window(window_index);
-				free_bit = window->filled_set.template claim_bit<false, true>(std::memory_order_relaxed);
-				if (free_bit == std::numeric_limits<std::size_t>::max()) {
+				new_block = fifo.get_window(window_index).try_get_write_block(random_bit_index());
+				if (new_block == nullptr) {
 					// No more free bits, we move.
 					if (window_index + 1 - fifo.read_window.load(std::memory_order_relaxed) == fifo.window_count) {
 						return false;
@@ -194,19 +214,17 @@ public:
 			} while (true);
 
 			write_window = window_index;
-			write_block = &window->blocks[free_bit];
+			write_block = new_block;
 			return true;
 		}
 
 		bool claim_new_block_read() {
-			std::size_t free_bit;
+			block_t* new_block;
 			std::uint64_t window_index;
-			window_t* window;
 			do {
 				window_index = fifo.read_window.load(std::memory_order_relaxed);
-				window = &fifo.get_window(window_index);
-				free_bit = window->filled_set.template claim_bit<true, false>(std::memory_order_relaxed);
-				if (free_bit == std::numeric_limits<std::size_t>::max()) {
+				new_block = fifo.get_window(window_index).try_get_read_block(random_bit_index());
+				if (new_block == nullptr) {
 					std::uint64_t write_window = fifo.write_window.load(std::memory_order_relaxed);
 					if (write_window == window_index + 1) {
 						if (!fifo.get_window(write_window).filled_set.any(std::memory_order_relaxed)) {
@@ -253,7 +271,7 @@ public:
 			} while (true);
 
 			read_window = window_index;
-			read_block = &window->blocks[free_bit];
+			read_block = new_block;
 			return true;
 		}
 
@@ -337,7 +355,7 @@ public:
 		}
 	};
 
-	handle get_handle() { return handle(*this); }
+	handle get_handle() { return handle(*this, std::random_device()()); }
 };
 static_assert(fifo<block_based_queue<std::uint64_t, 8, 7, std::uint8_t>, std::uint64_t>);
 
