@@ -294,51 +294,45 @@ public:
 			std::uint64_t ei = header->epoch_and_indices.load(std::memory_order_relaxed);
 			std::uint64_t index;
 
-			while (get_epoch(ei) != mask_epoch(read_window) || (index = get_read_index(ei)) == get_write_index(ei)
-				|| !header->epoch_and_indices.compare_exchange_weak(ei, ei + (1ull << 32), std::memory_order_acquire)) {
-				if (!claim_new_block_read()) {
-					return std::nullopt;
+			while (true) {
+				if (get_epoch(ei) != mask_epoch(read_window)) {
+					if (!claim_new_block_read()) {
+						return std::nullopt;
+					}
+					header = &read_block->header;
+					// TODO: With 2 threads there seems to exist a condition where suspiciously low epochs are encountered
+					// and the blocks immediately abandoned. Is this just because of overflowing? Investigate.
+					ei = header->epoch_and_indices.load(std::memory_order_relaxed);
 				}
-				header = &read_block->header;
-				// TODO: With 2 threads there seems to exist a condition where suspiciously low epochs are encountered
-				// and the blocks immediately abandoned. Is this just because of overflowing? Investigate.
-				ei = header->epoch_and_indices.load(std::memory_order_relaxed);
-				// TODO: The problem here is that if epoch == (read_window + fifo.window_count) we only reset the bit, which might lead to lost
-				// writes, because for the write the block header didn't change, so it fills the block, but the bit is unset.
-				// But if we simply ignore that case, then we're stuck because the bit will be set forever.
-				// We cannot differentiate if it is a spurious claim from the LAST epoch (must reset bit),
-				// or a regular one from the current one (must NOT reset bit).
-				if (get_write_index(ei) == get_read_index(ei)) {
-					// We need this in case of a spurious claim where a bit was claimed, but the writer couldn't place an element inside,
-					// because the write window was already forced-moved.
-					if (header->epoch_and_indices.compare_exchange_strong(ei, (read_window + fifo.window_count) << 48, std::memory_order_relaxed)) {
-						// We're abandoning an empty block!
+				index = get_read_index(ei);
+				auto diff = get_write_index(ei) - index;
+				if (diff == 0) {
+					// TODO: The problem here is that if epoch == (read_window + fifo.window_count) we only reset the bit, which might lead to lost
+					// writes, because for the write the block header didn't change, so it fills the block, but the bit is unset.
+					// But if we simply ignore that case, then we're stuck because the bit will be set forever.
+					// We cannot differentiate if it is a spurious claim from the LAST epoch (must reset bit),
+					// or a regular one from the current one (must NOT reset bit).
+					if (header->epoch_and_indices.compare_exchange_weak(ei, (read_window + fifo.window_count) << 48, std::memory_order_relaxed)) {
 						window_t& window = fifo.get_window(read_window);
 						auto diff = read_block - window.blocks;
 						window.filled_set.reset(diff, std::memory_order_relaxed);
 					}
-					// If the CAS fails, the only thing that could've occurred was the write index being increased,
-					// making us able to read an element from the block.
+				} else if (diff == 1) {
+					if (header->epoch_and_indices.compare_exchange_weak(ei, (read_window + fifo.window_count) << 48, std::memory_order_acquire)) {
+						window_t& window = fifo.get_window(read_window);
+						auto diff = read_block - window.blocks;
+						window.filled_set.reset(diff, std::memory_order_relaxed);
+						break;
+					}
+				} else {
+					if (header->epoch_and_indices.compare_exchange_weak(ei, ei + (1ull << 32), std::memory_order_acquire)) {
+						break;
+					}
 				}
 			}
 
 			T ret = read_block->cells[index].exchange(0, std::memory_order_relaxed);
 			assert(ret != 0);
-
-			// We need the >= here because between the read of ei and the fetch_add above both a write and a finished read might have occurred
-			// that make our finished_index > our (outdated) write index.
-			if (index == get_write_index(ei)) {
-				// Apply local read index update.
-				ei = (ei & 0xffff'0000'ffff'ffffull) | (index << 32);
-				// Before we mark this block as empty, we make it unavailable for other readers and writers of this epoch.
-				if (header->epoch_and_indices.compare_exchange_strong(ei, (read_window + fifo.window_count) << 48, std::memory_order_relaxed)) {
-					window_t& window = fifo.get_window(read_window);
-					auto diff = read_block - window.blocks;
-					window.filled_set.reset(diff, std::memory_order_relaxed);
-				}
-				// else a different read thread has already wrapped up this block.
-			}
-
 			return ret;
 		}
 	};
