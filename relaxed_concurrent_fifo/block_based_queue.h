@@ -50,6 +50,22 @@ template <typename BLOCK_T, std::size_t BLOCKS_PER_WINDOW, typename BITSET_T>
 struct window {
 	alignas(std::hardware_destructive_interference_size) atomic_bitset<BLOCKS_PER_WINDOW, BITSET_T> filled_set;
 	alignas(std::hardware_destructive_interference_size) BLOCK_T blocks[BLOCKS_PER_WINDOW];
+
+	BLOCK_T* try_get_write_block(int starting_bit) {
+		std::size_t free_bit = filled_set.template claim_bit<claim_value::ZERO, claim_mode::READ_WRITE>(starting_bit);
+		if (free_bit == std::numeric_limits<std::size_t>::max()) {
+			return nullptr;
+		}
+		return &blocks[free_bit];
+	}
+
+	BLOCK_T* try_get_read_block(int starting_bit) {
+		std::size_t free_bit = filled_set.template claim_bit<claim_value::ONE, claim_mode::READ_ONLY>(starting_bit);
+		if (free_bit == std::numeric_limits<std::size_t>::max()) {
+			return nullptr;
+		}
+		return &blocks[free_bit];
+	}
 };
 
 template <typename T, std::size_t LOG_BLOCKS_PER_WINDOW, std::size_t CELLS_PER_BLOCK, typename BITSET_T>
@@ -97,6 +113,8 @@ private:
 	static constexpr std::uint64_t mask_epoch(std::uint64_t window_index) { return window_index & 0xffff; }
 	static constexpr std::uint64_t get_read_index(std::uint64_t ei) { return (ei >> 32) & 0xffff; }
 	static constexpr std::uint64_t get_write_index(std::uint64_t ei) { return ei & 0xffff; }
+	static constexpr std::uint64_t increment_write_index(std::uint64_t ei) { return ei + 1; }
+	static constexpr std::uint64_t increment_read_index(std::uint64_t ei) { return ei + (1ull << 32); }
 	static constexpr std::uint64_t epoch_to_header(std::uint64_t epoch) { return epoch << 48; }
 
 	using block_t = block<T, CELLS_PER_BLOCK>;
@@ -142,7 +160,7 @@ public:
 		}
 	}
 
-#ifdef BBQ_DEBUG_FUNCTIONS
+#if BBQ_DEBUG_FUNCTIONS
 	std::ostream& operator<<(std::ostream& os) const {
 		os << "Printing block_based_queue:\n"
 			<< "Read: " << read_window << "; Write: " << write_window << '\n';
@@ -168,19 +186,23 @@ public:
 		std::uint64_t write_epoch = 0;
 		std::uint64_t read_epoch = 0;
 
-		handle(block_based_queue& fifo) : fifo(fifo) { }
+		std::minstd_rand rng;
+
+		handle(block_based_queue& fifo, std::random_device::result_type seed) : fifo(fifo), rng(seed) { }
 
 		friend block_based_queue;
 
+		int random_bit_index() {
+			return std::uniform_int_distribution<int>(0, blocks_per_window - 1)(rng);
+		}
+
 		bool claim_new_block_write() {
-			std::size_t free_bit;
+			block_t* new_block;
 			std::uint64_t window_index;
-			window_t* window;
 			do {
 				window_index = fifo.write_window.load(std::memory_order_relaxed);
-				window = &fifo.index_to_window(window_index);
-				free_bit = window->filled_set.template claim_bit<false, true>(std::memory_order_relaxed);
-				if (free_bit == std::numeric_limits<std::size_t>::max()) {
+				new_block = fifo.index_to_window(window_index).try_get_write_block(random_bit_index());
+				if (new_block == nullptr) {
 					// No more free bits, we move.
 					if (window_index + 1 - fifo.read_window.load(std::memory_order_relaxed) == fifo.window_count) {
 						return false;
@@ -194,20 +216,18 @@ public:
 				}
 			} while (true);
 
-			write_epoch = window_index / fifo.window_count;
-			write_block = &window->blocks[free_bit];
+			write_epoch = fifo.window_to_epoch(window_index);
+			write_block = new_block;
 			return true;
 		}
 
 		bool claim_new_block_read() {
-			std::size_t free_bit;
+			block_t* new_block;
 			std::uint64_t window_index;
-			window_t* window;
 			do {
 				window_index = fifo.read_window.load(std::memory_order_relaxed);
-				window = &fifo.index_to_window(window_index);
-				free_bit = window->filled_set.template claim_bit<true, false>(std::memory_order_relaxed);
-				if (free_bit == std::numeric_limits<std::size_t>::max()) {
+				new_block = fifo.index_to_window(window_index).try_get_read_block(random_bit_index());
+				if (new_block == nullptr) {
 					std::uint64_t write_window = fifo.write_window.load(std::memory_order_relaxed);
 					if (write_window == window_index + 1) {
 						if (!fifo.index_to_window(write_window).filled_set.any(std::memory_order_relaxed)) {
@@ -254,7 +274,7 @@ public:
 			} while (true);
 
 			read_epoch = fifo.window_to_epoch(window_index);
-			read_block = &window->blocks[free_bit];
+			read_block = new_block;
 			return true;
 		}
 
@@ -279,7 +299,7 @@ public:
 					old = 0;
 				}
 
-				failure = !header->epoch_and_indices.compare_exchange_strong(ei, ei + 1, std::memory_order_relaxed);
+				failure = !header->epoch_and_indices.compare_exchange_strong(ei, increment_write_index(ei), std::memory_order_release);
 				if (failure) {
 					// The header changed, we need to undo our write and try again.
 					write_block->cells[index].store(0, std::memory_order_relaxed);
@@ -296,7 +316,7 @@ public:
 			std::uint64_t index;
 
 			while (get_epoch(ei) != mask_epoch(read_epoch) || (index = get_read_index(ei)) == get_write_index(ei)
-				|| !header->epoch_and_indices.compare_exchange_weak(ei, ei + (1ull << 32), std::memory_order_relaxed)) {
+				|| !header->epoch_and_indices.compare_exchange_weak(ei, increment_read_index(ei), std::memory_order_acquire)) {
 				if (!claim_new_block_read()) {
 					return std::nullopt;
 				}
@@ -330,7 +350,7 @@ public:
 			// that make our finished_index > our (outdated) write index.
 			if (index == get_write_index(ei)) {
 				// Apply local read index update.
-				ei = (ei & 0xffff'0000'ffff'ffffull) | (static_cast<std::uint64_t>(index) << 32);
+				ei = (ei & 0xffff'0000'ffff'ffffull) | (index << 32);
 				// Before we mark this block as empty, we make it unavailable for other readers and writers of this epoch.
 				if (header->epoch_and_indices.compare_exchange_strong(ei, epoch_to_header(read_epoch + 1), std::memory_order_relaxed)) {
 					window_t& window = fifo.block_to_window(read_block);
@@ -344,7 +364,7 @@ public:
 		}
 	};
 
-	handle get_handle() { return handle(*this); }
+	handle get_handle() { return handle(*this, std::random_device()()); }
 };
 static_assert(fifo<block_based_queue<std::uint64_t, 8, 7, std::uint8_t>, std::uint64_t>);
 
