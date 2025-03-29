@@ -23,14 +23,26 @@ enum class claim_mode {
     READ_ONLY,
 };
 
-template <bool SET, typename T>
-constexpr bool set_bit_atomic(std::atomic<T>& data, std::size_t index, std::memory_order order = std::memory_order_seq_cst) {
-    T mask = static_cast<T>(1) << index;
-    if constexpr (SET) {
-        return !(data.fetch_or(mask, order) & mask);
-    } else {
-        return data.fetch_and(~mask, order) & mask;
-    }
+template <bool SET>
+constexpr void set_bit_atomic(std::atomic<std::uint64_t>& data, std::size_t index, std::uint64_t epoch, std::uint64_t size, std::memory_order order = std::memory_order_seq_cst) {
+    std::uint64_t ed = data.load(order);
+    std::uint64_t test;
+    std::uint64_t mask = 1ull << index;
+    do {
+        if ((ed & 0xffff'ffff'ffff'ff00ull) != epoch) {
+            return;
+        }
+        if constexpr (SET) {
+            test = ed | mask;
+        } else {
+            // TODO: Special case handling like this is probably bad.
+            // We basically want to increment the epoch when the last filled bit has been reset.
+            test = ed & ~mask;
+            if (static_cast<std::uint8_t>(test) == 0) {
+                test = epoch + (size << 8); // TODO: DON'T PASS THIS!!!
+            }
+        }
+    } while (!data.compare_exchange_strong(ed, test, order));
 }
 
 template <typename T>
@@ -47,17 +59,20 @@ class atomic_bitset {
 private:
     static constexpr std::size_t bit_count = sizeof(ARR_TYPE) * 8;
     static constexpr std::size_t array_members = N / bit_count;
-    std::array<cache_aligned_t<ARR_TYPE>, array_members> data;
+    std::array<cache_aligned_t<std::uint64_t>, array_members> data;
 
     // This requirement could be lifted in exchange for a more complicated implementation of the claim bit function.
     static_assert(N % bit_count == 0, "Bit count must be dividable by size of array type!");
 
     template <claim_value VALUE, claim_mode MODE>
-    static constexpr std::size_t claim_bit_singular(std::atomic<ARR_TYPE>& data, int initial_rot, std::memory_order order) {
-        auto raw = data.load(order);
-        ARR_TYPE rotated;
+    static constexpr std::size_t claim_bit_singular(std::atomic<std::uint64_t>& data, int initial_rot, std::uint64_t epoch_masked, std::memory_order order) {
+        auto eb = data.load(order);
         while (true) {
-            rotated = std::rotr(raw, initial_rot);
+            if ((eb & 0xffff'ffff'ffff'ff00ull) != epoch_masked) {
+                return std::numeric_limits<std::size_t>::max();
+            }
+            auto raw = static_cast<std::uint8_t>(eb);
+            ARR_TYPE rotated = std::rotr(raw, initial_rot);
             int counted = VALUE == claim_value::ONE ? std::countr_zero(rotated) : std::countr_one(rotated);
             if (counted == bit_count) {
                 return std::numeric_limits<std::size_t>::max();
@@ -65,6 +80,7 @@ private:
             std::size_t original_index = (initial_rot + counted) % bit_count;
             if constexpr (MODE == claim_mode::READ_WRITE) {
                 ARR_TYPE test;
+                // Keep retrying until the bit we are trying to claim has changed.
                 while (true) {
                     if constexpr (VALUE == claim_value::ONE) {
                         test = raw & ~(1ull << original_index);
@@ -74,9 +90,10 @@ private:
                     if (test == raw) {
                         break;
                     }
-                    if (data.compare_exchange_weak(raw, test, order)) {
+                    if (data.compare_exchange_weak(eb, epoch_masked | test, order)) {
                         return original_index;
                     }
+                    raw = static_cast<std::uint8_t>(eb);
                 }
             } else {
                 return original_index;
@@ -92,9 +109,9 @@ public:
     /// </summary>
     /// <param name="index">The index of the bit to set.</param>
     /// <returns>Whether the bit has been newly set. false means the bit had already been 1.</returns>
-    constexpr bool set(std::size_t index, std::memory_order order = std::memory_order_seq_cst) {
+    constexpr void set(std::size_t index, std::uint64_t epoch, std::uint64_t window_count, std::memory_order order = std::memory_order_seq_cst) {
         assert(index < size());
-        return set_bit_atomic<true>(data[index / bit_count].atomic, index % bit_count, order);
+        set_bit_atomic<true>(data[index / bit_count].atomic, index % bit_count, epoch << 8, window_count, order);
     }
 
     /// <summary>
@@ -102,9 +119,9 @@ public:
     /// </summary>
     /// <param name="index">The index of the bit to reset.</param>
     /// <returns>Whether the bit has been newly reset. false means the bit had already been 0.</returns>
-    constexpr bool reset(std::size_t index, std::memory_order order = std::memory_order_seq_cst) {
+    constexpr void reset(std::size_t index, std::uint64_t epoch, std::uint64_t window_count, std::memory_order order = std::memory_order_seq_cst) {
         assert(index < size());
-        return set_bit_atomic<false>(data[index / bit_count].atomic, index % bit_count, order);
+        set_bit_atomic<false>(data[index / bit_count].atomic, index % bit_count, epoch << 8, window_count, order);
     }
 
     [[nodiscard]] constexpr bool test(std::size_t index, std::memory_order order = std::memory_order_seq_cst) const {
@@ -116,20 +133,31 @@ public:
         return test(index);
     }
 
-    [[nodiscard]] constexpr bool any(std::memory_order order = std::memory_order_seq_cst) const {
+    [[nodiscard]] constexpr bool any(std::uint64_t epoch, std::memory_order order = std::memory_order_seq_cst) const {
+        std::uint64_t epoch_masked = epoch << 8;
         for (auto& elem : data) {
-            if (elem->load(order)) {
+            std::uint64_t ep = elem->load(order);
+            if ((ep & 0xffff'ffff'ffff'ff00ull) == epoch_masked && (ep & 0xff)) {
                 return true;
             }
         }
         return false;
     }
 
+    void set_epoch_if_empty(std::uint64_t epoch, std::uint64_t next_epoch, std::memory_order order = std::memory_order_seq_cst) {
+		std::uint64_t epoch_masked = epoch << 8;
+		std::uint64_t next_epoch_masked = next_epoch << 8;
+        for (auto& elem : data) {
+            elem->compare_exchange_strong(epoch_masked, next_epoch_masked, order);
+        }
+    }
+
     template <claim_value VALUE, claim_mode MODE>
-    std::size_t claim_bit(int starting_bit, std::memory_order order = std::memory_order_seq_cst) {
+    std::size_t claim_bit(int starting_bit, std::uint64_t epoch, std::memory_order order = std::memory_order_seq_cst) {
         assert(starting_bit < size());
         int off;
         int initial_rot;
+        std::uint64_t epoch_mask = epoch << 8;
         if constexpr (array_members > 1) {
             off = starting_bit / bit_count;
             initial_rot = starting_bit % bit_count;
@@ -139,7 +167,7 @@ public:
         }
         for (std::size_t i = 0; i < data.size(); i++) {
             auto index = (i + off) % data.size();
-            if (auto ret = claim_bit_singular<VALUE, MODE>(data[index], initial_rot, order);
+            if (auto ret = claim_bit_singular<VALUE, MODE>(data[index], initial_rot, epoch_mask, order);
                     ret != std::numeric_limits<std::size_t>::max()) {
                 return ret + index * bit_count;
             }

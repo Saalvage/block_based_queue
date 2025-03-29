@@ -51,16 +51,16 @@ struct window {
 	alignas(std::hardware_destructive_interference_size) atomic_bitset<BLOCKS_PER_WINDOW, BITSET_T> filled_set;
 	alignas(std::hardware_destructive_interference_size) BLOCK_T blocks[BLOCKS_PER_WINDOW];
 
-	BLOCK_T* try_get_write_block(int starting_bit) {
-		std::size_t free_bit = filled_set.template claim_bit<claim_value::ZERO, claim_mode::READ_WRITE>(starting_bit);
+	BLOCK_T* try_get_write_block(int starting_bit, std::uint64_t epoch) {
+		std::size_t free_bit = filled_set.template claim_bit<claim_value::ZERO, claim_mode::READ_WRITE>(starting_bit, epoch);
 		if (free_bit == std::numeric_limits<std::size_t>::max()) {
 			return nullptr;
 		}
 		return &blocks[free_bit];
 	}
 
-	BLOCK_T* try_get_read_block(int starting_bit) {
-		std::size_t free_bit = filled_set.template claim_bit<claim_value::ONE, claim_mode::READ_ONLY>(starting_bit);
+	BLOCK_T* try_get_read_block(int starting_bit, std::uint64_t epoch) {
+		std::size_t free_bit = filled_set.template claim_bit<claim_value::ONE, claim_mode::READ_ONLY>(starting_bit, epoch);
 		if (free_bit == std::numeric_limits<std::size_t>::max()) {
 			return nullptr;
 		}
@@ -147,11 +147,13 @@ public:
 		write_window = 1;
 		window_t& window = buffer[0];
 		for (std::size_t j = 0; j < blocks_per_window; j++) {
+			window.filled_set.set_epoch_if_empty(0, window_count);
 			header_t& header = window.blocks[j].header;
 			header.epoch_and_indices = epoch_to_header(window_count);
 		}
 		for (std::size_t i = 1; i < window_count; i++) {
 			window_t& window = buffer[i];
+			window.filled_set.set_epoch_if_empty(0, i);
 			for (std::size_t j = 0; j < blocks_per_window; j++) {
 				header_t& header = window.blocks[j].header;
 				header.epoch_and_indices = epoch_to_header(i);
@@ -200,7 +202,7 @@ public:
 			std::uint64_t window_index;
 			do {
 				window_index = fifo.write_window.load(std::memory_order_relaxed);
-				new_block = fifo.get_window(window_index).try_get_write_block(random_bit_index());
+				new_block = fifo.get_window(window_index).try_get_write_block(random_bit_index(), window_index);
 				if (new_block == nullptr) {
 					// No more free bits, we move.
 					if (window_index + 1 - fifo.read_window.load(std::memory_order_relaxed) == fifo.window_count) {
@@ -225,11 +227,11 @@ public:
 			std::uint64_t window_index;
 			do {
 				window_index = fifo.read_window.load(std::memory_order_relaxed);
-				new_block = fifo.get_window(window_index).try_get_read_block(random_bit_index());
+				new_block = fifo.get_window(window_index).try_get_read_block(random_bit_index(), window_index);
 				if (new_block == nullptr) {
 					std::uint64_t write_window = fifo.write_window.load(std::memory_order_relaxed);
 					if (write_window == window_index + 1) {
-						if (!fifo.get_window(write_window).filled_set.any(std::memory_order_relaxed)) {
+						if (!fifo.get_window(write_window).filled_set.any(write_window, std::memory_order_relaxed)) {
 							return false;
 						}
 						// TODO: This should be simplifiable? Spurious block claims only occur when force-moving.
@@ -238,9 +240,8 @@ public:
 						// the read window from being moved before all blocks have either been claimed or invalidated.
 						window_t& new_window = fifo.get_window(write_window);
 						std::uint64_t next_epoch = epoch_to_header(write_window + fifo.window_count);
+						new_window.filled_set.set_epoch_if_empty(write_window, next_epoch, std::memory_order_relaxed);
 						for (std::size_t i = 0; i < blocks_per_window; i++) {
-							// We can't rely on the bitset here because it might be experiencing a spurious claim.
-
 							std::uint64_t ei = epoch_to_header(write_window); // All empty with current epoch.
 							new_window.blocks[i].header.epoch_and_indices.compare_exchange_strong(ei, next_epoch, std::memory_order_relaxed);
 						}
@@ -250,20 +251,7 @@ public:
 #endif // BBQ_LOG_WINDOW_MOVE
 					}
 
-					// TODO: Remove this.
-					bool all_correct = true;
-					window_t& new_window = fifo.get_window(window_index);
-					std::uint64_t next_epoch = epoch_to_header(window_index + fifo.window_count);
-					for (std::size_t i = 0; i < blocks_per_window; i++) {
-						if (get_epoch(new_window.blocks[i].header.epoch_and_indices) != get_epoch(next_epoch)) {
-							new_window.filled_set.set(i);
-							all_correct = false;
-							break;
-						}
-					}
-					if (all_correct) {
-						fifo.read_window.compare_exchange_strong(window_index, window_index + 1, std::memory_order_relaxed);
-					}
+					fifo.read_window.compare_exchange_strong(window_index, window_index + 1, std::memory_order_relaxed);
 #if BBQ_LOG_WINDOW_MOVE
 					std::cout << "Read move " << (window_index + 1) << std::endl;
 #endif // BBQ_LOG_WINDOW_MOVE
@@ -335,7 +323,7 @@ public:
 						// We're abandoning an empty block!
 						window_t& window = fifo.get_window(read_window);
 						auto diff = read_block - window.blocks;
-						window.filled_set.reset(diff, std::memory_order_relaxed);
+						window.filled_set.reset(diff, read_window, fifo.window_count, std::memory_order_relaxed);
 					}
 					// If the CAS fails, the only thing that could've occurred was the write index being increased,
 					// making us able to read an element from the block.
@@ -354,7 +342,7 @@ public:
 				if (header->epoch_and_indices.compare_exchange_strong(ei, epoch_to_header(read_window + fifo.window_count), std::memory_order_relaxed)) {
 					window_t& window = fifo.get_window(read_window);
 					auto diff = read_block - window.blocks;
-					window.filled_set.reset(diff, std::memory_order_relaxed);
+					window.filled_set.reset(diff, read_window, fifo.window_count, std::memory_order_relaxed);
 				}
 				// else a different read thread has already wrapped up this block.
 			}
