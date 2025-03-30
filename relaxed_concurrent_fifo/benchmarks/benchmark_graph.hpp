@@ -88,6 +88,8 @@ struct benchmark_bfs : benchmark_timed<> {
             if (node.has_value())
             {
                 xxx << "0";
+            } else {
+                xxx << "2";
             }
                 return node.has_value();
             })) {
