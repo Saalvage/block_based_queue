@@ -152,7 +152,7 @@ public:
 		std::cout << "Window count: " << window_count << std::endl;
 		std::cout << "Block count: " << blocks_per_window << std::endl;
 #endif // BBQ_LOG_CREATION_SIZE
-		
+
 		window_t& window = buffer[0];
 		for (std::size_t j = 0; j < blocks_per_window; j++) {
 			header_t& header = window.blocks[j].header;
