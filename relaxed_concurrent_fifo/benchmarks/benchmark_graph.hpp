@@ -31,6 +31,7 @@ struct benchmark_bfs : benchmark_timed<> {
 #pragma GCC diagnostic pop
 #endif // __GNUC__
 
+    std::ofstream xxx{ "test" };
     Graph* graph;
     std::vector<AtomicDistance> distances;
     termination_detection::TerminationDetection termination_detection;
@@ -74,13 +75,19 @@ struct benchmark_bfs : benchmark_timed<> {
         if (thread_index == 0) {
             // We can't push 0 to the queues!
             distances[0].value = 1;
+            xxx << "1" << std::endl;
             handle.push(1ull << 32);
             ++counter.pushed_nodes;
         }
         a.arrive_and_wait();
         std::optional<std::uint64_t> node;
         while (termination_detection.repeat([&]() {
+            
                 node = handle.pop();
+            if (node.has_value())
+            {
+                xxx << "0" << std::endl;
+            }
                 return node.has_value();
             })) {
             process_node<FIFO>(*node, handle, counter);
