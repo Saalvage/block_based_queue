@@ -182,7 +182,6 @@ public:
 		block_t* read_block = &dummy_block;
 		block_t* write_block = &dummy_block;
 
-		// These need to be 64-bit because we use them index into the window buffer.
 		std::uint64_t write_epoch = 0;
 		std::uint64_t read_epoch = 0;
 
@@ -346,8 +345,6 @@ public:
 			T ret = read_block->cells[index].exchange(0, std::memory_order_relaxed);
 			assert(ret != 0);
 
-			// We need the >= here because between the read of ei and the fetch_add above both a write and a finished read might have occurred
-			// that make our finished_index > our (outdated) write index.
 			if (index == get_write_index(ei)) {
 				// Apply local read index update.
 				ei = (ei & 0xffff'0000'ffff'ffffull) | (index << 32);
