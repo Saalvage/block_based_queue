@@ -101,7 +101,7 @@ private:
 		for (std::size_t i = read_window; i <= write_window; i++) {
 			for (std::size_t j = 0; j < blocks_per_window; j++) {
 				auto ei = buffer[i].blocks[j].header.epoch_and_indices.load();
-				filled_cells += get_write_index(ei) - get_read_index(ei);
+				filled_cells += get_write_index(ei) - get_read_finished_index(ei);
 			}
 		}
 		return filled_cells;
