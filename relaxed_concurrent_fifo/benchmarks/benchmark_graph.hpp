@@ -107,6 +107,8 @@ struct benchmark_bfs : benchmark_timed<> {
             return sum;
         });
 
+        std::cout << "PUSHED " << total_counts.pushed_nodes << std::endl;
+
         if (total_counts.err) {
             stream << "ERR";
             return;
