@@ -89,7 +89,7 @@ private:
 		std::size_t filled_cells = 0;
 		for (std::size_t i = 0; i < window_count; i++) {
 			for (std::size_t j = 0; j < blocks_per_window; j++) {
-				auto ei = get_window(i).blocks[j].header.epoch_and_indices.load();
+				auto ei = buffer[i].blocks[j].header.epoch_and_indices.load();
 				filled_cells += get_write_index(ei) - get_read_finished_index(ei);
 			}
 		}
@@ -100,8 +100,8 @@ private:
 		std::size_t filled_cells = 0;
 		for (std::size_t i = read_window; i <= write_window; i++) {
 			for (std::size_t j = 0; j < blocks_per_window; j++) {
-				auto ei = get_window(i).blocks[j].header.epoch_and_indices.load();
-				filled_cells += get_write_index(ei) - get_read_finished_index(ei);
+				auto ei = buffer[i].blocks[j].header.epoch_and_indices.load();
+				filled_cells += get_write_index(ei) - get_read_index(ei);
 			}
 		}
 		return filled_cells;
@@ -134,8 +134,8 @@ private:
 		return buffer[index & window_count_mod_mask];
 	}
 
-	window_t& block_to_window(const block_t* block) const {
-		return buffer[reinterpret_cast<const window_t*>(block) - buffer.get()];
+	window_t& block_to_window(block_t* block) const {
+		return buffer[(reinterpret_cast<char*>(block) - reinterpret_cast<const char*>(buffer.get())) / sizeof(window_t)];
 	}
 
 	alignas(std::hardware_destructive_interference_size) std::atomic_uint64_t read_window = 0;
