@@ -64,12 +64,14 @@ struct benchmark_bfs : benchmark_timed<> {
                         counter.err = true;
                     }
                     if (old_size + 1 != handle.fifo.size()) {
-                        std::cout << "after push: " << old_size << " " << handle.fifo.size() << std::endl;
+                        std::cout << "after push: " << old_size << " " << handle.fifo.size() << "  " << counter.pushed_nodes << std::endl;
+                        xxx.flush();
                         std::exit(0);
                     }
                     if (handle.fifo.size_full() != handle.fifo.size())
                     {
-                        std::cout << "after push consistency: " << handle.fifo.size_full() << " " << handle.fifo.size() << std::endl;
+                        std::cout << "after push consistency: " << handle.fifo.size_full() << " " << handle.fifo.size() << "  " << counter.pushed_nodes << std::endl;
+                        xxx.flush();
                         std::exit(0);
                     }
                     ++counter.pushed_nodes;
@@ -96,12 +98,14 @@ struct benchmark_bfs : benchmark_timed<> {
 			auto old_size = handle.fifo.size();
                 node = handle.pop();
 				if (old_size - 1 != handle.fifo.size()) {
-					std::cout << "after pop: " << old_size << " " << handle.fifo.size() << std::endl;
+					std::cout << "after pop: " << old_size << " " << handle.fifo.size() << "  " << counter.pushed_nodes << std::endl;
+                    xxx.flush();
                     std::exit(0);
 				}
             if (handle.fifo.size_full() != handle.fifo.size())
             {
-                std::cout << "after pop consistency: " << handle.fifo.size_full() << " " << handle.fifo.size() << std::endl;
+                std::cout << "after pop consistency: " << handle.fifo.size_full() << " " << handle.fifo.size() << "  " << counter.pushed_nodes << std::endl;
+                xxx.flush();
                 std::exit(0);
             }
             if (node.has_value())
