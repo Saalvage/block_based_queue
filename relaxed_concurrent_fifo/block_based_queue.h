@@ -142,6 +142,8 @@ public:
 		std::cout << "Block count: " << blocks_per_window << std::endl;
 #endif // BBQ_LOG_CREATION_SIZE
 
+		assert(window_count < std::numeric_limits<std::uint16_t>::max());
+
 		read_window = 0;
 		write_window = 1;
 		window_t& window = buffer[0];
