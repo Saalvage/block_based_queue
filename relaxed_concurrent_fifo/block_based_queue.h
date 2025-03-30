@@ -312,6 +312,7 @@ public:
 
 			write_block->cells[index].store(std::move(t), std::memory_order_relaxed);
 
+			xxx << " ???2 " << get_epoch(ei) << "   " << write_window << '\n';
 			xxx << "push succ " << write_window << " " << (write_block - fifo.get_window(write_window).blocks)
 				<< " " << get_write_index(write_block->header.epoch_and_indices) << " " << get_read_started_index(write_block->header.epoch_and_indices) << " " << get_read_finished_index(write_block->header.epoch_and_indices) << '\n';
 			return true;
@@ -349,6 +350,7 @@ public:
 				if (header->epoch_and_indices.compare_exchange_strong(ei, (read_window + fifo.window_count) << 48, std::memory_order_relaxed)) {
 					window_t& window = fifo.get_window(read_window);
 					auto diff = read_block - window.blocks;
+					xxx << "??? " << (ei >> 48) << " " << (read_window + fifo.window_count) << '\n';
 					xxx << "BEFORE READ RESET " << read_window << " " << std::bitset<8>(fifo.get_window(read_window).filled_set.data[0].atomic.load()) << '\n';
 					window.filled_set.reset(diff, std::memory_order_relaxed);
 					xxx << "AFTER READ RESET " << read_window << " " << std::bitset<8>(fifo.get_window(read_window).filled_set.data[0].atomic.load()) << '\n';
