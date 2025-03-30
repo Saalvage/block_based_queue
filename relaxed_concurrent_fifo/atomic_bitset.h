@@ -44,7 +44,7 @@ struct cache_aligned_t {
 
 template <std::size_t N, typename ARR_TYPE = uint8_t>
 class atomic_bitset {
-private:
+public:
     static constexpr std::size_t bit_count = sizeof(ARR_TYPE) * 8;
     static constexpr std::size_t array_members = N / bit_count;
     std::array<cache_aligned_t<ARR_TYPE>, array_members> data;

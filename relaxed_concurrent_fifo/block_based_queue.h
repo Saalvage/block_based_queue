@@ -4,6 +4,7 @@
 #include <array>
 #include <memory>
 #include <atomic>
+#include <bitset>
 #include <random>
 #include <new>
 #include <optional>
@@ -205,7 +206,9 @@ public:
 			std::uint64_t window_index;
 			do {
 				window_index = fifo.write_window.load(std::memory_order_relaxed);
+				xxx << "BEFORE WRITE CLAIM " << window_index << " " << std::bitset<8>(fifo.get_window(window_index).filled_set.data[0].atomic.load()) << '\n';
 				new_block = fifo.get_window(window_index).try_get_write_block(random_bit_index());
+				xxx << "AFTER WRITE CLAIM " << window_index << " " << std::bitset<8>(fifo.get_window(window_index).filled_set.data[0].atomic.load()) << '\n';
 				if (new_block == nullptr) {
 					// No more free bits, we move.
 					if (window_index + 1 - fifo.read_window.load(std::memory_order_relaxed) == fifo.window_count) {
@@ -232,7 +235,9 @@ public:
 			std::uint64_t window_index;
 			do {
 				window_index = fifo.read_window.load(std::memory_order_relaxed);
+				xxx << "BEFORE READ CLAIM " << window_index << " " << std::bitset<8>(fifo.get_window(window_index).filled_set.data[0].atomic.load()) << '\n';
 				new_block = fifo.get_window(window_index).try_get_read_block(random_bit_index());
+				xxx << "AFTER READ CLAIM " << window_index << " " << std::bitset<8>(fifo.get_window(window_index).filled_set.data[0].atomic.load()) << '\n';
 				if (new_block == nullptr) {
 					std::uint64_t write_window = fifo.write_window.load(std::memory_order_relaxed);
 					if (write_window == window_index + 1) {
@@ -291,7 +296,9 @@ public:
 					// We're abandoning an empty block!
 					window_t& window = fifo.get_window(write_window);
 					auto diff = write_block - window.blocks;
+					xxx << "BEFORE WRITE RESET " << write_window << " " << std::bitset<8>(fifo.get_window(write_window).filled_set.data[0].atomic.load()) << '\n';
 					window.filled_set.reset(diff, std::memory_order_relaxed);
+					xxx << "AFTER WRITE RESET " << write_window << " " << std::bitset<8>(fifo.get_window(write_window).filled_set.data[0].atomic.load()) << '\n';
 				}
 				if (!claim_new_block_write()) {
 					xxx << "push fail " << write_window << " " << (write_block - fifo.get_window(write_window).blocks)
