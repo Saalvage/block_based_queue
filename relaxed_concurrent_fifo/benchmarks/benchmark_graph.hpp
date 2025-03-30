@@ -63,7 +63,7 @@ struct benchmark_bfs : benchmark_timed<> {
                     if (!handle.push((static_cast<std::uint64_t>(d) << 32) | target)) {
                         counter.err = true;
                     }
-                    if (old_size - 1 != handle.fifo.size()) {
+                    if (old_size + 1 != handle.fifo.size()) {
                         std::cout << "after push: " << old_size << " " << handle.fifo.size() << std::endl;
                         std::exit(0);
                     }
