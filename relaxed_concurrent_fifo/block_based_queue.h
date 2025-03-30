@@ -315,7 +315,7 @@ public:
 			std::uint64_t index;
 
 			while (true) {
-				if (get_epoch(ei) != mask_epoch(read_window)) {
+				if (get_epoch(ei) != mask_epoch(read_epoch)) {
 					if (!claim_new_block_read()) {
 						return std::nullopt;
 					}
@@ -327,19 +327,19 @@ public:
 				index = get_read_index(ei);
 				auto diff = get_write_index(ei) - index;
 				if (diff == 0) {
-					// TODO: The problem here is that if epoch == (read_window + fifo.window_count) we only reset the bit, which might lead to lost
+					// TODO: The problem here is that if epoch == (read_window + 1) we only reset the bit, which might lead to lost
 					// writes, because for the write the block header didn't change, so it fills the block, but the bit is unset.
 					// But if we simply ignore that case, then we're stuck because the bit will be set forever.
 					// We cannot differentiate if it is a spurious claim from the LAST epoch (must reset bit),
 					// or a regular one from the current one (must NOT reset bit).
-					if (header->epoch_and_indices.compare_exchange_weak(ei, (read_window + fifo.window_count) << 48, std::memory_order_relaxed)) {
-						window_t& window = fifo.get_window(read_window);
+					if (header->epoch_and_indices.compare_exchange_weak(ei, epoch_to_header(read_epoch + 1), std::memory_order_relaxed)) {
+						window_t& window = fifo.block_to_window(read_block);
 						auto diff = read_block - window.blocks;
 						window.filled_set.reset(diff, std::memory_order_relaxed);
 					}
 				} else if (diff == 1) {
-					if (header->epoch_and_indices.compare_exchange_weak(ei, (read_window + fifo.window_count) << 48, std::memory_order_acquire)) {
-						window_t& window = fifo.get_window(read_window);
+					if (header->epoch_and_indices.compare_exchange_weak(ei, epoch_to_header(read_epoch + 1), std::memory_order_acquire)) {
+						window_t& window = fifo.block_to_window(read_block);
 						auto diff = read_block - window.blocks;
 						window.filled_set.reset(diff, std::memory_order_relaxed);
 						break;
