@@ -59,8 +59,18 @@ struct benchmark_bfs : benchmark_timed<> {
             while (d < old_d) {
                 if (distances[target].value.compare_exchange_weak(old_d, d, std::memory_order_relaxed)) {
                     xxx << "1";
+					auto old_size = handle.fifo.size();
                     if (!handle.push((static_cast<std::uint64_t>(d) << 32) | target)) {
                         counter.err = true;
+                    }
+                    if (old_size - 1 != handle.fifo.size()) {
+                        std::cout << "after push: " << old_size << " " << handle.fifo.size() << std::endl;
+                        std::exit(0);
+                    }
+                    if (handle.fifo.size_full() != handle.fifo.size())
+                    {
+                        std::cout << "after push consistency: " << handle.fifo.size_full() << " " << handle.fifo.size() << std::endl;
+                        std::exit(0);
                     }
                     ++counter.pushed_nodes;
                     break;
@@ -83,8 +93,17 @@ struct benchmark_bfs : benchmark_timed<> {
         a.arrive_and_wait();
         std::optional<std::uint64_t> node;
         while (termination_detection.repeat([&]() {
-            
+			auto old_size = handle.fifo.size();
                 node = handle.pop();
+				if (old_size - 1 != handle.fifo.size()) {
+					std::cout << "after pop: " << old_size << " " << handle.fifo.size() << std::endl;
+                    std::exit(0);
+				}
+            if (handle.fifo.size_full() != handle.fifo.size())
+            {
+                std::cout << "after pop consistency: " << handle.fifo.size_full() << " " << handle.fifo.size() << std::endl;
+                std::exit(0);
+            }
             if (node.has_value())
             {
                 xxx << "0";

@@ -19,7 +19,7 @@
 #define BBQ_LOG_CREATION_SIZE 0
 #endif
 
-#define BBQ_DEBUG_FUNCTIONS 0
+#define BBQ_DEBUG_FUNCTIONS 1
 
 #if BBQ_DEBUG_FUNCTIONS
 #include <ostream>
@@ -70,7 +70,7 @@ struct window {
 
 template <typename T, std::size_t LOG_BLOCKS_PER_WINDOW, std::size_t CELLS_PER_BLOCK, typename BITSET_T>
 class block_based_queue {
-private:
+public:
 	// PO2 for modulo performance.
 	static constexpr std::size_t blocks_per_window = 1ull << LOG_BLOCKS_PER_WINDOW;
 	// At least as big as the bitset's type.
@@ -174,7 +174,7 @@ public:
 #endif // BBQ_RELAXED_DEBUG_FUNCTIONS
 
 	class handle {
-	private:
+	public:
 		block_based_queue& fifo;
 	
 		block_t* read_block = &dummy_block;
