@@ -194,6 +194,12 @@ public:
 			return std::uniform_int_distribution<int>(0, blocks_per_window - 1)(rng);
 		}
 
+		std::ofstream xxx{ "test2" };
+
+		void flush() {
+			xxx.flush();
+		}
+
 		bool claim_new_block_write() {
 			block_t* new_block;
 			std::uint64_t window_index;
@@ -216,6 +222,8 @@ public:
 
 			write_window = window_index;
 			write_block = new_block;
+			xxx << "claim write " << window_index << " " << (new_block - fifo.get_window(window_index).blocks)
+			<< " " << get_write_index(new_block->header.epoch_and_indices) << " " << get_read_started_index(new_block->header.epoch_and_indices) << " " << get_read_finished_index(new_block->header.epoch_and_indices) << '\n';
 			return true;
 		}
 
@@ -260,11 +268,15 @@ public:
 
 			read_window = window_index;
 			read_block = new_block;
+			xxx << "claim read " << window_index << " " << (new_block - fifo.get_window(window_index).blocks)
+				<< " " << get_write_index(new_block->header.epoch_and_indices) << " " << get_read_started_index(new_block->header.epoch_and_indices) << " " << get_read_finished_index(new_block->header.epoch_and_indices) << '\n';
 			return true;
 		}
 
 	public:
 		bool push(T t) {
+			xxx << "push start " << write_window << " " << (write_block - fifo.get_window(write_window).blocks)
+				<< " " << get_write_index(write_block->header.epoch_and_indices) << " " << get_read_started_index(write_block->header.epoch_and_indices) << " " << get_read_finished_index(write_block->header.epoch_and_indices) << '\n';
 			assert(t != 0);
 
 			header_t* header = &write_block->header;
@@ -282,6 +294,8 @@ public:
 					window.filled_set.reset(diff, std::memory_order_relaxed);
 				}
 				if (!claim_new_block_write()) {
+					xxx << "push fail " << write_window << " " << (write_block - fifo.get_window(write_window).blocks)
+						<< " " << get_write_index(write_block->header.epoch_and_indices) << " " << get_read_started_index(write_block->header.epoch_and_indices) << " " << get_read_finished_index(write_block->header.epoch_and_indices) << '\n';
 					return false;
 				}
 				claimed = true;
@@ -291,10 +305,14 @@ public:
 
 			write_block->cells[index].store(std::move(t), std::memory_order_relaxed);
 
+			xxx << "push succ " << write_window << " " << (write_block - fifo.get_window(write_window).blocks)
+				<< " " << get_write_index(write_block->header.epoch_and_indices) << " " << get_read_started_index(write_block->header.epoch_and_indices) << " " << get_read_finished_index(write_block->header.epoch_and_indices) << '\n';
 			return true;
 		}
 
 		std::optional<T> pop() {
+			xxx << "start pop " << read_window << " " << (read_block - fifo.get_window(read_window).blocks)
+				<< " " << get_write_index(read_block->header.epoch_and_indices) << " " << get_read_started_index(read_block->header.epoch_and_indices) << " " << get_read_finished_index(read_block->header.epoch_and_indices) << '\n';
 			header_t* header = &read_block->header;
 			std::uint64_t ei = header->epoch_and_indices.load(std::memory_order_relaxed);
 			std::uint64_t index;
@@ -302,6 +320,8 @@ public:
 			while (get_epoch(ei) != mask_epoch(read_window) || (index = get_read_started_index(ei)) == get_write_index(ei)
 				|| !header->epoch_and_indices.compare_exchange_weak(ei, ei + (1ull << 32), std::memory_order_relaxed)) {
 				if (!claim_new_block_read()) {
+					xxx << "pop fail " << read_window << " " << (read_block - fifo.get_window(read_window).blocks)
+						<< " " << get_write_index(read_block->header.epoch_and_indices) << " " << get_read_started_index(read_block->header.epoch_and_indices) << " " << get_read_finished_index(read_block->header.epoch_and_indices) << '\n';
 					return std::nullopt;
 				}
 				header = &read_block->header;
@@ -330,6 +350,8 @@ public:
 				}
 			}
 
+			xxx << "pop succ " << read_window << " " << (read_block - fifo.get_window(read_window).blocks)
+				<< " " << get_write_index(read_block->header.epoch_and_indices) << " " << get_read_started_index(read_block->header.epoch_and_indices) << " " << get_read_finished_index(read_block->header.epoch_and_indices) << '\n';
 			return ret;
 		}
 	};
