@@ -229,7 +229,7 @@ int main(int argc, const char** argv) {
 	std::cout << "Running in debug mode!" << std::endl;
 #endif // NDEBUG
 
-	//test_consistency<8, 16>(20000, 200000, 0);
+	test_consistency<8, 16>(20000, 200000, 0);
 
 	std::vector<int> processor_counts;
 	for (int i = 1; i <= static_cast<int>(std::thread::hardware_concurrency()); i *= 2) {
