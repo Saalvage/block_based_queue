@@ -31,7 +31,7 @@ struct benchmark_bfs : benchmark_timed<> {
 #pragma GCC diagnostic pop
 #endif // __GNUC__
 
-    std::ofstream xxx{ "test", std::ios:: };
+    std::ofstream xxx{ "test" };
     Graph* graph;
     std::vector<AtomicDistance> distances;
     termination_detection::TerminationDetection termination_detection;
