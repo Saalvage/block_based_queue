@@ -349,7 +349,9 @@ public:
 				if (header->epoch_and_indices.compare_exchange_strong(ei, (read_window + fifo.window_count) << 48, std::memory_order_relaxed)) {
 					window_t& window = fifo.get_window(read_window);
 					auto diff = read_block - window.blocks;
+					xxx << "BEFORE READ RESET " << read_window << " " << std::bitset<8>(fifo.get_window(read_window).filled_set.data[0].atomic.load()) << '\n';
 					window.filled_set.reset(diff, std::memory_order_relaxed);
+					xxx << "AFTER READ RESET " << read_window << " " << std::bitset<8>(fifo.get_window(read_window).filled_set.data[0].atomic.load()) << '\n';
 
 					// We don't need to invalidate the read window because it has been changed already.	
 				} else {
