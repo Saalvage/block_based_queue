@@ -7,6 +7,19 @@
 
 #include "benchmark.h"
 
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+
+#include "contenders/LCRQ/wrapper.h"
+#include "contenders/LCRQ/LCRQueue.hpp"
+
+template <typename T>
+using LCRQWrapped = LCRQueue<T>;
+
+#pragma GCC diagnostic pop
+#endif // __GNUC__
+
 // By default, include all.
 #if !defined(INCLUDE_BBQ) \
 	&& !defined(INCLUDE_MULTIFIFO) \

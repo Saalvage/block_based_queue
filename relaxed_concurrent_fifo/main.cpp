@@ -206,7 +206,8 @@ void run_benchmark(const std::string& test_name, const std::vector<std::unique_p
 		std::cout << running_time_seconds << " seconds" << std::endl;
 	}
 
-	std::ofstream file{ std::format(format, test_name, prefill, std::chrono::round<std::chrono::seconds>(std::chrono::file_clock::now())) };
+	std::string filename = std::format(format, test_name, prefill, std::chrono::round<std::chrono::seconds>(std::chrono::file_clock::now()));
+	std::ofstream file{ filename };
 	for (auto i : std::views::iota(0, test_iterations)) {
 		std::cout << "Test run " << (i + 1) << " of " << test_iterations << std::endl;
 		for (const auto& imp : instances) {
@@ -220,6 +221,7 @@ void run_benchmark(const std::string& test_name, const std::vector<std::unique_p
 			}
 		}
 	}
+	std::cout << "Results written to " << filename << std::endl;
 }
 
 int main(int argc, const char** argv) {
