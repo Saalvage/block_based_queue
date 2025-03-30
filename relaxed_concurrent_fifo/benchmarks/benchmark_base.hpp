@@ -21,8 +21,7 @@ struct benchmark_base {
     static constexpr bool PREFILL_IN_ORDER = PREFILL_IN_ORDER_T;
 
     // Make sure we have enough space for at least 4 (not 3 so it's PO2) windows where each window supports HW threads with HW blocks each with HW cells each.
-    // TODO: This must not result in more than 2^15 windows in order for the epochs to work correctly!
-	static const inline std::size_t SIZE = SIZE_T != 0 ? SIZE_T : 4 * std::thread::hardware_concurrency() * std::thread::hardware_concurrency() * std::thread::hardware_concurrency();
+    static const inline std::size_t SIZE = SIZE_T != 0 ? SIZE_T : 4 * std::thread::hardware_concurrency() * std::thread::hardware_concurrency() * std::thread::hardware_concurrency();
 };
 
 template <bool PREFILL_IN_ORDER = false, bool HAS_TIMEOUT = false, std::size_t SIZE = 0>
