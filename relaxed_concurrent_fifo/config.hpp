@@ -4,6 +4,7 @@
 #include <vector>
 #include <memory>
 #include <unordered_set>
+#include <regex>
 
 #include "benchmark.h"
 
@@ -119,7 +120,16 @@ static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 #endif
 
 	for (std::size_t i = 0; i < instances.size(); i++) {
-		if (filter_set.contains(instances[i]->get_name()) == are_exclude_filters) {
+		const std::string& name = instances[i]->get_name();
+		bool any_match = false;
+		std::smatch m;
+		for (const std::string& filter : filter_set) {
+			if (std::regex_match(name, m, std::regex{filter})) {
+				any_match = true;
+				break;
+			}
+		}
+		if (any_match == are_exclude_filters) {
 			instances.erase(instances.begin() + i);
 			i--;
 		}
