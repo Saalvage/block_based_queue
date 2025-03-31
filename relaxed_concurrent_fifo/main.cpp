@@ -102,7 +102,7 @@ void test_all() {
 
 template <std::size_t THREAD_COUNT, std::size_t BLOCK_MULTIPLIER>
 void test_consistency(std::size_t fifo_size, std::size_t elements_per_thread, double prefill) {
-	block_based_queue<std::uint64_t, THREAD_COUNT * BLOCK_MULTIPLIER> fifo{ THREAD_COUNT, fifo_size };
+	bbq_min_block_count<std::uint64_t, THREAD_COUNT * BLOCK_MULTIPLIER> fifo{ THREAD_COUNT, fifo_size };
 	auto handle = fifo.get_handle();
 
 	std::size_t pre_push = static_cast<std::size_t>(fifo_size * prefill);
@@ -173,7 +173,7 @@ void test_continuous_bitset_claim() {
 				b[i] = true;
 			}
 		}
-		auto result = a.template claim_bit<true, true>();
+		auto result = a.template claim_bit<claim_value::ONE, claim_mode::READ_WRITE>();
 		if (result != std::numeric_limits<std::size_t>::max() && (a[result] || !b[result])) {
 			throw std::runtime_error("Incorrect!");
 		}
@@ -206,7 +206,8 @@ void run_benchmark(const std::string& test_name, const std::vector<std::unique_p
 		std::cout << running_time_seconds << " seconds" << std::endl;
 	}
 
-	std::ofstream file{ std::format(format, test_name, prefill, std::chrono::round<std::chrono::seconds>(std::chrono::file_clock::now())) };
+	std::string filename = std::format(format, test_name, prefill, std::chrono::round<std::chrono::seconds>(std::chrono::file_clock::now()));
+	std::ofstream file{ filename };
 	for (auto i : std::views::iota(0, test_iterations)) {
 		std::cout << "Test run " << (i + 1) << " of " << test_iterations << std::endl;
 		for (const auto& imp : instances) {
@@ -220,9 +221,10 @@ void run_benchmark(const std::string& test_name, const std::vector<std::unique_p
 			}
 		}
 	}
+	std::cout << "Results written to " << filename << std::endl;
 }
 
-int main(int argc, char** argv) {
+int main(int argc, const char** argv) {
 #ifndef NDEBUG
 	std::cout << "Running in debug mode!" << std::endl;
 #endif // NDEBUG
@@ -238,20 +240,10 @@ int main(int argc, char** argv) {
 	constexpr int TEST_TIME_SECONDS_DEFAULT = 5;
 
 	int input;
-	if (argc > 1) {
-		if (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0) {
-			std::cout << "Usage: " << argv[0] << " <experiment_no> <graph_file>? [-h | --help] "
-				"[-t | --thread_count <count>] "
-				"[-s | --test_time_seconds <count> (default " << TEST_TIME_SECONDS_DEFAULT << ")] "
-				"[-r | --run_count <count> (default " << TEST_ITERATIONS_DEFAULT << ")]"
-				"[-f | --prefill <factor>]"
-				" ([-i | --include <fifo>]* | [-e | --exclude <fifo>]*)\n";
-			return 0;
-		}
-
-		input = std::strtol(argv[1], nullptr, 10);
-	} else {
-		std::cout << "Which experiment to run ? \n"
+	std::vector<std::string> seglist;
+	std::vector<const char*> argv2;
+	if (argc <= 1) {
+		std::cout << "Which experiment to run? \n"
 			"[1] Performance\n"
 			"[2] Quality\n"
 			"[3] Quality distribution\n"
@@ -260,8 +252,32 @@ int main(int argc, char** argv) {
 			"[6] Producer-Consumer\n"
 			"[7] BFS\n"
 			"Input: ";
-		std::cin >> input;
+		std::string input_str;
+		getline(std::cin, input_str);
+		std::stringstream strstr{ input_str };
+		std::string temp;
+		while (std::getline(strstr, temp, ' ')) {
+			seglist.push_back(temp);
+		}
+		argv2.resize(seglist.size() + 1);
+		for (std::size_t i = 0; i < seglist.size(); i++) {
+			argv2[i + 1] = seglist[i].c_str();
+		}
+		argc = static_cast<int>(argv2.size());
+		argv = argv2.data();
 	}
+
+	if (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0) {
+		std::cout << "Usage: " << argv[0] << " <experiment_no> <graph_file>? [-h | --help] "
+			"[-t | --thread_count <count>] "
+			"[-s | --test_time_seconds <count> (default " << TEST_TIME_SECONDS_DEFAULT << ")] "
+			"[-r | --run_count <count> (default " << TEST_ITERATIONS_DEFAULT << ")]"
+			"[-f | --prefill <factor>]"
+			" ([-i | --include <fifo>]* | [-e | --exclude <fifo>]*)\n";
+		return 0;
+	}
+
+	input = std::strtol(argv[1], nullptr, 10);
 
 	std::optional<double> prefill_override;
 	auto test_its = TEST_ITERATIONS_DEFAULT;
@@ -273,12 +289,12 @@ int main(int argc, char** argv) {
 	for (int i = input == 7 ? 3 : 2; i < argc; i++) {
 		if (strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--thread_count") == 0) {
 			i++;
-			char* arg = argv[i];
+			const char* arg = argv[i];
 			--arg;
 			processor_counts.clear();
 			do {
 				++arg;
-				processor_counts.push_back(std::strtol(arg, &arg, 10));
+				processor_counts.push_back(std::strtol(arg, nullptr, 10));
 			} while (*arg == ',');
 		} else if (strcmp(argv[i], "-r") == 0 || strcmp(argv[i], "--run_count") == 0) {
 			i++;
