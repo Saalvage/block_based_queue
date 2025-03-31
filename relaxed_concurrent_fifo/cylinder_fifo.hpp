@@ -6,6 +6,11 @@
 #include "contenders/multififo/ring_buffer.hpp"
 #include "contenders/multififo/queue_guard.hpp"
 
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Winterference-size"
+#endif // __GNUC__
+
 template <typename T>
 class cylinder_fifo {
 private:
@@ -94,5 +99,7 @@ public:
 		return handle(*this);
 	}
 };
+
+#pragma GCC diagnostic pop
 
 #endif // CYLINDER_FIFO_H_INCLUDED

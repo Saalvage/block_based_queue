@@ -1,3 +1,11 @@
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wvariadic-macros"
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#pragma GCC diagnostic ignored "-Wunused-variable"
+#pragma GCC diagnostic ignored "-Wsign-compare"
+#endif // __GNUC__
+
 #include "d-balanced-queue.h"
 
 // Internal thread local count for double-collect
@@ -149,3 +157,7 @@ dbco_queue* d_balanced_register(dbco_queue *set, int thread_id)
 #endif
     return set;
 }
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif // __GNUC__

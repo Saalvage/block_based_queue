@@ -8,8 +8,16 @@
 #include "../../cylinder_fifo.hpp"
 
 #ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wvariadic-macros"
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#pragma GCC diagnostic ignored "-Wpedantic"
+#pragma GCC diagnostic ignored "-Wvolatile"
+
 #include "../../contenders/2D/wrapper_dcbo.hpp"
 #include "../../contenders/2D/wrapper_2D.hpp"
+
+#pragma GCC diagnostic pop
 #endif // __GNUC__
 
 template <typename BENCHMARK>

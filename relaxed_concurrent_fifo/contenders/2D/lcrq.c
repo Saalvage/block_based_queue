@@ -1,3 +1,10 @@
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wvariadic-macros"
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#pragma GCC diagnostic ignored "-Wsign-compare"
+#endif // __GNUC__
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -383,3 +390,7 @@ uint64_t lcrq_tail_version(queue_t *q){
   RingQueue *tail = q->tail;
   return (tail_index(tail->tail) & 0xFFFFFFFF) | (tail->items_enqueued << 32);
 }
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif // __GNUC__
