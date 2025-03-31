@@ -125,6 +125,12 @@ public:
         return false;
     }
 
+	constexpr void set_all(std::memory_order order = std::memory_order_seq_cst) {
+		for (auto& elem : data) {
+			elem->store(std::numeric_limits<ARR_TYPE>::max(), order);
+		}
+	}
+
     template <claim_value VALUE, claim_mode MODE>
     std::size_t claim_bit(int starting_bit, std::memory_order order = std::memory_order_seq_cst) {
         assert(starting_bit < size());

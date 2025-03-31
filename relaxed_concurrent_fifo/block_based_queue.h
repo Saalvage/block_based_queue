@@ -232,18 +232,14 @@ public:
 						if (!fifo.index_to_window(write_window).filled_set.any(std::memory_order_relaxed)) {
 							return false;
 						}
-						// TODO: This should be simplifiable? Spurious block claims only occur when force-moving.
+
 						// Before we force-move the write window, there might be unclaimed blocks in the current one.
 						// We need to make sure we clean those up BEFORE we move the write window in order to prevent
 						// the read window from being moved before all blocks have either been claimed or invalidated.
-						window_t& new_window = fifo.index_to_window(write_window);
-						std::uint64_t next_epoch = epoch_to_header(fifo.window_to_epoch(write_window) + 1);
-						for (std::size_t i = 0; i < blocks_per_window; i++) {
-							// We can't rely on the bitset here because it might be experiencing a spurious claim.
+						// By just fully setting the bitset we share the task of incrementing the epochs of unclaimed blocks
+						// among the read threads.
+						fifo.index_to_window(write_window).filled_set.set_all(std::memory_order_relaxed);
 
-							std::uint64_t ei = epoch_to_header(write_window); // All empty with current epoch.
-							new_window.blocks[i].header.epoch_and_indices.compare_exchange_strong(ei, next_epoch, std::memory_order_relaxed);
-						}
 						fifo.write_window.compare_exchange_strong(write_window, write_window + 1, std::memory_order_relaxed);
 #if BBQ_LOG_WINDOW_MOVE
 						std::cout << "Write force move " << (write_window + 1) << std::endl;
