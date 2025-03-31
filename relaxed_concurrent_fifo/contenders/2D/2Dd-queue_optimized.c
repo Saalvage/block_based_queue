@@ -30,6 +30,8 @@ void free_node(node_t* node)
 {
 #if GC == 1
 	ssmem_free(alloc, (void*)node);
+#else
+	ssfree(node);
 #endif
 }
 
@@ -380,6 +382,11 @@ mqueue_t* queue_register(mqueue_t* set, int thread_id)
 		ssmem_alloc_init_fs_size(alloc, SSMEM_DEFAULT_MEM_SIZE, SSMEM_GC_FREE_SET_SIZE, thread_id);
 	}
 #endif
+
+	thread_PWindow.max = 0;
+	thread_GWindow.max = 0;
+	thread_put_index = 0;
+	thread_get_index = 0;
 
 	thread_depth = set->depth;
 	thread_width = set->width;

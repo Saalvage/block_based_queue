@@ -215,7 +215,9 @@ void initialize_global_window(depth_t depth, width_t width)
 
 	assert(depth != 0);
 
+#ifndef NDEBUG
 	printf("Initializing! %u %u\n", depth, width);
+#endif // NDEBUG
 
 	global_PWindow.content.max = depth;
 	global_GWindow.content.max = depth;
