@@ -5,7 +5,6 @@
 
 #include "../../contenders/scal/scal_wrapper.h"
 #include "../../contenders/multififo/multififo.hpp"
-#include "../../cylinder_fifo.hpp"
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -28,9 +27,6 @@ using benchmark_provider_ss_kfifo = benchmark_provider_generic<ss_k_fifo<std::ui
 
 template <typename BENCHMARK>
 using benchmark_provider_multififo = benchmark_provider_generic<multififo::MultiFifo<std::uint64_t>, BENCHMARK, int, int>;
-
-template <typename BENCHMARK>
-using benchmark_provider_cylinder = benchmark_provider_generic<cylinder_fifo<std::uint64_t>, BENCHMARK, int, int>;
 
 #ifdef __GNUC__
 template <typename BENCHMARK>

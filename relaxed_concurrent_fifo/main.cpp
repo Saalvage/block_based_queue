@@ -4,7 +4,6 @@
 #include "lock_fifo.h"
 #include "block_based_queue.h"
 #include "concurrent_fifo.h"
-#include "cylinder_fifo.hpp"
 
 #include "contenders/LCRQ/wrapper.h"
 #include "contenders/LCRQ/MichaelScottQueue.hpp"

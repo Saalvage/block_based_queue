@@ -24,7 +24,6 @@ using LCRQWrapped = LCRQueue<T>;
 #if !defined(INCLUDE_BBQ) \
 	&& !defined(INCLUDE_MULTIFIFO) \
 	&& !defined(INCLUDE_LCRQ) \
-	&& !defined(INCLUDE_CFIFO) \
 	&& !defined(INCLUDE_KFIFO) \
 	&& !defined(INCLUDE_DCBO) \
 	&& !defined(INCLUDE_2D)
@@ -73,14 +72,6 @@ static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 	instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK, 4, 127>>("bbq-4-127"));
 	instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK, 8, 127>>("bbq-8-127"));
 #endif // PARAMETER_TUNING
-#endif
-
-#if defined(INCLUDE_CFIFO) || defined(INCLUDE_ALL)
-	for (int queues_per_thread = 2; queues_per_thread <= 8; queues_per_thread *= 2) {
-		for (int stickiness = 1; stickiness <= 4096; stickiness *= 2) {
-			instances.push_back(std::make_unique<benchmark_provider_cylinder<BENCHMARK>>("cfifo-{},{}", queues_per_thread, stickiness));
-		}
-	}
 #endif
 
 #if defined(INCLUDE_MULTIFIFO) || defined(INCLUDE_ALL)
