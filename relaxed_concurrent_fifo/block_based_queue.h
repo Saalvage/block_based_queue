@@ -52,7 +52,7 @@ struct window {
 	alignas(std::hardware_destructive_interference_size) BLOCK_T blocks[BLOCKS_PER_WINDOW];
 
 	BLOCK_T* try_get_write_block(int starting_bit) {
-		std::size_t free_bit = filled_set.template claim_bit<claim_value::ZERO, claim_mode::READ_WRITE>(starting_bit);
+		std::size_t free_bit = filled_set.template claim_bit<claim_value::ZERO, claim_mode::READ_WRITE>(starting_bit, std::memory_order_relaxed);
 		if (free_bit == std::numeric_limits<std::size_t>::max()) {
 			return nullptr;
 		}
@@ -60,7 +60,7 @@ struct window {
 	}
 
 	BLOCK_T* try_get_read_block(int starting_bit) {
-		std::size_t free_bit = filled_set.template claim_bit<claim_value::ONE, claim_mode::READ_ONLY>(starting_bit);
+		std::size_t free_bit = filled_set.template claim_bit<claim_value::ONE, claim_mode::READ_ONLY>(starting_bit, std::memory_order_relaxed);
 		if (free_bit == std::numeric_limits<std::size_t>::max()) {
 			return nullptr;
 		}
