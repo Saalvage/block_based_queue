@@ -29,14 +29,18 @@ with open(file) as file:
         else:
             impls[name].values[x].append(y)
 
+markers = ["-o", "-x", "-v", "-s"]
+i = 0
+
 for k, v in impls.items():
     values = v.values.values()
     avgs = list(map(statistics.mean, values))
     std = list(map(statistics.stdev, values)) if len(first(values)) > 1 else ([0] * len(values))
     xs, ys, std = zip(*sorted(zip(v.values.keys(), avgs, std)))
-    plt.errorbar(xs, ys, yerr=std, label=k, fmt="-o", capsize=3, ecolor="black")
+    plt.errorbar(xs, ys, yerr=std, label=k, fmt=markers[int(i / 10)], capsize=3, ecolor="black")
     plt.xlabel("Processors")
     plt.title("FIFO-Queue Comparison")
+    i += 1
 
 plt.xscale("log", base = 2)
 plt.ylabel("Iterations")

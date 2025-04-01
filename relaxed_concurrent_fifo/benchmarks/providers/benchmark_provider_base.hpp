@@ -56,8 +56,22 @@ protected:
                     throw std::runtime_error("Failed to set thread affinity!");
                 }
 #endif // _POSIX_VERSION
-                // Make sure handle is on the thread's stack.
-                typename FIFO::handle handle = std::move(handles[i]);
+
+                // Make sure handle is acquired on the thread it will be used on.
+                typename FIFO::handle handle = fifo.get_handle();
+
+                // If PREFILL_IN_ORDER is set we sequentially fill the queue from a single handle.
+                std::size_t prefill = static_cast<std::size_t>(BENCHMARK::PREFILL_IN_ORDER
+                    ? (i == 0 ? prefill_amount * BENCHMARK::SIZE : 0)
+                    : prefill_amount * BENCHMARK::SIZE / info.num_threads);
+
+                // We prefill from all handles since this may improve performance for certain implementations.
+                for (std::size_t j = 0; j < prefill; j++) {
+                    if (!handle.push(j + 1)) {
+                        break;
+                    }
+                }
+
                 if constexpr (BENCHMARK::HAS_TIMEOUT) {
                     b.template per_thread<FIFO>(i, handle, a, over);
                 } else {
