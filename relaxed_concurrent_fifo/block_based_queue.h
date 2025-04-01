@@ -318,6 +318,9 @@ public:
 				if (get_write_index(ei) == get_read_index(ei)) {
 					// We need this in case of a spurious claim where a bit was claimed, but the writer couldn't place an element inside,
 					// because the write window was already forced-moved.
+					// TODO: Is it necessary to check get_epoch(ei) == read_epoch here?
+					// It seems practically irrelevant, but it could theoretically happen that the epoch has advanced
+					// twice before the ei load, leading us to set it back by one here.
 					if (header->epoch_and_indices.compare_exchange_strong(ei, epoch_to_header(read_epoch + 1), std::memory_order_relaxed)) {
 						// We're abandoning an empty block!
 						window_t& window = fifo.block_to_window(read_block);
