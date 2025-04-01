@@ -145,9 +145,9 @@ public:
     }
 
     void set_epoch_if_empty(std::uint64_t epoch, std::uint64_t next_epoch, std::memory_order order = std::memory_order_seq_cst) {
-		std::uint64_t epoch_masked = epoch << 8;
 		std::uint64_t next_epoch_masked = next_epoch << 8;
         for (auto& elem : data) {
+            std::uint64_t epoch_masked = epoch << 8;
             elem->compare_exchange_strong(epoch_masked, next_epoch_masked, order);
         }
     }
