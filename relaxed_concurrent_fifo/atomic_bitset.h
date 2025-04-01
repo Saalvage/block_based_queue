@@ -152,6 +152,14 @@ public:
         }
     }
 
+	constexpr void set_all(std::uint64_t epoch, std::memory_order order = std::memory_order_seq_cst) {
+        std::uint64_t epoch_masked = epoch << 8;
+        for (auto& elem : data) {
+            std::uint64_t ed = elem->load(order);
+            while ((ed & 0xffff'ffff'ffff'ff00ull) == epoch_masked && !elem->compare_exchange_weak(ed, ed | 0xff, order));
+		}
+	}
+
     template <claim_value VALUE, claim_mode MODE>
     std::size_t claim_bit(int starting_bit, std::uint64_t epoch, std::memory_order order = std::memory_order_seq_cst) {
         assert(starting_bit < size());
