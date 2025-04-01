@@ -325,8 +325,8 @@ public:
 					ei = header->epoch_and_indices.load(std::memory_order_relaxed);
 				}
 				index = get_read_index(ei);
-				auto diff = get_write_index(ei) - index;
-				if (diff == 0) {
+				auto write_index = get_write_index(ei);
+				if (index == write_index) {
 					// TODO: The problem here is that if epoch == (read_window + 1) we only reset the bit, which might lead to lost
 					// writes, because for the write the block header didn't change, so it fills the block, but the bit is unset.
 					// But if we simply ignore that case, then we're stuck because the bit will be set forever.
@@ -337,7 +337,7 @@ public:
 						auto diff = read_block - window.blocks;
 						window.filled_set.reset(diff, std::memory_order_relaxed);
 					}
-				} else if (diff == 1) {
+				} else if (index + 1 == write_index) {
 					if (header->epoch_and_indices.compare_exchange_weak(ei, epoch_to_header(read_epoch + 1), std::memory_order_acquire)) {
 						window_t& window = fifo.block_to_window(read_block);
 						auto diff = read_block - window.blocks;
