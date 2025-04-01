@@ -52,7 +52,7 @@ struct window {
 	alignas(std::hardware_destructive_interference_size) BLOCK_T blocks[BLOCKS_PER_WINDOW];
 
 	BLOCK_T* try_get_write_block(int starting_bit) {
-		std::size_t free_bit = filled_set.template claim_bit<claim_value::ZERO, claim_mode::READ_WRITE>(starting_bit);
+		std::size_t free_bit = filled_set.template claim_bit<claim_value::ZERO, claim_mode::READ_WRITE>(starting_bit, std::memory_order_relaxed);
 		if (free_bit == std::numeric_limits<std::size_t>::max()) {
 			return nullptr;
 		}
@@ -60,7 +60,7 @@ struct window {
 	}
 
 	BLOCK_T* try_get_read_block(int starting_bit) {
-		std::size_t free_bit = filled_set.template claim_bit<claim_value::ONE, claim_mode::READ_ONLY>(starting_bit);
+		std::size_t free_bit = filled_set.template claim_bit<claim_value::ONE, claim_mode::READ_ONLY>(starting_bit, std::memory_order_relaxed);
 		if (free_bit == std::numeric_limits<std::size_t>::max()) {
 			return nullptr;
 		}
@@ -241,7 +241,7 @@ public:
 						for (std::size_t i = 0; i < blocks_per_window; i++) {
 							// We can't rely on the bitset here because it might be experiencing a spurious claim.
 
-							std::uint64_t ei = epoch_to_header(write_window); // All empty with current epoch.
+							std::uint64_t ei = epoch_to_header(fifo.window_to_epoch(write_window)); // All empty with current epoch.
 							new_window.blocks[i].header.epoch_and_indices.compare_exchange_strong(ei, next_epoch, std::memory_order_relaxed);
 						}
 						fifo.write_window.compare_exchange_strong(write_window, write_window + 1, std::memory_order_relaxed);
