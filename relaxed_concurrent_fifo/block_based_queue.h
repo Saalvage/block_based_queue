@@ -241,7 +241,7 @@ public:
 						for (std::size_t i = 0; i < blocks_per_window; i++) {
 							// We can't rely on the bitset here because it might be experiencing a spurious claim.
 
-							std::uint64_t ei = epoch_to_header(write_window); // All empty with current epoch.
+							std::uint64_t ei = epoch_to_header(fifo.window_to_epoch(write_window)); // All empty with current epoch.
 							new_window.blocks[i].header.epoch_and_indices.compare_exchange_strong(ei, next_epoch, std::memory_order_relaxed);
 						}
 						fifo.write_window.compare_exchange_strong(write_window, write_window + 1, std::memory_order_relaxed);
