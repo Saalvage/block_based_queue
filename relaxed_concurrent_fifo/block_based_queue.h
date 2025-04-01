@@ -201,7 +201,7 @@ public:
 			std::uint64_t window_index;
 			do {
 				window_index = fifo.write_window.load(std::memory_order_relaxed);
-				new_block = fifo.index_to_window(window_index).try_get_write_block(random_bit_index(), window_index);
+				new_block = fifo.index_to_window(window_index).try_get_write_block(random_bit_index(), fifo.window_to_epoch(window_index));
 				if (new_block == nullptr) {
 					// No more free bits, we move.
 					if (window_index + 1 - fifo.read_window.load(std::memory_order_relaxed) == fifo.window_count) {
@@ -226,11 +226,11 @@ public:
 			std::uint64_t window_index;
 			do {
 				window_index = fifo.read_window.load(std::memory_order_relaxed);
-				new_block = fifo.index_to_window(window_index).try_get_read_block(random_bit_index(), window_index);
+				new_block = fifo.index_to_window(window_index).try_get_read_block(random_bit_index(), fifo.window_to_epoch(window_index));
 				if (new_block == nullptr) {
 					std::uint64_t write_window = fifo.write_window.load(std::memory_order_relaxed);
 					if (write_window == window_index + 1) {
-						if (!fifo.index_to_window(write_window).filled_set.any(write_window, std::memory_order_relaxed)) {
+						if (!fifo.index_to_window(write_window).filled_set.any(fifo.window_to_epoch(write_window), std::memory_order_relaxed)) {
 							return false;
 						}
 						// TODO: This should be simplifiable? Spurious block claims only occur when force-moving.
@@ -322,7 +322,7 @@ public:
 						// We're abandoning an empty block!
 						window_t& window = fifo.block_to_window(read_block);
 						auto diff = read_block - window.blocks;
-						window.filled_set.reset(diff, read_epoch, fifo.window_count, std::memory_order_relaxed);
+						window.filled_set.reset(diff, read_epoch, std::memory_order_relaxed);
 					}
 					// If the CAS fails, the only thing that could've occurred was the write index being increased,
 					// making us able to read an element from the block.
@@ -339,7 +339,7 @@ public:
 				if (header->epoch_and_indices.compare_exchange_strong(ei, epoch_to_header(read_epoch + 1), std::memory_order_relaxed)) {
 					window_t& window = fifo.block_to_window(read_block);
 					auto diff = read_block - window.blocks;
-					window.filled_set.reset(diff, read_epoch, fifo.window_count, std::memory_order_relaxed);
+					window.filled_set.reset(diff, read_epoch, std::memory_order_relaxed);
 				}
 				// else a different read thread has already wrapped up this block.
 			}

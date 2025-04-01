@@ -24,7 +24,7 @@ enum class claim_mode {
 };
 
 template <bool SET>
-constexpr void set_bit_atomic(std::atomic<std::uint64_t>& data, std::size_t index, std::uint64_t epoch, std::uint64_t size, std::memory_order order = std::memory_order_seq_cst) {
+constexpr void set_bit_atomic(std::atomic<std::uint64_t>& data, std::size_t index, std::uint64_t epoch, std::memory_order order = std::memory_order_seq_cst) {
     std::uint64_t ed = data.load(order);
     std::uint64_t test;
     std::uint64_t mask = 1ull << index;
@@ -39,7 +39,7 @@ constexpr void set_bit_atomic(std::atomic<std::uint64_t>& data, std::size_t inde
             // We basically want to increment the epoch when the last filled bit has been reset.
             test = ed & ~mask;
             if (static_cast<std::uint8_t>(test) == 0) {
-                test = epoch + (size << 8); // TODO: DON'T PASS THIS!!!
+                test = epoch + (1 << 8);
             }
         }
     } while (!data.compare_exchange_strong(ed, test, order));
@@ -109,9 +109,9 @@ public:
     /// </summary>
     /// <param name="index">The index of the bit to set.</param>
     /// <returns>Whether the bit has been newly set. false means the bit had already been 1.</returns>
-    constexpr void set(std::size_t index, std::uint64_t epoch, std::uint64_t window_count, std::memory_order order = std::memory_order_seq_cst) {
+    constexpr void set(std::size_t index, std::uint64_t epoch, std::memory_order order = std::memory_order_seq_cst) {
         assert(index < size());
-        set_bit_atomic<true>(data[index / bit_count].atomic, index % bit_count, epoch << 8, window_count, order);
+        set_bit_atomic<true>(data[index / bit_count].atomic, index % bit_count, epoch << 8, order);
     }
 
     /// <summary>
@@ -119,9 +119,9 @@ public:
     /// </summary>
     /// <param name="index">The index of the bit to reset.</param>
     /// <returns>Whether the bit has been newly reset. false means the bit had already been 0.</returns>
-    constexpr void reset(std::size_t index, std::uint64_t epoch, std::uint64_t window_count, std::memory_order order = std::memory_order_seq_cst) {
+    constexpr void reset(std::size_t index, std::uint64_t epoch, std::memory_order order = std::memory_order_seq_cst) {
         assert(index < size());
-        set_bit_atomic<false>(data[index / bit_count].atomic, index % bit_count, epoch << 8, window_count, order);
+        set_bit_atomic<false>(data[index / bit_count].atomic, index % bit_count, epoch << 8, order);
     }
 
     [[nodiscard]] constexpr bool test(std::size_t index, std::memory_order order = std::memory_order_seq_cst) const {
