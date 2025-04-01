@@ -23,28 +23,6 @@ enum class claim_mode {
     READ_ONLY,
 };
 
-template <bool SET>
-constexpr void set_bit_atomic(std::atomic<std::uint64_t>& data, std::size_t index, std::uint64_t epoch, std::memory_order order = std::memory_order_seq_cst) {
-    std::uint64_t ed = data.load(order);
-    std::uint64_t test;
-    std::uint64_t mask = 1ull << index;
-    do {
-        if ((ed & 0xffff'ffff'ffff'ff00ull) != epoch) {
-            return;
-        }
-        if constexpr (SET) {
-            test = ed | mask;
-        } else {
-            // TODO: Special case handling like this is probably bad.
-            // We basically want to increment the epoch when the last filled bit has been reset.
-            test = ed & ~mask;
-            if (static_cast<std::uint8_t>(test) == 0) {
-                test = epoch + (1 << 8);
-            }
-        }
-    } while (!data.compare_exchange_strong(ed, test, order));
-}
-
 template <typename T>
 struct cache_aligned_t {
     alignas(std::hardware_destructive_interference_size) std::atomic<T> atomic;
@@ -57,21 +35,50 @@ struct cache_aligned_t {
 template <std::size_t N, typename ARR_TYPE = uint8_t>
 class atomic_bitset {
 private:
+    static_assert(sizeof(ARR_TYPE) < 4, "Inner bitset type must be smaller than 4 bytes to allow for storing epoch.");
+
     static constexpr std::size_t bit_count = sizeof(ARR_TYPE) * 8;
+    static constexpr std::uint64_t epoch_mask = ~((1ull << bit_count) - 1);
     static constexpr std::size_t array_members = N / bit_count;
     std::array<cache_aligned_t<std::uint64_t>, array_members> data;
 
     // This requirement could be lifted in exchange for a more complicated implementation of the claim bit function.
     static_assert(N % bit_count == 0, "Bit count must be dividable by size of array type!");
 
+    static constexpr std::uint64_t mask_epoch(std::uint64_t epoch) {
+        return epoch << bit_count;
+    }
+
+    template <bool SET>
+    static constexpr void set_bit_atomic(std::atomic<std::uint64_t>& data, std::size_t index, std::uint64_t epoch_masked, std::memory_order order = std::memory_order_seq_cst) {
+        std::uint64_t ed = data.load(order);
+        std::uint64_t test;
+        std::uint64_t stencil = 1ull << index;
+        do {
+            if ((ed & epoch_mask) != epoch_masked) {
+                return;
+            }
+            if constexpr (SET) {
+                test = ed | stencil;
+            } else {
+                // TODO: Special case handling like this is probably bad.
+                // We basically want to increment the epoch when the last filled bit has been reset.
+                test = ed & ~stencil;
+                if ((test & ~epoch_mask) == 0) {
+                    test = epoch_masked + mask_epoch(1);
+                }
+            }
+        } while (!data.compare_exchange_strong(ed, test, order));
+    }
+
     template <claim_value VALUE, claim_mode MODE>
     static constexpr std::size_t claim_bit_singular(std::atomic<std::uint64_t>& data, int initial_rot, std::uint64_t epoch_masked, std::memory_order order) {
         auto eb = data.load(order);
         while (true) {
-            if ((eb & 0xffff'ffff'ffff'ff00ull) != epoch_masked) {
+            if ((eb & epoch_mask) != epoch_masked) {
                 return std::numeric_limits<std::size_t>::max();
             }
-            auto raw = static_cast<std::uint8_t>(eb);
+            ARR_TYPE raw = static_cast<ARR_TYPE>(eb);
             ARR_TYPE rotated = std::rotr(raw, initial_rot);
             int counted = VALUE == claim_value::ONE ? std::countr_zero(rotated) : std::countr_one(rotated);
             if (counted == bit_count) {
@@ -93,7 +100,7 @@ private:
                     if (data.compare_exchange_weak(eb, epoch_masked | test, order)) {
                         return original_index;
                     }
-                    raw = static_cast<std::uint8_t>(eb);
+                    raw = static_cast<ARR_TYPE>(eb);
                 }
             } else {
                 return original_index;
@@ -111,7 +118,7 @@ public:
     /// <returns>Whether the bit has been newly set. false means the bit had already been 1.</returns>
     constexpr void set(std::size_t index, std::uint64_t epoch, std::memory_order order = std::memory_order_seq_cst) {
         assert(index < size());
-        set_bit_atomic<true>(data[index / bit_count].atomic, index % bit_count, epoch << 8, order);
+        set_bit_atomic<true>(data[index / bit_count].atomic, index % bit_count, mask_epoch(epoch), order);
     }
 
     /// <summary>
@@ -121,7 +128,7 @@ public:
     /// <returns>Whether the bit has been newly reset. false means the bit had already been 0.</returns>
     constexpr void reset(std::size_t index, std::uint64_t epoch, std::memory_order order = std::memory_order_seq_cst) {
         assert(index < size());
-        set_bit_atomic<false>(data[index / bit_count].atomic, index % bit_count, epoch << 8, order);
+        set_bit_atomic<false>(data[index / bit_count].atomic, index % bit_count, mask_epoch(epoch), order);
     }
 
     [[nodiscard]] constexpr bool test(std::size_t index, std::memory_order order = std::memory_order_seq_cst) const {
@@ -134,10 +141,10 @@ public:
     }
 
     [[nodiscard]] constexpr bool any(std::uint64_t epoch, std::memory_order order = std::memory_order_seq_cst) const {
-        std::uint64_t epoch_masked = epoch << 8;
+        std::uint64_t epoch_masked = mask_epoch(epoch);
         for (auto& elem : data) {
             std::uint64_t ep = elem->load(order);
-            if ((ep & 0xffff'ffff'ffff'ff00ull) == epoch_masked && (ep & 0xff)) {
+            if ((ep & epoch_mask) == epoch_masked && (ep & ~epoch_mask)) {
                 return true;
             }
         }
@@ -145,9 +152,9 @@ public:
     }
 
     void set_epoch_if_empty(std::uint64_t epoch, std::uint64_t next_epoch, std::memory_order order = std::memory_order_seq_cst) {
-		std::uint64_t next_epoch_masked = next_epoch << 8;
+        std::uint64_t next_epoch_masked = mask_epoch(next_epoch);
         for (auto& elem : data) {
-            std::uint64_t epoch_masked = epoch << 8;
+            std::uint64_t epoch_masked = mask_epoch(epoch);
             elem->compare_exchange_strong(epoch_masked, next_epoch_masked, order);
         }
     }
@@ -157,7 +164,7 @@ public:
         assert(starting_bit < size());
         int off;
         int initial_rot;
-        std::uint64_t epoch_mask = epoch << 8;
+        std::uint64_t epoch_masked = mask_epoch(epoch);
         if constexpr (array_members > 1) {
             off = starting_bit / bit_count;
             initial_rot = starting_bit % bit_count;
@@ -167,7 +174,7 @@ public:
         }
         for (std::size_t i = 0; i < data.size(); i++) {
             auto index = (i + off) % data.size();
-            if (auto ret = claim_bit_singular<VALUE, MODE>(data[index], initial_rot, epoch_mask, order);
+            if (auto ret = claim_bit_singular<VALUE, MODE>(data[index], initial_rot, epoch_masked, order);
                     ret != std::numeric_limits<std::size_t>::max()) {
                 return ret + index * bit_count;
             }
