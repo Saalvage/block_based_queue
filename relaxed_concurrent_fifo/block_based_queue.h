@@ -133,10 +133,6 @@ private:
 		return buffer[index & window_count_mod_mask];
 	}
 
-	window_t& block_to_window(block_t* block) const {
-		return buffer[(reinterpret_cast<char*>(block) - reinterpret_cast<const char*>(buffer.get())) / sizeof(window_t)];
-	}
-
 	alignas(std::hardware_destructive_interference_size) std::atomic_uint64_t read_window = 0;
 	alignas(std::hardware_destructive_interference_size) std::atomic_uint64_t write_window = 1;
 
@@ -177,12 +173,15 @@ public:
 	class handle {
 	private:
 		block_based_queue& fifo;
-	
-		block_t* read_block = &dummy_block;
-		block_t* write_block = &dummy_block;
+
+		std::uint64_t read_window = 0;
+		std::uint64_t write_window = 0;
 
 		std::uint64_t write_epoch = 0;
 		std::uint64_t read_epoch = 0;
+
+		block_t* read_block = &dummy_block;
+		block_t* write_block = &dummy_block;
 
 		std::minstd_rand rng;
 
@@ -214,6 +213,7 @@ public:
 				}
 			} while (true);
 
+			write_window = window_index;
 			write_epoch = fifo.window_to_epoch(window_index);
 			write_block = new_block;
 			return true;
@@ -258,6 +258,7 @@ public:
 				}
 			} while (true);
 
+			read_window = window_index;
 			read_epoch = fifo.window_to_epoch(window_index);
 			read_block = new_block;
 			return true;
@@ -277,7 +278,7 @@ public:
 				// This is safe to do because writers are exclusive.
 				if (claimed && (index = get_write_index(ei)) == 0) {
 					// We're abandoning an empty block!
-					window_t& window = fifo.block_to_window(write_block);
+					window_t& window = fifo.index_to_window(write_window);
 					auto diff = write_block - window.blocks;
 					window.filled_set.reset(diff, std::memory_order_relaxed);
 				}
@@ -320,7 +321,7 @@ public:
 				ei = (ei & (0xffffull << 48)) | (finished_index << 32) | (finished_index << 16) | finished_index;
 				// Before we mark this block as empty, we make it unavailable for other readers and writers of this epoch.
 				if (header->epoch_and_indices.compare_exchange_strong(ei, epoch_to_header(read_epoch + 1), std::memory_order_relaxed)) {
-					window_t& window = fifo.block_to_window(read_block);
+					window_t& window = fifo.index_to_window(read_window);
 					auto diff = read_block - window.blocks;
 					window.filled_set.reset(diff, std::memory_order_relaxed);
 
