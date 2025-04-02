@@ -228,19 +228,20 @@ public:
 				if (new_block == nullptr) {
 					std::uint64_t write_window = fifo.write_window.load(std::memory_order_relaxed);
 					if (write_window == window_index + 1) {
-						if (!fifo.index_to_window(write_window).filled_set.any(std::memory_order_relaxed)) {
+						window_t& new_window = fifo.index_to_window(write_window);
+						std::uint64_t write_epoch = fifo.window_to_epoch(write_window);
+						if (!new_window.filled_set.any(std::memory_order_relaxed)) {
 							return false;
 						}
 						// TODO: This should be simplifiable? Spurious block claims only occur when force-moving.
 						// Before we force-move the write window, there might be unclaimed blocks in the current one.
 						// We need to make sure we clean those up BEFORE we move the write window in order to prevent
 						// the read window from being moved before all blocks have either been claimed or invalidated.
-						window_t& new_window = fifo.index_to_window(write_window);
-						std::uint64_t next_epoch = epoch_to_header(fifo.window_to_epoch(write_window) + 1);
+						std::uint64_t next_epoch = epoch_to_header(write_epoch + 1);
 						for (std::size_t i = 0; i < blocks_per_window; i++) {
 							// We can't rely on the bitset here because it might be experiencing a spurious claim.
 
-							std::uint64_t ei = epoch_to_header(fifo.window_to_epoch(write_window)); // All empty with current epoch.
+							std::uint64_t ei = epoch_to_header(write_epoch); // All empty with current epoch.
 							new_window.blocks[i].header.epoch_and_indices.compare_exchange_strong(ei, next_epoch, std::memory_order_relaxed);
 						}
 						fifo.write_window.compare_exchange_strong(write_window, write_window + 1, std::memory_order_relaxed);
@@ -321,6 +322,7 @@ public:
 				ei = (ei & (0xffffull << 48)) | (finished_index << 32) | (finished_index << 16) | finished_index;
 				// Before we mark this block as empty, we make it unavailable for other readers and writers of this epoch.
 				if (header->epoch_and_indices.compare_exchange_strong(ei, epoch_to_header(read_epoch + 1), std::memory_order_relaxed)) {
+					// TODO: Store block index instead of calculating?
 					window_t& window = fifo.index_to_window(read_window);
 					auto diff = read_block - window.blocks;
 					window.filled_set.reset(diff, std::memory_order_relaxed);
