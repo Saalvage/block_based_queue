@@ -32,7 +32,7 @@ struct cache_aligned_t {
     operator const std::atomic<T>& () const { return atomic; }
 };
 
-template <std::size_t N, typename ARR_TYPE = uint8_t>
+template <std::size_t N, typename ARR_TYPE = std::uint8_t>
 class atomic_bitset {
 private:
     static_assert(sizeof(ARR_TYPE) < 4, "Inner bitset type must be smaller than 4 bytes to allow for storing epoch.");
@@ -43,32 +43,32 @@ private:
     std::array<cache_aligned_t<std::uint64_t>, array_members> data;
 
     // This requirement could be lifted in exchange for a more complicated implementation of the claim bit function.
-    static_assert(N % bit_count == 0, "Bit count must be dividable by size of array type!");
+    static_assert(N % bit_count == 0, "Bit count must be divisible by size of array type!");
 
     static constexpr std::uint64_t mask_epoch(std::uint64_t epoch) {
         return epoch << bit_count;
     }
 
     template <bool SET>
-    static constexpr void set_bit_atomic(std::atomic<std::uint64_t>& data, std::size_t index, std::uint64_t epoch_masked, std::memory_order order = std::memory_order_seq_cst) {
-        std::uint64_t ed = data.load(order);
+    static constexpr void set_bit_atomic(std::atomic<std::uint64_t>& epoch_and_bits, std::size_t index, std::uint64_t epoch_masked, std::memory_order order = std::memory_order_seq_cst) {
+        std::uint64_t eb = epoch_and_bits.load(order);
         std::uint64_t test;
         std::uint64_t stencil = 1ull << index;
         do {
-            if ((ed & epoch_mask) != epoch_masked) {
+            if ((eb & epoch_mask) != epoch_masked) {
                 return;
             }
             if constexpr (SET) {
-                test = ed | stencil;
+                test = eb | stencil;
             } else {
                 // TODO: Special case handling like this is probably bad.
                 // We basically want to increment the epoch when the last filled bit has been reset.
-                test = ed & ~stencil;
+                test = eb & ~stencil;
                 if ((test & ~epoch_mask) == 0) {
                     test = epoch_masked + mask_epoch(1);
                 }
             }
-        } while (!data.compare_exchange_strong(ed, test, order));
+        } while (!epoch_and_bits.compare_exchange_strong(eb, test, order));
     }
 
     template <claim_value VALUE, claim_mode MODE>
