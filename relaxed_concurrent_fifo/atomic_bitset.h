@@ -24,8 +24,8 @@ enum class claim_mode {
 };
 
 template <typename T>
-struct cache_aligned_t {
-    alignas(std::hardware_destructive_interference_size) std::atomic<T> atomic;
+struct alignas(std::hardware_destructive_interference_size) cache_aligned_t {
+    std::atomic<T> atomic;
     std::atomic<T>* operator->() { return &atomic; }
     const std::atomic<T>* operator->() const { return &atomic; }
     operator std::atomic<T>& () { return atomic; }
