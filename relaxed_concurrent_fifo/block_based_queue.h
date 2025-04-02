@@ -190,6 +190,10 @@ public:
 
 		friend block_based_queue;
 
+		static constexpr bool epoch_valid(std::uint32_t check, std::uint32_t curr) {
+			return (curr - check) < std::numeric_limits<std::uint32_t>::max() / 2;
+		}
+
 		int random_bit_index() {
 			return std::uniform_int_distribution<int>(0, blocks_per_window - 1)(rng);
 		}
@@ -234,16 +238,11 @@ public:
 						if (!new_window.filled_set.any(write_epoch, std::memory_order_relaxed)) {
 							return false;
 						}
-						// TODO: This should be simplifiable? Spurious block claims only occur when force-moving.
+
 						// Before we force-move the write window, there might be unclaimed blocks in the current one.
 						// We need to make sure we clean those up BEFORE we move the write window in order to prevent
 						// the read window from being moved before all blocks have either been claimed or invalidated.
-						std::uint64_t next_ei = epoch_to_header(write_epoch + 1);
 						new_window.filled_set.set_epoch_if_empty(write_epoch, std::memory_order_relaxed);
-						for (std::size_t i = 0; i < blocks_per_window; i++) {
-							std::uint64_t ei = epoch_to_header(write_epoch); // All empty with current epoch.
-							new_window.blocks[i].header.epoch_and_indices.compare_exchange_strong(ei, next_ei, std::memory_order_relaxed);
-						}
 						fifo.write_window.compare_exchange_strong(write_window, write_window + 1, std::memory_order_relaxed);
 #if BBQ_LOG_WINDOW_MOVE
 						std::cout << "Write force move " << (write_window + 1) << std::endl;
@@ -276,7 +275,7 @@ public:
 			bool failure = true;
 			while (failure) {
 				T old = 0;
-				while (get_epoch(ei) != write_epoch || (index = get_write_index(ei)) == CELLS_PER_BLOCK
+				while (!epoch_valid(get_epoch(ei), write_epoch) || (index = get_write_index(ei)) == CELLS_PER_BLOCK
 					|| !write_block->cells[index].compare_exchange_weak(old, t, std::memory_order_relaxed)) {
 					if (!claim_new_block_write()) {
 						return false;
@@ -303,7 +302,7 @@ public:
 			std::uint64_t ei = header->epoch_and_indices.load(std::memory_order_relaxed);
 			std::uint64_t index;
 
-			while (get_epoch(ei) != read_epoch || (index = get_read_index(ei)) == get_write_index(ei)
+			while (!epoch_valid(get_epoch(ei), read_epoch) || (index = get_read_index(ei)) == get_write_index(ei)
 				|| !header->epoch_and_indices.compare_exchange_weak(ei, increment_read_index(ei),
 					std::memory_order_acquire, std::memory_order_relaxed)) {
 				if (!claim_new_block_read()) {
