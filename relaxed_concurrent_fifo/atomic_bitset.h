@@ -72,12 +72,12 @@ private:
     }
 
     template <claim_value VALUE, claim_mode MODE>
-    static constexpr std::size_t claim_bit_singular(std::atomic<std::uint64_t>& data, int initial_rot, std::uint64_t epoch_masked, std::memory_order order) {
-        auto eb = data.load(order);
+    static constexpr std::size_t claim_bit_singular(std::atomic<std::uint64_t>& epoch_and_bits, int initial_rot, std::uint64_t epoch_masked, std::memory_order order) {
+        auto eb = epoch_and_bits.load(order);
+        if ((eb & epoch_mask) != epoch_masked) {
+            return std::numeric_limits<std::size_t>::max();
+        }
         while (true) {
-            if ((eb & epoch_mask) != epoch_masked) {
-                return std::numeric_limits<std::size_t>::max();
-            }
             ARR_TYPE raw = static_cast<ARR_TYPE>(eb);
             ARR_TYPE rotated = std::rotr(raw, initial_rot);
             int counted = VALUE == claim_value::ONE ? std::countr_zero(rotated) : std::countr_one(rotated);
@@ -87,20 +87,28 @@ private:
             std::size_t original_index = (initial_rot + counted) % bit_count;
             if constexpr (MODE == claim_mode::READ_WRITE) {
                 ARR_TYPE test;
+                if constexpr (VALUE == claim_value::ONE) {
+                    test = raw & ~(1ull << original_index);
+                } else {
+                    test = raw | (1ull << original_index);
+                }
                 // Keep retrying until the bit we are trying to claim has changed.
                 while (true) {
+                    if (epoch_and_bits.compare_exchange_weak(eb, epoch_masked | test, order)) {
+                        return original_index;
+                    }
+                    if ((eb & epoch_mask) != epoch_masked) [[unlikely]] {
+						return std::numeric_limits<std::size_t>::max();
+                    }
+                    raw = static_cast<ARR_TYPE>(eb);
                     if constexpr (VALUE == claim_value::ONE) {
                         test = raw & ~(1ull << original_index);
                     } else {
                         test = raw | (1ull << original_index);
                     }
-                    if (test == raw) {
+                    if (test == raw) [[unlikely]] {
                         break;
                     }
-                    if (data.compare_exchange_weak(eb, epoch_masked | test, order)) {
-                        return original_index;
-                    }
-                    raw = static_cast<ARR_TYPE>(eb);
                 }
             } else {
                 return original_index;
