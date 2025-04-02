@@ -13,6 +13,10 @@
 #pragma GCC diagnostic ignored "-Winterference-size"
 #endif // __GNUC__
 
+#ifndef BITSET_DEFAULT_MEMORY_ORDER
+#define BITSET_DEFAULT_MEMORY_ORDER std::memory_order_relaxed
+#endif
+
 enum class claim_value {
     ZERO = 0,
     ONE = 1,
@@ -49,7 +53,7 @@ private:
     static_assert(N % bit_count == 0, "Bit count must be divisible by size of array type!");
 
     template <bool SET>
-    static constexpr void set_bit_atomic(std::atomic<std::uint64_t>& epoch_and_bits, std::size_t index, std::uint32_t epoch, std::memory_order order = std::memory_order_seq_cst) {
+    static constexpr void set_bit_atomic(std::atomic<std::uint64_t>& epoch_and_bits, std::size_t index, std::uint32_t epoch, std::memory_order order) {
         std::uint64_t eb = epoch_and_bits.load(order);
         std::uint64_t test;
         std::uint64_t stencil = 1ull << index;
@@ -123,7 +127,7 @@ public:
     /// </summary>
     /// <param name="index">The index of the bit to set.</param>
     /// <returns>Whether the bit has been newly set. false means the bit had already been 1.</returns>
-    constexpr void set(std::size_t index, std::uint32_t epoch, std::memory_order order = std::memory_order_seq_cst) {
+    constexpr void set(std::size_t index, std::uint32_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
         assert(index < size());
         set_bit_atomic<true>(data[index / bit_count].atomic, index % bit_count, epoch, order);
     }
@@ -133,12 +137,12 @@ public:
     /// </summary>
     /// <param name="index">The index of the bit to reset.</param>
     /// <returns>Whether the bit has been newly reset. false means the bit had already been 0.</returns>
-    constexpr void reset(std::size_t index, std::uint32_t epoch, std::memory_order order = std::memory_order_seq_cst) {
+    constexpr void reset(std::size_t index, std::uint32_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
         assert(index < size());
         set_bit_atomic<false>(data[index / bit_count].atomic, index % bit_count, epoch, order);
     }
 
-    [[nodiscard]] constexpr bool test(std::size_t index, std::memory_order order = std::memory_order_seq_cst) const {
+    [[nodiscard]] constexpr bool test(std::size_t index, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) const {
         assert(index < size());
         return data[index / bit_count]->load(order) & (1ull << (index % bit_count));
     }
@@ -147,7 +151,7 @@ public:
         return test(index);
     }
 
-    [[nodiscard]] constexpr bool any(std::uint32_t epoch, std::memory_order order = std::memory_order_seq_cst) const {
+    [[nodiscard]] constexpr bool any(std::uint32_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) const {
         for (auto& elem : data) {
             std::uint64_t eb = elem->load(order);
             if (get_epoch(eb) == epoch && get_bits(eb)) {
@@ -157,7 +161,7 @@ public:
         return false;
     }
 
-    void set_epoch_if_empty(std::uint32_t epoch, std::memory_order order = std::memory_order_seq_cst) {
+    void set_epoch_if_empty(std::uint32_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
         std::uint64_t next_eb = make_unit(epoch + 1);
         for (auto& elem : data) {
             std::uint64_t eb = make_unit(epoch);
@@ -166,7 +170,7 @@ public:
     }
 
     template <claim_value VALUE, claim_mode MODE>
-    std::size_t claim_bit(int starting_bit, std::uint32_t epoch, std::memory_order order = std::memory_order_seq_cst) {
+    std::size_t claim_bit(int starting_bit, std::uint32_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
         assert(starting_bit < size());
         int off;
         int initial_rot;
