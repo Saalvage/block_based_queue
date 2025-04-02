@@ -231,8 +231,13 @@ public:
 					if (write_window == window_index + 1) {
 						window_t& new_window = fifo.index_to_window(write_window);
 						std::uint32_t write_epoch = fifo.window_to_epoch(write_window);
-						if (!new_window.filled_set.any(write_epoch, std::memory_order_relaxed)) {
+						switch (new_window.filled_set.any(write_epoch, std::memory_order_relaxed)) {
+						case any_result::NONE:
 							return false;
+						case any_result::EPOCH_MISMATCH:
+							continue;
+						case any_result::SOME:
+							break;
 						}
 						// TODO: This should be simplifiable? Spurious block claims only occur when force-moving.
 						// Before we force-move the write window, there might be unclaimed blocks in the current one.

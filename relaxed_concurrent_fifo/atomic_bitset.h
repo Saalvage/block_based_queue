@@ -27,6 +27,12 @@ enum class claim_mode {
     READ_ONLY,
 };
 
+enum class any_result {
+    NONE,
+    SOME,
+    EPOCH_MISMATCH,
+};
+
 template <typename T>
 struct alignas(std::hardware_destructive_interference_size) cache_aligned_t {
     std::atomic<T> atomic;
@@ -151,14 +157,17 @@ public:
         return test(index);
     }
 
-    [[nodiscard]] constexpr bool any(std::uint32_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) const {
+    [[nodiscard]] constexpr any_result any(std::uint32_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) const {
         for (auto& elem : data) {
             std::uint64_t eb = elem->load(order);
-            if (get_epoch(eb) == epoch && get_bits(eb)) {
-                return true;
+            if (get_epoch(eb) != epoch) {
+				return any_result::EPOCH_MISMATCH;
+            }
+        	if (get_bits(eb)) {
+                return any_result::SOME;
             }
         }
-        return false;
+        return any_result::NONE;
     }
 
     void set_epoch_if_empty(std::uint32_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
