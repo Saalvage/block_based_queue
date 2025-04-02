@@ -4,6 +4,7 @@
 #include <vector>
 #include <memory>
 #include <unordered_set>
+#include <regex>
 
 #include "benchmark.h"
 
@@ -24,8 +25,9 @@ using LCRQWrapped = LCRQueue<T>;
 #if !defined(INCLUDE_BBQ) \
 	&& !defined(INCLUDE_MULTIFIFO) \
 	&& !defined(INCLUDE_LCRQ) \
-	&& !defined(INCLUDE_CFIFO) \
-	&& !defined(INCLUDE_KFIFO)
+	&& !defined(INCLUDE_KFIFO) \
+	&& !defined(INCLUDE_DCBO) \
+	&& !defined(INCLUDE_2D)
 #define INCLUDE_ALL
 #endif
 
@@ -73,14 +75,6 @@ static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 #endif // PARAMETER_TUNING
 #endif
 
-#if defined(INCLUDE_CFIFO) || defined(INCLUDE_ALL)
-	for (int queues_per_thread = 2; queues_per_thread <= 8; queues_per_thread *= 2) {
-		for (int stickiness = 1; stickiness <= 4096; stickiness *= 2) {
-			instances.push_back(std::make_unique<benchmark_provider_cylinder<BENCHMARK>>("cfifo-{},{}", queues_per_thread, stickiness));
-		}
-	}
-#endif
-
 #if defined(INCLUDE_MULTIFIFO) || defined(INCLUDE_ALL)
 #ifdef PARAMETER_TUNING
 	for (int queues_per_thread = 2; queues_per_thread <= 8; queues_per_thread *= 2) {
@@ -107,12 +101,35 @@ static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 #endif // PARAMETER_TUNING
 #endif
 
+#if defined(__GNUC__) && (defined(INCLUDE_DCBO) || defined(INCLUDE_ALL))
+	for (int w = 1; w <= 8; w *= 2) {
+		instances.push_back(std::make_unique<benchmark_provider_dcbo<BENCHMARK>>("{}-dcbo", w));
+	}
+#endif
+
+#if defined (__GNUC__) && (defined(INCLUDE_2D) || defined(INCLUDE_ALL))
+	for (int w = 1; w <= 8; w *= 2) {
+		for (int k = 1; k <= 8192; k *= 2) {
+			instances.push_back(std::make_unique<benchmark_provider_2Dd<BENCHMARK>>("{},{}-2Dqueue", w, k));
+		}
+	}
+#endif
+
 #if defined (__GNUC__) && (defined(INCLUDE_LCRQ) || defined(INCLUDE_ALL))
 	instances.push_back(std::make_unique<benchmark_provider_generic<adapter<std::uint64_t, LCRQWrapped>, BENCHMARK>>("lcrq"));
 #endif
 
 	for (std::size_t i = 0; i < instances.size(); i++) {
-		if (filter_set.contains(instances[i]->get_name()) == are_exclude_filters) {
+		const std::string& name = instances[i]->get_name();
+		bool any_match = false;
+		std::smatch m;
+		for (const std::string& filter : filter_set) {
+			if (std::regex_match(name, m, std::regex{filter})) {
+				any_match = true;
+				break;
+			}
+		}
+		if (any_match == are_exclude_filters) {
 			instances.erase(instances.begin() + i);
 			i--;
 		}
