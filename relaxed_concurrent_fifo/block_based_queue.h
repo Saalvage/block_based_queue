@@ -338,9 +338,10 @@ public:
 			T ret = read_block->cells[index].exchange(0, std::memory_order_relaxed);
 			assert(ret != 0);
 
+			index++;
 			if (index == get_write_index(ei)) {
 				// Apply local read index update.
-				ei = (ei & 0xffff'0000'ffff'ffffull) | (index << 32);
+				ei = (ei & 0xffff'ffff'0000'ffffull) | (index << 16);
 				// Before we mark this block as empty, we make it unavailable for other readers and writers of this epoch.
 				if (header->epoch_and_indices.compare_exchange_strong(ei, epoch_to_header(read_epoch + 1), std::memory_order_relaxed)) {
 					// TODO: Store block index instead of calculating?
