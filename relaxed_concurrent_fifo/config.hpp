@@ -40,20 +40,22 @@ template <typename BENCHMARK>
 static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMARK>>>& instances, std::unordered_set<std::string>& filter_set, bool are_exclude_filters) {
 #if defined(INCLUDE_BBQ) || defined(INCLUDE_ALL)
 #ifdef PARAMETER_TUNING
-	for (int b = 1; b < 16; i *= 2) {
-		instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK, 1>>("{},1,bbq", b));
-		instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK, 3>>("{},3,bbq", b));
-		instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK, 7>>("{},7,bbq", b));
-		instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK, 15>>("{},15,bbq", b));
-		instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK, 31>>("{},31,bbq", b));
-		instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK, 63>>("{},63,bbq", b));
-		instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK, 127>>("{},127,bbq", b));
+	for (int b = 1; b <= 16; b *= 2) {
+		for (int c = 2; c <= 128; c *= 2) {
+			instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("{},{},bbq", b, c - 1));
+			instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("{},{},bbq", b, c - 1));
+			instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("{},{},bbq", b, c - 1));
+			instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("{},{},bbq", b, c - 1));
+			instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("{},{},bbq", b, c - 1));
+			instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("{},{},bbq", b, c - 1));
+			instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("{},{},bbq", b, c - 1));
+		}
 	}
 #else // PARAMETER_TUNING
-	instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK, 7>>("bbq-{}-7", 1));
-	instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK, 63>>("bbq-{}-63", 2));
-	instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK, 127>>("bbq-{}-127", 4));
-	instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK, 127>>("bbq-{}-127", 8));
+	instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("bbq-{}-{}", 1, 7));
+	instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("bbq-{}-{}", 2, 63));
+	instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("bbq-{}-{}", 4, 127));
+	instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("bbq-{}-{}", 8, 127));
 #endif // PARAMETER_TUNING
 #endif
 

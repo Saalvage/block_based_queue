@@ -20,8 +20,8 @@
 #pragma GCC diagnostic pop
 #endif // __GNUC__
 
-template <typename BENCHMARK, std::size_t CELLS_PER_BLOCK>
-using benchmark_provider_bbq = benchmark_provider_generic<block_based_queue<std::uint64_t, CELLS_PER_BLOCK, std::uint8_t>, BENCHMARK, std::size_t>;
+template <typename BENCHMARK>
+using benchmark_provider_bbq = benchmark_provider_generic<block_based_queue<std::uint64_t>, BENCHMARK, std::size_t, std::size_t>;
 
 template <typename BENCHMARK>
 using benchmark_provider_ws_kfifo = benchmark_provider_generic<ws_k_fifo<std::uint64_t>, BENCHMARK, std::size_t>;
