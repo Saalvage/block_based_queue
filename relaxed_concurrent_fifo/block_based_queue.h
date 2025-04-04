@@ -305,19 +305,16 @@ public:
 
 			while (true) {
 				if (get_epoch(ei) == read_epoch) {
-					std::uint64_t write_index = get_write_index(ei);
-					if ((index = get_read_index(ei)) != write_index) {
-						if (index + 1 == write_index) {
-							if (header->epoch_and_indices.compare_exchange_weak(ei, epoch_to_header(read_epoch + 1), std::memory_order_acquire, std::memory_order_relaxed)) {
-								window_t& window = fifo.index_to_window(read_window);
-								auto diff = read_block - window.blocks;
-								window.filled_set.reset(diff, read_epoch, std::memory_order_relaxed);
-								break;
-							}
-						} else {
-							if (header->epoch_and_indices.compare_exchange_weak(ei, increment_read_index(ei), std::memory_order_acquire, std::memory_order_relaxed)) {
-								break;
-							}
+					if ((index = get_read_index(ei)) + 1 == get_write_index(ei)) {
+						if (header->epoch_and_indices.compare_exchange_weak(ei, epoch_to_header(read_epoch + 1), std::memory_order_acquire, std::memory_order_relaxed)) {
+							window_t& window = fifo.index_to_window(read_window);
+							auto diff = read_block - window.blocks;
+							window.filled_set.reset(diff, read_epoch, std::memory_order_relaxed);
+							break;
+						}
+					} else {
+						if (header->epoch_and_indices.compare_exchange_weak(ei, increment_read_index(ei), std::memory_order_acquire, std::memory_order_relaxed)) {
+							break;
 						}
 					}
 				}
@@ -332,6 +329,7 @@ public:
 					// TODO: Is it necessary to check get_epoch(ei) == read_epoch here?
 					// It seems practically irrelevant, but it could theoretically happen that the epoch has advanced
 					// twice before the ei load, leading us to set it back by one here.
+					// Important: Consider reader becoming dormant after updating header BEFORE resetting bitset.
 					if (header->epoch_and_indices.compare_exchange_strong(ei, epoch_to_header(read_epoch + 1), std::memory_order_relaxed)) {
 						// We're abandoning an empty block!
 						window_t& window = fifo.index_to_window(read_window);
