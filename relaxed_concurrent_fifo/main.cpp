@@ -48,57 +48,6 @@ static std::pair<std::uint64_t, std::uint32_t> sequential_bfs(const Graph& graph
 	return std::pair(end - now, *std::max_element(distances.begin(), distances.end()));
 }
 
-/*static constexpr int COUNT = 512;
-
-template <template <typename, std::size_t> typename T>
-void test_full_capacity() {
-	T<int, COUNT> buf;
-	for (int i : std::views::iota(0, COUNT)) {
-		assert(buf.push(i));
-	}
-	for (int i : std::views::iota(0, COUNT)) {
-		assert(buf.pop() == i);
-	}
-}
-
-template <template <typename, std::size_t> typename T>
-void test_single_element() {
-	T<int, COUNT> buf;
-	for (int i : std::views::iota(0, COUNT * 10)) {
-		assert(buf.push(i));
-		assert(buf.pop() == i);
-	}
-}
-
-template <template <typename, std::size_t> typename T>
-void test_empty_pop() {
-	T<int, COUNT> buf;
-	assert(!buf.pop().has_value());
-	assert(buf.push(1));
-	buf.pop();
-	assert(!buf.pop().has_value());
-	for (int i : std::views::iota(0, COUNT * 10)) {
-		buf.push(i);
-		buf.pop();
-	}
-	assert(!buf.pop().has_value());
-}
-
-template <template <typename, std::size_t> typename T>
-void test_full_push() {
-	T<int, 1> buf;
-	buf.push(1);
-	assert(!buf.push(1));
-}
-
-template <template <typename, std::size_t> typename T>
-void test_all() {
-	test_full_capacity<T>();
-	test_single_element<T>();
-	test_empty_pop<T>();
-	test_full_push<T>();
-}*/
-
 template <std::size_t THREAD_COUNT, std::size_t BLOCK_MULTIPLIER>
 void test_consistency(std::size_t fifo_size, std::size_t elements_per_thread, double prefill) {
 	bbq_min_block_count<std::uint64_t, THREAD_COUNT * BLOCK_MULTIPLIER> fifo{ THREAD_COUNT, fifo_size };
@@ -157,25 +106,6 @@ void test_consistency(std::size_t fifo_size, std::size_t elements_per_thread, do
 
 	if (popped_ints != test_ints) {
 		throw std::runtime_error("Sets did not match!");
-	}
-}
-
-template <std::size_t BITSET_SIZE = 128>
-void test_continuous_bitset_claim() {
-	auto gen = std::bind(std::uniform_int_distribution<>(0, 1), std::default_random_engine());
-	while (true) {
-		atomic_bitset<BITSET_SIZE> a;
-		std::vector<bool> b(BITSET_SIZE);
-		for (int i = 0; i < BITSET_SIZE; i++) {
-			if (gen()) {
-				a.set(i);
-				b[i] = true;
-			}
-		}
-		auto result = a.template claim_bit<claim_value::ONE, claim_mode::READ_WRITE>();
-		if (result != std::numeric_limits<std::size_t>::max() && (a[result] || !b[result])) {
-			throw std::runtime_error("Incorrect!");
-		}
 	}
 }
 
