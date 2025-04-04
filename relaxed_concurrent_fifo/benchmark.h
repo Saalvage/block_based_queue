@@ -9,7 +9,6 @@
 #include "benchmarks/benchmark_graph.hpp"
 
 #include "benchmarks/providers/benchmark_provider_generic.hpp"
-#include "benchmarks/providers/benchmark_provider_bbq.hpp"
 #include "benchmarks/providers/benchmark_provider_other.hpp"
 
 #endif // BENCHMARK_H_INCLUDED

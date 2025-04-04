@@ -29,11 +29,11 @@ enum class claim_mode {
 
 template <typename T>
 struct alignas(std::hardware_destructive_interference_size) cache_aligned_t {
-    std::atomic<T> atomic;
-    std::atomic<T>* operator->() { return &atomic; }
-    const std::atomic<T>* operator->() const { return &atomic; }
-    operator std::atomic<T>& () { return atomic; }
-    operator const std::atomic<T>& () const { return atomic; }
+    T atomic;
+    T* operator->() { return &atomic; }
+    const T* operator->() const { return &atomic; }
+    operator T& () { return atomic; }
+    operator const T& () const { return atomic; }
 };
 
 template <typename ARR_TYPE = std::uint8_t>
@@ -46,7 +46,7 @@ private:
     std::size_t units_per_window_mod_mask;
 
     static constexpr std::size_t bit_count = sizeof(ARR_TYPE) * 8;
-    std::unique_ptr<cache_aligned_t<std::uint64_t>[]> data;
+    std::unique_ptr<cache_aligned_t<std::atomic<std::uint64_t>>[]> data;
 
     static constexpr std::uint64_t get_epoch(std::uint64_t epoch_and_bits) { return epoch_and_bits >> 32; }
     static constexpr std::uint64_t get_bits(std::uint64_t epoch_and_bits) { return epoch_and_bits & 0xffff'ffff; }
@@ -124,7 +124,7 @@ public:
             window_count(window_count),
             blocks_per_window(blocks_per_window),
             units_per_window_mod_mask((blocks_per_window / bit_count) - 1),
-            data(std::make_unique<cache_aligned_t<std::uint64_t>[]>(window_count * blocks_per_window)) {
+            data(std::make_unique<cache_aligned_t<std::atomic<std::uint64_t>>[]>(window_count * blocks_per_window)) {
         assert(blocks_per_window % bit_count == 0);
     }
 
