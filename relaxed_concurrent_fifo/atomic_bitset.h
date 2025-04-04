@@ -152,7 +152,7 @@ public:
 
     [[nodiscard]] constexpr bool any(std::size_t window_index, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) const {
         for (std::size_t i = 0; i < blocks_per_window; i++) {
-            std::uint64_t eb = data[window_index * blocks_per_window + i]->load();
+            std::uint64_t eb = data[window_index * blocks_per_window + i]->load(order);
             if (get_epoch(eb) == epoch && get_bits(eb)) {
                 return true;
             }
