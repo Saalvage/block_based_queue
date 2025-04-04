@@ -16,38 +16,6 @@
 #include <unordered_set>
 #include <iostream>
 
-static constexpr std::size_t make_po2(std::size_t size) {
-	std::size_t ret = 1;
-	while (size > ret) {
-		ret *= 2;
-	}
-	return ret;
-}
-
-static std::pair<std::uint64_t, std::uint32_t> sequential_bfs(const Graph& graph) {
-	multififo::RingBuffer<std::uint32_t> nodes(make_po2(graph.num_nodes()));
-	std::vector<std::uint32_t> distances(graph.num_nodes(), std::numeric_limits<std::uint32_t>::max());
-	distances[0] = 0;
-
-	nodes.push(static_cast<std::uint32_t>(graph.nodes[0]));
-
-	auto now = std::chrono::steady_clock::now().time_since_epoch().count();
-	while (!nodes.empty()) {
-		auto node_id = nodes.top();
-		nodes.pop();
-		auto d = distances[node_id] + 1;
-		for (auto i = graph.nodes[node_id]; i < graph.nodes[node_id + 1]; ++i) {
-			auto node_id = graph.edges[i].target;
-			if (distances[node_id] == std::numeric_limits<std::uint32_t>::max()) {
-				distances[node_id] = d;
-				nodes.push(static_cast<std::uint32_t>(node_id));
-			}
-		}
-	}
-	auto end = std::chrono::steady_clock::now().time_since_epoch().count();
-	return std::pair(end - now, *std::max_element(distances.begin(), distances.end()));
-}
-
 template <std::size_t THREAD_COUNT, std::size_t BLOCK_MULTIPLIER>
 void test_consistency(std::size_t fifo_size, std::size_t elements_per_thread, double prefill) {
 	bbq_min_block_count<std::uint64_t, THREAD_COUNT * BLOCK_MULTIPLIER> fifo{ THREAD_COUNT, fifo_size };
@@ -304,14 +272,16 @@ int main(int argc, const char** argv) {
 			}
 			Graph graph{ graph_file };
 
+			std::vector<std::uint32_t> distances;
 			for (int i = 0; i < test_its; i++) {
-				auto [time, dist] = sequential_bfs(graph);
+				auto [time, dist, d] = sequential_bfs(graph);
 				std::cout << "Sequential time: " << time << "; Dist: " << dist + 1 << std::endl;
+				distances = std::move(d);
 			}
 
 			std::vector<std::unique_ptr<benchmark_provider<benchmark_bfs>>> instances;
 			add_instances(instances, fifo_set, is_exclude);
-			run_benchmark<benchmark_bfs, benchmark_info_graph, Graph*>(std::format("bfs-{}", graph_file.filename().string()), instances, 0, processor_counts, test_its, 0, &graph);
+			run_benchmark<benchmark_bfs, benchmark_info_graph, const Graph&, const std::vector<std::uint32_t>&>(std::format("bfs-{}", graph_file.filename().string()), instances, 0, processor_counts, test_its, 0, graph, distances);
 	} break;
 	}
 
