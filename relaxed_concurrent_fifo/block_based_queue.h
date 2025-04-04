@@ -258,7 +258,7 @@ public:
 						// We need to make sure we clean those up BEFORE we move the write window in order to prevent
 						// the read window from being moved before all blocks have either been claimed or invalidated.
 						std::uint64_t next_ei = epoch_to_header(write_epoch + 1);
-						fifo.filled_set.set_epoch_if_empty(write_window, write_epoch, std::memory_order_relaxed);
+						fifo.filled_set.set_epoch_if_empty(write_window_index, write_epoch, std::memory_order_relaxed);
 						for (std::size_t i = 0; i < fifo.blocks_per_window; i++) {
 							std::uint64_t ei = epoch_to_header(write_epoch); // All empty with current epoch.
 							fifo.get_block(write_window_index, i).header.epoch_and_indices.compare_exchange_strong(ei, next_ei, std::memory_order_relaxed);
@@ -347,7 +347,7 @@ public:
 					// It seems practically irrelevant, but it could theoretically happen that the epoch has advanced
 					// twice before the ei load, leading us to set it back by one here.
 					// Important: Consider reader becoming dormant after updating header BEFORE resetting bitset.
-					if (header->epoch_and_indices.compare_exchange_strong(ei, epoch_to_header(read_epoch + 1), std::memory_order_relaxed)) {
+					if (header->epoch_and_indices.compare_exchange_strong(ei, epoch_to_header(get_epoch(ei) + 1), std::memory_order_relaxed)) {
 						// We're abandoning an empty block!
 						fifo.filled_set.reset(read_window, fifo.block_index(read_window, read_block), read_epoch, std::memory_order_relaxed);
 					}
