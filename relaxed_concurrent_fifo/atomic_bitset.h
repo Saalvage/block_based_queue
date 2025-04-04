@@ -41,7 +41,9 @@ class atomic_bitset {
 private:
     static_assert(sizeof(ARR_TYPE) <= 4, "Inner bitset type must be 4 bytes or smaller to allow for storing epoch.");
 
+#ifndef NDEBUG
     std::size_t window_count;
+#endif
     std::size_t blocks_per_window;
     std::size_t units_per_window_mod_mask;
 
@@ -121,7 +123,9 @@ private:
 
 public:
     atomic_bitset(std::size_t window_count, std::size_t blocks_per_window) :
+#ifndef NDEBUG
             window_count(window_count),
+#endif
             blocks_per_window(blocks_per_window),
             units_per_window_mod_mask((blocks_per_window / bit_count) - 1),
             data(std::make_unique<cache_aligned_t<std::atomic<std::uint64_t>>[]>(window_count * blocks_per_window)) {
