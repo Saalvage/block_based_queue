@@ -101,7 +101,7 @@ void test_all() {
 
 template <std::size_t THREAD_COUNT, std::size_t BLOCK_MULTIPLIER>
 void test_consistency(std::size_t fifo_size, std::size_t elements_per_thread, double prefill) {
-	block_based_queue<std::uint64_t, 7> fifo{ THREAD_COUNT, fifo_size, BLOCK_MULTIPLIER };
+	block_based_queue<std::uint64_t> fifo{ THREAD_COUNT, fifo_size, BLOCK_MULTIPLIER, 7 };
 	auto handle = fifo.get_handle();
 
 	std::size_t pre_push = static_cast<std::size_t>(fifo_size * prefill);
@@ -164,15 +164,15 @@ template <std::size_t BITSET_SIZE = 128>
 void test_continuous_bitset_claim() {
 	auto gen = std::bind(std::uniform_int_distribution<>(0, 1), std::default_random_engine());
 	while (true) {
-		atomic_bitset<BITSET_SIZE> a;
+		atomic_bitset<> a{1, BITSET_SIZE};
 		std::vector<bool> b(BITSET_SIZE);
 		for (int i = 0; i < BITSET_SIZE; i++) {
 			if (gen()) {
-				a.set(i);
+				a.set(0, 0, i);
 				b[i] = true;
 			}
 		}
-		auto result = a.template claim_bit<claim_value::ONE, claim_mode::READ_WRITE>();
+		auto result = a.template claim_bit<claim_value::ONE, claim_mode::READ_WRITE>(0, 0, 0);
 		if (result != std::numeric_limits<std::size_t>::max() && (a[result] || !b[result])) {
 			throw std::runtime_error("Incorrect!");
 		}
