@@ -39,14 +39,15 @@ struct header_t {
 	std::atomic_uint64_t epoch_and_indices;
 };
 
-template <typename T, std::size_t CELLS_PER_BLOCK>
+template <typename T>
 struct block {
 	static_assert(sizeof(header_t) == 8);
 	header_t header;
-	std::array<std::atomic<T>, CELLS_PER_BLOCK> cells;
+#pragma warning(disable: 4200)
+	std::atomic<T> cells[];  // NOLINT(clang-diagnostic-c99-extensions)
 };
 
-template <typename T, std::size_t CELLS_PER_BLOCK, typename BITSET_T = std::uint8_t>
+template <typename T, typename BITSET_T = std::uint8_t>
 class block_based_queue {
 private:
 	std::size_t window_count;
@@ -55,8 +56,11 @@ private:
 
 	std::size_t blocks_per_window;
 
+	std::size_t cells_per_block;
+	std::size_t block_size;
+
 	std::size_t capacity() const {
-		return window_count * blocks_per_window * CELLS_PER_BLOCK;
+		return window_count * blocks_per_window * cells_per_block;
 	}
 
 #if BBQ_DEBUG_FUNCTIONS
@@ -91,14 +95,13 @@ private:
 	static constexpr std::uint64_t increment_read_index(std::uint64_t ei) { return ei + (1ull << 16); }
 	static constexpr std::uint64_t epoch_to_header(std::uint64_t epoch) { return epoch << 32; }
 
-	using block_t = block<T, CELLS_PER_BLOCK>;
-	static_assert(sizeof(block_t) == CELLS_PER_BLOCK * sizeof(T) + sizeof(header_t));
+	using block_t = block<T>;
 
 	// Doing it like this avoids having to have a special case for first-time initialization, while only claiming a block on first use.
 	static inline block_t dummy_block{ header_t{epoch_to_header(0xffff'ffffull)}, {} };
 
 	atomic_bitset<BITSET_T> filled_set;
-	std::unique_ptr<cache_aligned_t<block_t>[]> buffer;
+	std::unique_ptr<std::byte[]> buffer;
 
 	std::uint64_t window_to_epoch(std::uint64_t window) const {
 		return window >> window_count_log2;
@@ -109,7 +112,11 @@ private:
 	}
 
 	block_t& get_block(std::uint64_t window_index, std::uint64_t block_index) {
-		return buffer[window_index * blocks_per_window + block_index];
+		return *std::launder(reinterpret_cast<block_t*>(&buffer[(window_index * blocks_per_window + block_index) * block_size]));
+	}
+
+	std::size_t block_index(std::uint64_t window_index, block_t* block) {
+		return (reinterpret_cast<std::byte*>(block) - reinterpret_cast<std::byte*>(&get_block(window_index, 0))) / block_size;
 	}
 
 	block_t* try_get_write_block(std::uint64_t window_index, int starting_bit, std::uint64_t epoch) {
@@ -133,14 +140,24 @@ private:
 	alignas(std::hardware_destructive_interference_size) std::atomic_uint64_t read_window = 0;
 	alignas(std::hardware_destructive_interference_size) std::atomic_uint64_t write_window = 1;
 
+	static constexpr std::size_t align_cache_line_size(std::size_t size) {
+		std::size_t ret = std::hardware_destructive_interference_size;
+		while (ret < size) {
+			ret += std::hardware_destructive_interference_size;
+		}
+		return ret;
+	}
+
 public:
-	block_based_queue(int thread_count, std::size_t min_size, std::size_t blocks_per_window_per_thread) :
-			window_count(std::max<std::size_t>(4, std::bit_ceil(min_size / blocks_per_window / CELLS_PER_BLOCK))),
+	block_based_queue(int thread_count, std::size_t min_size, std::size_t blocks_per_window_per_thread, std::size_t cells_per_block) :
+			window_count(std::max<std::size_t>(4, std::bit_ceil(min_size / blocks_per_window / cells_per_block))),
 			window_count_mod_mask(window_count - 1),
 			window_count_log2(std::bit_width(window_count) - 1),
 			blocks_per_window(std::bit_ceil(std::max(sizeof(BITSET_T) * 8, thread_count * blocks_per_window_per_thread))),
+			cells_per_block(cells_per_block),
+			block_size(align_cache_line_size(sizeof(header_t) + cells_per_block * sizeof(T))),
 			filled_set(window_count, blocks_per_window),
-			buffer(std::make_unique<cache_aligned_t<block_t>[]>(window_count * blocks_per_window)) {
+			buffer(std::make_unique<std::byte[]>(window_count * blocks_per_window * block_size)) {
 #if BBQ_LOG_CREATION_SIZE
 		std::cout << "Window count: " << window_count << std::endl;
 		std::cout << "Block count: " << blocks_per_window << std::endl;
@@ -278,7 +295,7 @@ public:
 			bool failure = true;
 			while (failure) {
 				T old = 0;
-				while (get_epoch(ei) != write_epoch || (index = get_write_index(ei)) == CELLS_PER_BLOCK
+				while (get_epoch(ei) != write_epoch || (index = get_write_index(ei)) == fifo.cells_per_block
 					|| !write_block->cells[index].compare_exchange_weak(old, t, std::memory_order_relaxed)) {
 					if (!claim_new_block_write()) {
 						return false;
@@ -309,8 +326,7 @@ public:
 				if (get_epoch(ei) == read_epoch) {
 					if ((index = get_read_index(ei)) + 1 == get_write_index(ei)) {
 						if (header->epoch_and_indices.compare_exchange_weak(ei, epoch_to_header(read_epoch + 1), std::memory_order_acquire, std::memory_order_relaxed)) {
-							auto diff = read_block - &fifo.get_block(read_window, 0);
-							fifo.filled_set.reset(read_window, diff, read_epoch, std::memory_order_relaxed);
+							fifo.filled_set.reset(read_window, fifo.block_index(read_window, read_block), read_epoch, std::memory_order_relaxed);
 							break;
 						}
 					} else {
@@ -333,8 +349,7 @@ public:
 					// Important: Consider reader becoming dormant after updating header BEFORE resetting bitset.
 					if (header->epoch_and_indices.compare_exchange_strong(ei, epoch_to_header(read_epoch + 1), std::memory_order_relaxed)) {
 						// We're abandoning an empty block!
-						auto diff = read_block - &fifo.get_block(read_window, 0);
-						fifo.filled_set.reset(read_window, diff, read_epoch, std::memory_order_relaxed);
+						fifo.filled_set.reset(read_window, fifo.block_index(read_window, read_block), read_epoch, std::memory_order_relaxed);
 					}
 					// If the CAS fails, the only thing that could've occurred was the write index being increased,
 					// making us able to read an element from the block.
@@ -349,7 +364,7 @@ public:
 
 	handle get_handle() { return handle(*this, std::random_device()()); }
 };
-static_assert(fifo<block_based_queue<std::uint64_t, 7, std::uint8_t>, std::uint64_t>);
+static_assert(fifo<block_based_queue<std::uint64_t>, std::uint64_t>);
 
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
