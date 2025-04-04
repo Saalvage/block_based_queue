@@ -329,7 +329,7 @@ public:
 					// It seems practically irrelevant, but it could theoretically happen that the epoch has advanced
 					// twice before the ei load, leading us to set it back by one here.
 					// Important: Consider reader becoming dormant after updating header BEFORE resetting bitset.
-					if (header->epoch_and_indices.compare_exchange_strong(ei, epoch_to_header(read_epoch + 1), std::memory_order_relaxed)) {
+					if (header->epoch_and_indices.compare_exchange_strong(ei, epoch_to_header(get_epoch(ei) + 1), std::memory_order_relaxed)) {
 						// We're abandoning an empty block!
 						window_t& window = fifo.index_to_window(read_window);
 						auto diff = read_block - window.blocks;
