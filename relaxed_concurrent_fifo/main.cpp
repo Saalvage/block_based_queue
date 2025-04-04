@@ -164,15 +164,15 @@ template <std::size_t BITSET_SIZE = 128>
 void test_continuous_bitset_claim() {
 	auto gen = std::bind(std::uniform_int_distribution<>(0, 1), std::default_random_engine());
 	while (true) {
-		atomic_bitset<BITSET_SIZE> a;
+		atomic_bitset<> a{1, BITSET_SIZE};
 		std::vector<bool> b(BITSET_SIZE);
 		for (int i = 0; i < BITSET_SIZE; i++) {
 			if (gen()) {
-				a.set(i);
+				a.set(0, 0, i);
 				b[i] = true;
 			}
 		}
-		auto result = a.template claim_bit<claim_value::ONE, claim_mode::READ_WRITE>();
+		auto result = a.template claim_bit<claim_value::ONE, claim_mode::READ_WRITE>(0, 0, 0);
 		if (result != std::numeric_limits<std::size_t>::max() && (a[result] || !b[result])) {
 			throw std::runtime_error("Incorrect!");
 		}
