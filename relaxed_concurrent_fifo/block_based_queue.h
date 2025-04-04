@@ -304,6 +304,7 @@ public:
 			std::uint64_t index;
 
 			while (true) {
+				start:
 				if (get_epoch(ei) == read_epoch) {
 					if ((index = get_read_index(ei)) + 1 == get_write_index(ei)) {
 						if (header->epoch_and_indices.compare_exchange_weak(ei, epoch_to_header(read_epoch + 1), std::memory_order_acquire, std::memory_order_relaxed)) {
@@ -317,6 +318,7 @@ public:
 							break;
 						}
 					}
+					goto start;
 				}
 				if (!claim_new_block_read()) {
 					return std::nullopt;
