@@ -50,12 +50,12 @@ private:
     static constexpr std::size_t bit_count = sizeof(ARR_TYPE) * 8;
     std::unique_ptr<cache_aligned_t<std::atomic<std::uint64_t>>[]> data;
 
-    static constexpr std::uint64_t get_epoch(std::uint64_t epoch_and_bits) { return epoch_and_bits >> 32; }
+    static constexpr std::uint32_t get_epoch(std::uint64_t epoch_and_bits) { return epoch_and_bits >> 32; }
     static constexpr std::uint64_t get_bits(std::uint64_t epoch_and_bits) { return epoch_and_bits & 0xffff'ffff; }
-    static constexpr std::uint64_t make_unit(std::uint64_t epoch) { return epoch << 32; }
+    static constexpr std::uint64_t make_unit(std::uint32_t epoch) { return static_cast<std::uint64_t>(epoch) << 32; }
 
     template <bool SET>
-    static constexpr void set_bit_atomic(std::atomic<std::uint64_t>& epoch_and_bits, std::size_t index, std::uint64_t epoch, std::memory_order order) {
+    static constexpr void set_bit_atomic(std::atomic<std::uint64_t>& epoch_and_bits, std::size_t index, std::uint32_t epoch, std::memory_order order) {
         std::uint64_t eb = epoch_and_bits.load(order);
         std::uint64_t test;
         std::uint64_t stencil = 1ull << index;
@@ -77,7 +77,7 @@ private:
     }
 
     template <claim_value VALUE, claim_mode MODE>
-    static constexpr std::size_t claim_bit_singular(std::atomic<std::uint64_t>& epoch_and_bits, int initial_rot, std::uint64_t epoch, std::memory_order order) {
+    static constexpr std::size_t claim_bit_singular(std::atomic<std::uint64_t>& epoch_and_bits, int initial_rot, std::uint32_t epoch, std::memory_order order) {
         std::uint64_t eb = epoch_and_bits.load(order);
         if (get_epoch(eb) != epoch) {
             return std::numeric_limits<std::size_t>::max();
@@ -132,13 +132,13 @@ public:
         assert(blocks_per_window % bit_count == 0);
     }
 
-    constexpr void set(std::size_t window_index, std::size_t index, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
+    constexpr void set(std::size_t window_index, std::size_t index, std::uint32_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
         assert(window_index < window_count);
         assert(index < blocks_per_window);
         set_bit_atomic<true>(data[window_index * blocks_per_window + index / bit_count].atomic, index % bit_count, epoch, order);
     }
 
-    constexpr void reset(std::size_t window_index, std::size_t index, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
+    constexpr void reset(std::size_t window_index, std::size_t index, std::uint32_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
         assert(window_index < window_count);
         assert(index < blocks_per_window);
         set_bit_atomic<false>(data[window_index * blocks_per_window + index / bit_count].atomic, index % bit_count, epoch, order);
@@ -154,7 +154,7 @@ public:
         return test(index);
     }
 
-    [[nodiscard]] constexpr bool any(std::size_t window_index, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) const {
+    [[nodiscard]] constexpr bool any(std::size_t window_index, std::uint32_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) const {
         for (std::size_t i = 0; i < blocks_per_window; i++) {
             std::uint64_t eb = data[window_index * blocks_per_window + i]->load(order);
             if (get_epoch(eb) == epoch && get_bits(eb)) {
@@ -164,7 +164,7 @@ public:
         return false;
     }
 
-    void set_epoch_if_empty(std::size_t window_index, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
+    void set_epoch_if_empty(std::size_t window_index, std::uint32_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
         std::uint64_t next_eb = make_unit(epoch + 1);
         for (std::size_t i = 0; i < blocks_per_window; i++) {
             std::uint64_t eb = make_unit(epoch);
@@ -173,7 +173,7 @@ public:
     }
 
     template <claim_value VALUE, claim_mode MODE>
-    std::size_t claim_bit(std::size_t window_index, int starting_bit, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
+    std::size_t claim_bit(std::size_t window_index, int starting_bit, std::uint32_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
         assert(window_index < window_count);
         assert(starting_bit < blocks_per_window);
         int off = starting_bit / bit_count;

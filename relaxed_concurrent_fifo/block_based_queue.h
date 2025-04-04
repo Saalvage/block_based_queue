@@ -92,12 +92,12 @@ private:
 #endif // BBQ_RELAXED_DEBUG_FUNCTIONS
 
 	// We use 64 bit return types here to avoid potential deficits through 16-bit comparisons.
-	static constexpr std::uint64_t get_epoch(std::uint64_t ei) { return ei >> 32; }
+	static constexpr std::uint32_t get_epoch(std::uint64_t ei) { return ei >> 32; }
 	static constexpr std::uint64_t get_read_index(std::uint64_t ei) { return (ei >> 16) & 0xffff; }
 	static constexpr std::uint64_t get_write_index(std::uint64_t ei) { return ei & 0xffff; }
 	static constexpr std::uint64_t increment_write_index(std::uint64_t ei) { return ei + 1; }
 	static constexpr std::uint64_t increment_read_index(std::uint64_t ei) { return ei + (1ull << 16); }
-	static constexpr std::uint64_t epoch_to_header(std::uint64_t epoch) { return epoch << 32; }
+	static constexpr std::uint64_t epoch_to_header(std::uint32_t epoch) { return static_cast<std::uint64_t>(epoch) << 32; }
 
 	using block_t = block<T>;
 	static_assert(std::is_trivial_v<block_t>);
@@ -109,8 +109,8 @@ private:
 	atomic_bitset<BITSET_T> filled_set;
 	std::unique_ptr<std::byte[]> buffer;
 
-	std::uint64_t window_to_epoch(std::uint64_t window) const {
-		return window >> window_count_log2;
+	std::uint32_t window_to_epoch(std::uint64_t window) const {
+		return static_cast<std::uint32_t>(window >> window_count_log2);
 	}
 
 	std::uint64_t window_to_index(std::uint64_t index) const {
@@ -125,7 +125,7 @@ private:
 		return (block.ptr - get_block(window_index, 0).ptr) / block_size;
 	}
 
-	block_t try_get_write_block(std::uint64_t window_index, int starting_bit, std::uint64_t epoch) {
+	block_t try_get_write_block(std::uint64_t window_index, int starting_bit, std::uint32_t epoch) {
 		auto index = window_to_index(window_index);
 		std::size_t free_bit = filled_set.template claim_bit<claim_value::ZERO, claim_mode::READ_WRITE>(index, starting_bit, epoch, std::memory_order_relaxed);
 		if (free_bit == std::numeric_limits<std::size_t>::max()) {
@@ -134,7 +134,7 @@ private:
 		return get_block(index, free_bit);
 	}
 
-	block_t try_get_read_block(std::uint64_t window_index, int starting_bit, std::uint64_t epoch) {
+	block_t try_get_read_block(std::uint64_t window_index, int starting_bit, std::uint32_t epoch) {
 		auto index = window_to_index(window_index);
 		std::size_t free_bit = filled_set.template claim_bit<claim_value::ONE, claim_mode::READ_ONLY>(index, starting_bit, epoch, std::memory_order_relaxed);
 		if (free_bit == std::numeric_limits<std::size_t>::max()) {
@@ -201,8 +201,8 @@ public:
 		std::uint64_t read_window = 0;
 		std::uint64_t write_window = 0;
 
-		std::uint64_t write_epoch = 0;
-		std::uint64_t read_epoch = 0;
+		std::uint32_t write_epoch = 0;
+		std::uint32_t read_epoch = 0;
 
 		block_t read_block = dummy_block;
 		block_t write_block = dummy_block;
@@ -253,7 +253,7 @@ public:
 				if (new_block.ptr == nullptr) {
 					std::uint64_t write_window = fifo.write_window.load(std::memory_order_relaxed);
 					if (write_window == window_index + 1) {
-						std::uint64_t write_epoch = fifo.window_to_epoch(write_window);
+						std::uint32_t write_epoch = fifo.window_to_epoch(write_window);
 						std::uint64_t write_window_index = fifo.window_to_index(write_window);
 						if (!fifo.filled_set.any(write_window_index, write_epoch, std::memory_order_relaxed)) {
 							return false;
