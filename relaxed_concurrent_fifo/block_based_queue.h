@@ -243,7 +243,7 @@ public:
 						// We need to make sure we clean those up BEFORE we move the write window in order to prevent
 						// the read window from being moved before all blocks have either been claimed or invalidated.
 						std::uint64_t next_ei = epoch_to_header(write_epoch + 1);
-						fifo.filled_set.set_epoch_if_empty(write_window, write_epoch, std::memory_order_relaxed);
+						fifo.filled_set.set_epoch_if_empty(write_window_index, write_epoch, std::memory_order_relaxed);
 						for (std::size_t i = 0; i < blocks_per_window; i++) {
 							std::uint64_t ei = epoch_to_header(write_epoch); // All empty with current epoch.
 							fifo.buffer[write_window_index].blocks[i].header.epoch_and_indices.compare_exchange_strong(ei, next_ei, std::memory_order_relaxed);
