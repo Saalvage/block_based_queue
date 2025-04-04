@@ -46,22 +46,14 @@ struct block {
 	std::array<std::atomic<T>, CELLS_PER_BLOCK> cells;
 };
 
-template <typename BLOCK_T, std::size_t BLOCKS_PER_WINDOW, typename BITSET_T>
-struct window {
-	alignas(std::hardware_destructive_interference_size) BLOCK_T blocks[BLOCKS_PER_WINDOW];
-};
-
-template <typename T, std::size_t LOG_BLOCKS_PER_WINDOW, std::size_t CELLS_PER_BLOCK, typename BITSET_T>
+template <typename T, std::size_t CELLS_PER_BLOCK, typename BITSET_T = std::uint8_t>
 class block_based_queue {
 private:
-	// PO2 for modulo performance.
-	static constexpr std::size_t blocks_per_window = 1ull << LOG_BLOCKS_PER_WINDOW;
-	// At least as big as the bitset's type.
-	static_assert(blocks_per_window >= sizeof(BITSET_T) * 8);
-
 	std::size_t window_count;
 	std::size_t window_count_mod_mask;
 	std::size_t window_count_log2;
+
+	std::size_t blocks_per_window;
 
 	std::size_t capacity() const {
 		return window_count * blocks_per_window * CELLS_PER_BLOCK;
@@ -105,10 +97,8 @@ private:
 	// Doing it like this avoids having to have a special case for first-time initialization, while only claiming a block on first use.
 	static inline block_t dummy_block{ header_t{epoch_to_header(0xffff'ffffull)}, {} };
 
-	using window_t = window<block_t, blocks_per_window, BITSET_T>;
-
 	atomic_bitset<BITSET_T> filled_set;
-	std::unique_ptr<window_t[]> buffer;
+	std::unique_ptr<cache_aligned_t<block_t>[]> buffer;
 
 	std::uint64_t window_to_epoch(std::uint64_t window) const {
 		return window >> window_count_log2;
@@ -118,13 +108,17 @@ private:
 		return index & window_count_mod_mask;
 	}
 
+	block_t& get_block(std::uint64_t window_index, std::uint64_t block_index) {
+		return buffer[window_index * blocks_per_window + block_index];
+	}
+
 	block_t* try_get_write_block(std::uint64_t window_index, int starting_bit, std::uint64_t epoch) {
 		auto index = window_to_index(window_index);
 		std::size_t free_bit = filled_set.template claim_bit<claim_value::ZERO, claim_mode::READ_WRITE>(index, starting_bit, epoch, std::memory_order_relaxed);
 		if (free_bit == std::numeric_limits<std::size_t>::max()) {
 			return nullptr;
 		}
-		return &buffer[index].blocks[free_bit];
+		return &get_block(index, free_bit);
 	}
 
 	block_t* try_get_read_block(std::uint64_t window_index, int starting_bit, std::uint64_t epoch) {
@@ -133,29 +127,32 @@ private:
 		if (free_bit == std::numeric_limits<std::size_t>::max()) {
 			return nullptr;
 		}
-		return &buffer[index].blocks[free_bit];
+		return &get_block(index, free_bit);
 	}
 
 	alignas(std::hardware_destructive_interference_size) std::atomic_uint64_t read_window = 0;
 	alignas(std::hardware_destructive_interference_size) std::atomic_uint64_t write_window = 1;
 
 public:
-	// TODO: Remove unused parameter!!
-	block_based_queue([[maybe_unused]] int thread_count, std::size_t min_size) :
+	block_based_queue(int thread_count, std::size_t min_size, std::size_t blocks_per_window_per_thread) :
 			window_count(std::max<std::size_t>(4, std::bit_ceil(min_size / blocks_per_window / CELLS_PER_BLOCK))),
 			window_count_mod_mask(window_count - 1),
 			window_count_log2(std::bit_width(window_count) - 1),
+			blocks_per_window(std::bit_ceil(std::max(sizeof(BITSET_T) * 8, thread_count * blocks_per_window_per_thread))),
 			filled_set(window_count, blocks_per_window),
-			buffer(std::make_unique<window_t[]>(window_count)) {
+			buffer(std::make_unique<cache_aligned_t<block_t>[]>(window_count * blocks_per_window)) {
 #if BBQ_LOG_CREATION_SIZE
 		std::cout << "Window count: " << window_count << std::endl;
 		std::cout << "Block count: " << blocks_per_window << std::endl;
 #endif // BBQ_LOG_CREATION_SIZE
 
-		window_t& window = buffer[0];
+		// At least as big as the bitset's type.
+		assert(blocks_per_window >= sizeof(BITSET_T) * 8);
+		assert(std::bit_ceil(blocks_per_window) == blocks_per_window);
+
 		for (std::size_t j = 0; j < blocks_per_window; j++) {
 			filled_set.set_epoch_if_empty(0, 0);
-			header_t& header = window.blocks[j].header;
+			header_t& header = get_block(0, j).header;
 			header.epoch_and_indices = epoch_to_header(1);
 		}
 	}
@@ -195,7 +192,8 @@ public:
 		friend block_based_queue;
 
 		int random_bit_index() {
-			return std::uniform_int_distribution<int>(0, blocks_per_window - 1)(rng);
+			// TODO: Probably want to store this somewhere.
+			return std::uniform_int_distribution(0, static_cast<int>(fifo.blocks_per_window - 1))(rng);
 		}
 
 		bool claim_new_block_write() {
@@ -244,9 +242,9 @@ public:
 						// the read window from being moved before all blocks have either been claimed or invalidated.
 						std::uint64_t next_ei = epoch_to_header(write_epoch + 1);
 						fifo.filled_set.set_epoch_if_empty(write_window, write_epoch, std::memory_order_relaxed);
-						for (std::size_t i = 0; i < blocks_per_window; i++) {
+						for (std::size_t i = 0; i < fifo.blocks_per_window; i++) {
 							std::uint64_t ei = epoch_to_header(write_epoch); // All empty with current epoch.
-							fifo.buffer[write_window_index].blocks[i].header.epoch_and_indices.compare_exchange_strong(ei, next_ei, std::memory_order_relaxed);
+							fifo.get_block(write_window_index, i).header.epoch_and_indices.compare_exchange_strong(ei, next_ei, std::memory_order_relaxed);
 						}
 						fifo.write_window.compare_exchange_strong(write_window, write_window + 1, std::memory_order_relaxed);
 #if BBQ_LOG_WINDOW_MOVE
@@ -311,7 +309,7 @@ public:
 				if (get_epoch(ei) == read_epoch) {
 					if ((index = get_read_index(ei)) + 1 == get_write_index(ei)) {
 						if (header->epoch_and_indices.compare_exchange_weak(ei, epoch_to_header(read_epoch + 1), std::memory_order_acquire, std::memory_order_relaxed)) {
-							auto diff = read_block - fifo.buffer[read_window].blocks;
+							auto diff = read_block - &fifo.get_block(read_window, 0);
 							fifo.filled_set.reset(read_window, diff, read_epoch, std::memory_order_relaxed);
 							break;
 						}
@@ -335,7 +333,7 @@ public:
 					// Important: Consider reader becoming dormant after updating header BEFORE resetting bitset.
 					if (header->epoch_and_indices.compare_exchange_strong(ei, epoch_to_header(read_epoch + 1), std::memory_order_relaxed)) {
 						// We're abandoning an empty block!
-						auto diff = read_block - fifo.buffer[read_window].blocks;
+						auto diff = read_block - &fifo.get_block(read_window, 0);
 						fifo.filled_set.reset(read_window, diff, read_epoch, std::memory_order_relaxed);
 					}
 					// If the CAS fails, the only thing that could've occurred was the write index being increased,
@@ -351,12 +349,7 @@ public:
 
 	handle get_handle() { return handle(*this, std::random_device()()); }
 };
-static_assert(fifo<block_based_queue<std::uint64_t, 8, 7, std::uint8_t>, std::uint64_t>);
-
-template <typename T, std::size_t MIN_BLOCKS_PER_WINDOW = 1, std::size_t CELLS_PER_BLOCK = 7, typename BITSET_T = std::uint8_t>
-using bbq_min_block_count =
-	block_based_queue<T, std::bit_width(std::max(8 * sizeof(BITSET_T),
-		std::bit_ceil(MIN_BLOCKS_PER_WINDOW))) - 1, CELLS_PER_BLOCK, BITSET_T>;
+static_assert(fifo<block_based_queue<std::uint64_t, 7, std::uint8_t>, std::uint64_t>);
 
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
