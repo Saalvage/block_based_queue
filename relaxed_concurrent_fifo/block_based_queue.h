@@ -50,11 +50,11 @@ struct block {
 template <typename T, typename BITSET_T = std::uint8_t>
 class block_based_queue {
 private:
+	std::size_t blocks_per_window;
+
 	std::size_t window_count;
 	std::size_t window_count_mod_mask;
 	std::size_t window_count_log2;
-
-	std::size_t blocks_per_window;
 
 	std::size_t cells_per_block;
 	std::size_t block_size;
@@ -150,10 +150,10 @@ private:
 
 public:
 	block_based_queue(int thread_count, std::size_t min_size, std::size_t blocks_per_window_per_thread, std::size_t cells_per_block) :
+			blocks_per_window(std::bit_ceil(std::max(sizeof(BITSET_T) * 8, thread_count * blocks_per_window_per_thread))),
 			window_count(std::max<std::size_t>(4, std::bit_ceil(min_size / blocks_per_window / cells_per_block))),
 			window_count_mod_mask(window_count - 1),
 			window_count_log2(std::bit_width(window_count) - 1),
-			blocks_per_window(std::bit_ceil(std::max(sizeof(BITSET_T) * 8, thread_count * blocks_per_window_per_thread))),
 			cells_per_block(cells_per_block),
 			block_size(align_cache_line_size(sizeof(header_t) + cells_per_block * sizeof(T))),
 			filled_set(window_count, blocks_per_window),
