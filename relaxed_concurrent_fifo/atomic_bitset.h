@@ -45,15 +45,15 @@ private:
     static constexpr std::size_t array_members = N / bit_count;
     std::array<cache_aligned_t<std::uint64_t>, array_members> data;
 
-	static constexpr std::uint32_t get_epoch(std::uint64_t epoch_and_bits) { return static_cast<std::uint32_t>(epoch_and_bits >> 32); }
-    static constexpr std::uint32_t get_bits(std::uint64_t epoch_and_bits) { return epoch_and_bits & 0xffff'ffff; }
-    static constexpr std::uint64_t make_unit(std::uint32_t epoch) { return static_cast<std::uint64_t>(epoch) << 32; }
+	static constexpr std::uint64_t get_epoch(std::uint64_t epoch_and_bits) { return epoch_and_bits >> 32; }
+    static constexpr std::uint64_t get_bits(std::uint64_t epoch_and_bits) { return epoch_and_bits & 0xffff'ffff; }
+    static constexpr std::uint64_t make_unit(std::uint64_t epoch) { return epoch << 32; }
 
     // This requirement could be lifted in exchange for a more complicated implementation of the claim bit function.
     static_assert(N % bit_count == 0, "Bit count must be divisible by size of array type!");
 
     template <bool SET>
-    static constexpr void set_bit_atomic(std::atomic<std::uint64_t>& epoch_and_bits, std::size_t index, std::uint32_t epoch, std::memory_order order) {
+    static constexpr void set_bit_atomic(std::atomic<std::uint64_t>& epoch_and_bits, std::size_t index, std::uint64_t epoch, std::memory_order order) {
         std::uint64_t eb = epoch_and_bits.load(order);
         std::uint64_t test;
         std::uint64_t stencil = 1ull << index;
@@ -67,7 +67,7 @@ private:
                 // TODO: Special case handling like this is probably bad.
                 // We basically want to increment the epoch when the last filled bit has been reset.
                 test = eb & ~stencil;
-                if (static_cast<std::uint32_t>(test) == 0) {
+                if ((test & 0xffff'ffff) == 0) {
                     test = make_unit(epoch + 1);
                 }
             }
@@ -75,7 +75,7 @@ private:
     }
 
     template <claim_value VALUE, claim_mode MODE>
-    static constexpr std::size_t claim_bit_singular(std::atomic<std::uint64_t>& epoch_and_bits, int initial_rot, std::uint32_t epoch, std::memory_order order) {
+    static constexpr std::size_t claim_bit_singular(std::atomic<std::uint64_t>& epoch_and_bits, int initial_rot, std::uint64_t epoch, std::memory_order order) {
         std::uint64_t eb = epoch_and_bits.load(order);
         if (get_epoch(eb) != epoch) {
             return std::numeric_limits<std::size_t>::max();
@@ -127,7 +127,7 @@ public:
     /// </summary>
     /// <param name="index">The index of the bit to set.</param>
     /// <returns>Whether the bit has been newly set. false means the bit had already been 1.</returns>
-    constexpr void set(std::size_t index, std::uint32_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
+    constexpr void set(std::size_t index, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
         assert(index < size());
         set_bit_atomic<true>(data[index / bit_count].atomic, index % bit_count, epoch, order);
     }
@@ -137,7 +137,7 @@ public:
     /// </summary>
     /// <param name="index">The index of the bit to reset.</param>
     /// <returns>Whether the bit has been newly reset. false means the bit had already been 0.</returns>
-    constexpr void reset(std::size_t index, std::uint32_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
+    constexpr void reset(std::size_t index, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
         assert(index < size());
         set_bit_atomic<false>(data[index / bit_count].atomic, index % bit_count, epoch, order);
     }
@@ -151,7 +151,7 @@ public:
         return test(index);
     }
 
-    [[nodiscard]] constexpr bool any(std::uint32_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) const {
+    [[nodiscard]] constexpr bool any(std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) const {
         for (auto& elem : data) {
             std::uint64_t eb = elem->load(order);
             if (get_epoch(eb) == epoch && get_bits(eb)) {
@@ -161,7 +161,7 @@ public:
         return false;
     }
 
-    void set_epoch_if_empty(std::uint32_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
+    void set_epoch_if_empty(std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
         std::uint64_t next_eb = make_unit(epoch + 1);
         for (auto& elem : data) {
             std::uint64_t eb = make_unit(epoch);
@@ -170,7 +170,7 @@ public:
     }
 
     template <claim_value VALUE, claim_mode MODE>
-    std::size_t claim_bit(int starting_bit, std::uint32_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
+    std::size_t claim_bit(int starting_bit, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
         assert(starting_bit < size());
         int off;
         int initial_rot;
