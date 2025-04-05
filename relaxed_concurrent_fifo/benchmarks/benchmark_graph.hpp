@@ -128,7 +128,7 @@ struct benchmark_bfs : benchmark_timed<> {
     void output(T& stream) {
         for (std::size_t i = 0; i < info.distances.size(); i++) {
             if (distances[i].value != info.distances[i] + 1) {
-                std::cout << "Node i has distance " << distances[i].value << ", should be " << info.distances[i]  + 1;
+                std::cout << "Node i has distance " << distances[i].value << ", should be " << info.distances[i]  + 1 << std::endl;
                 stream << "ERR_DIST_WRONG";
                 return;
             }
