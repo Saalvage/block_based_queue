@@ -327,19 +327,18 @@ public:
 				header = &read_block->header;
 				ei = header->epoch_and_indices.load(std::memory_order_relaxed);
 				if (get_write_index(ei) == 0) {
-					// We need this in case of a spurious claim where a bit was claimed, but the writer couldn't place an element inside,
-					// because the write window was already forced-moved.
-					// TODO: Is it necessary to check get_epoch(ei) == read_epoch here?
-					// It seems practically irrelevant, but it could theoretically happen that the epoch has advanced
-					// twice before the ei load, leading us to set it back by one here.
-					// Important: Consider reader becoming dormant after updating header BEFORE resetting bitset.
-					if (header->epoch_and_indices.compare_exchange_strong(ei, epoch_to_header(read_epoch + 1), std::memory_order_relaxed)) {
-						// We're abandoning an empty block!
+					// We need to consider two situations:
+					// 1. A writer in the current epoch claimed this block, but never completed a full push, we update epoch & bitset.
+					// 2. A force-move occured, the block had its epoch updated by force, a delayed writer claimed the bit,
+					//    but can't write the header, we simply reset the bit (would fail anyway if epoch is incorrect).
+					// In case 1. we invalidate both block and bitset, in case 2. block is already invalidated.
+					if (get_epoch(ei) != read_epoch || header->epoch_and_indices.compare_exchange_strong(ei, epoch_to_header(read_epoch + 1), std::memory_order_relaxed)) {
 						auto diff = read_block - fifo.buffer[read_window].blocks;
 						fifo.filled_set.reset(read_window, diff, read_epoch, std::memory_order_relaxed);
 					}
 					// If the CAS fails, the only thing that could've occurred was the write index being increased,
 					// making us able to read an element from the block.
+					// TODO: Maybe it's better to immediately claim a new block here?
 				}
 			}
 
