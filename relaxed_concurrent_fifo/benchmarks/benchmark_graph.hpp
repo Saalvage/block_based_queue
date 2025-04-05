@@ -5,11 +5,45 @@
 
 #include <optional>
 
+#include "../contenders/multififo/ring_buffer.hpp"
 #include "../contenders/multififo/util/graph.hpp"
 #include "../contenders/multififo/util/termination_detection.hpp"
 
+static constexpr std::size_t make_po2(std::size_t size) {
+    std::size_t ret = 1;
+    while (size > ret) {
+        ret *= 2;
+    }
+    return ret;
+}
+
+std::tuple<std::uint64_t, std::uint32_t, std::vector<std::uint32_t>> sequential_bfs(const Graph& graph) {
+    multififo::RingBuffer<std::uint32_t> nodes(make_po2(graph.num_nodes()));
+    std::vector<std::uint32_t> distances(graph.num_nodes(), std::numeric_limits<std::uint32_t>::max());
+    distances[0] = 0;
+
+    nodes.push(static_cast<std::uint32_t>(graph.nodes[0]));
+
+    auto now = std::chrono::steady_clock::now().time_since_epoch().count();
+    while (!nodes.empty()) {
+        auto node_id = nodes.top();
+        nodes.pop();
+        auto d = distances[node_id] + 1;
+        for (auto i = graph.nodes[node_id]; i < graph.nodes[node_id + 1]; ++i) {
+            auto node_id = graph.edges[i].target;
+            if (distances[node_id] == std::numeric_limits<std::uint32_t>::max()) {
+                distances[node_id] = d;
+                nodes.push(static_cast<std::uint32_t>(node_id));
+            }
+        }
+    }
+    auto end = std::chrono::steady_clock::now().time_since_epoch().count();
+    return std::tuple(end - now, *std::max_element(distances.begin(), distances.end()), distances);
+}
+
 struct benchmark_info_graph : public benchmark_info {
-    Graph* graph;
+    const Graph& graph;
+    const std::vector<std::uint32_t>& distances;
 };
 
 struct benchmark_bfs : benchmark_timed<> {
@@ -31,14 +65,16 @@ struct benchmark_bfs : benchmark_timed<> {
 #pragma GCC diagnostic pop
 #endif // __GNUC__
 
-    Graph* graph;
+    const benchmark_info_graph& info;
+    const Graph& graph;
     std::vector<AtomicDistance> distances;
     termination_detection::TerminationDetection termination_detection;
     std::vector<Counter> counters;
 
-    benchmark_bfs(const benchmark_info& info) :
-            graph(reinterpret_cast<const benchmark_info_graph&>(info).graph),
-            distances(graph->num_nodes()),
+    benchmark_bfs(const benchmark_info& info_base) :
+            info(reinterpret_cast<const benchmark_info_graph&>(info_base)),
+            graph(info.graph),
+            distances(graph.num_nodes()),
             termination_detection(info.num_threads),
             counters(info.num_threads) { }
 
@@ -51,8 +87,8 @@ struct benchmark_bfs : benchmark_timed<> {
             ++counter.ignored_nodes;
             return;
         }
-        for (auto i = graph->nodes[node_id]; i < graph->nodes[node_id + 1]; ++i) {
-            auto target = graph->edges[i].target;
+        for (auto i = graph.nodes[node_id]; i < graph.nodes[node_id + 1]; ++i) {
+            auto target = graph.edges[i].target;
             auto d = node_dist + 1;
             auto old_d = distances[target].value.load(std::memory_order_relaxed);
             while (d < old_d) {
@@ -90,6 +126,14 @@ struct benchmark_bfs : benchmark_timed<> {
 
     template <typename T>
     void output(T& stream) {
+        for (int i = 0; i < info.distances.size(); i++) {
+            if (distances[i].value != info.distances[i] + 1) {
+                std::cout << "Node i has distance " << distances[i].value << ", should be " << info.distances[i]  + 1;
+                stream << "ERR_DIST_WRONG";
+                return;
+            }
+        }
+
         auto total_counts =
             std::accumulate(counters.begin(), counters.end(), Counter{}, [](auto sum, auto const& counter) {
             sum.pushed_nodes += counter.pushed_nodes;
@@ -100,7 +144,8 @@ struct benchmark_bfs : benchmark_timed<> {
         });
 
         if (total_counts.err) {
-            stream << "ERR";
+            std::cout << "Push failed!" << std::endl;
+            stream << "ERR_PUSH_FAIL";
             return;
         }
 
