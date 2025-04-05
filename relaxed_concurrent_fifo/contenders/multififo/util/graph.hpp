@@ -38,9 +38,6 @@ struct Graph {
         file >> num_nodes;
         file >> num_edges;
 
-        std::cout << num_nodes << std::endl;
-        std::cout << num_edges << std::endl;
-
         file >> c;
         while (c == 'c') {
             file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
