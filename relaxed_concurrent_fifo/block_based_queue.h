@@ -336,6 +336,7 @@ public:
 					}
 					// If the CAS fails, the only thing that could've occurred was the write index being increased,
 					// making us able to read an element from the block.
+					// TODO: Maybe it's better to immediately claim a new block here?
 				}
 			}
 
