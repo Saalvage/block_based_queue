@@ -69,7 +69,7 @@ private:
                 // TODO: Special case handling like this is probably bad.
                 // We basically want to increment the epoch when the last filled bit has been reset.
                 test = eb & ~stencil;
-                if ((test & 0xffff'ffff) == 0) {
+                if (get_bits(test) == 0) {
                     test = make_unit(epoch + 1);
                 }
             }

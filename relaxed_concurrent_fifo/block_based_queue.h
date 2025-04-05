@@ -41,6 +41,13 @@ struct block {
 	block() = default;
 	block(std::byte* ptr) : ptr(ptr) { }
 
+	static void initialize(std::byte* ptr, std::size_t cell_count) {
+		new (ptr) std::atomic_uint64_t{ 0 };
+		for (std::size_t i = 0; i < cell_count; i++) {
+			new (ptr + sizeof(std::atomic_uint64_t) + i * sizeof(T)) std::atomic<T>{ };
+		}
+	}
+
 	// 32 bit epoch, 16 bit read index, 16 bit write index.
 	std::atomic_uint64_t& get_header() {
 		return *std::launder(reinterpret_cast<std::atomic_uint64_t*>(ptr));
@@ -49,6 +56,10 @@ struct block {
 	std::atomic<T>& get_cell(std::size_t cell) {
 		return *std::launder(reinterpret_cast<std::atomic<T>*>(ptr + sizeof(std::atomic_uint64_t) + cell * sizeof(T)));
 	}
+
+	// No need to explicitly call dtor.
+	static_assert(std::is_trivially_destructible_v<std::atomic_uint64_t>);
+	static_assert(std::is_trivially_destructible_v<std::atomic<T>>);
 };
 
 template <typename T, typename BITSET_T = std::uint8_t>
@@ -172,6 +183,10 @@ public:
 		// At least as big as the bitset's type.
 		assert(blocks_per_window >= sizeof(BITSET_T) * 8);
 		assert(std::bit_ceil(blocks_per_window) == blocks_per_window);
+
+		for (std::size_t i = 0; i < window_count * blocks_per_window; i++) {
+			block_t::initialize(buffer.get() + i * std::hardware_destructive_interference_size, cells_per_block);
+		}
 
 		for (std::size_t j = 0; j < blocks_per_window; j++) {
 			filled_set.set_epoch_if_empty(0, 0);
