@@ -275,7 +275,7 @@ int main(int argc, const char** argv) {
 			std::vector<std::uint32_t> distances;
 			for (int i = 0; i < test_its; i++) {
 				auto [time, dist, d] = sequential_bfs(graph);
-				std::cout << "Sequential time: " << time << "; Dist: " << dist + 1 << std::endl;
+				std::cout << "Sequential time: " << time << "; Dist: " << dist << std::endl;
 				distances = std::move(d);
 			}
 

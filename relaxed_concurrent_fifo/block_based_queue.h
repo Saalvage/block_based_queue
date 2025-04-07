@@ -36,17 +36,13 @@
 
 template <typename T>
 struct block {
+	// Can allocate without alignment considerations.
+	static_assert(alignof(T) == sizeof(T));
+
 	std::byte* ptr;
 
 	block() = default;
 	block(std::byte* ptr) : ptr(ptr) { }
-
-	static void initialize(std::byte* ptr, std::size_t cell_count) {
-		new (ptr) std::atomic_uint64_t{ 0 };
-		for (std::size_t i = 0; i < cell_count; i++) {
-			new (ptr + sizeof(std::atomic_uint64_t) + i * sizeof(T)) std::atomic<T>{ };
-		}
-	}
 
 	// 32 bit epoch, 16 bit read index, 16 bit write index.
 	std::atomic_uint64_t& get_header() {
@@ -185,7 +181,11 @@ public:
 		assert(std::bit_ceil(blocks_per_window) == blocks_per_window);
 
 		for (std::size_t i = 0; i < window_count * blocks_per_window; i++) {
-			block_t::initialize(buffer.get() + i * std::hardware_destructive_interference_size, cells_per_block);
+			auto ptr = buffer.get() + i * block_size;
+			new (ptr) std::atomic_uint64_t{ 0 };
+			for (std::size_t j = 0; j < cells_per_block; j++) {
+				new (ptr + sizeof(std::atomic_uint64_t) + j * sizeof(T)) std::atomic<T>{ };
+			}
 		}
 
 		for (std::size_t j = 0; j < blocks_per_window; j++) {
