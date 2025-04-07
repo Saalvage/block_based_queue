@@ -21,8 +21,12 @@ std::tuple<std::uint64_t, std::uint32_t, std::vector<std::uint32_t>> sequential_
     multififo::RingBuffer<std::uint32_t> nodes(make_po2(graph.num_nodes()));
     std::vector<std::uint32_t> distances(graph.num_nodes(), std::numeric_limits<std::uint32_t>::max());
     distances[0] = 0;
+    std::cout << distances.size() << "???" << std::endl;
+    std::cout << distances[1] << "???" << std::endl;
 
     nodes.push(static_cast<std::uint32_t>(graph.nodes[0]));
+
+	std::cout << nodes.size() << "???" << std::endl;
 
     auto now = std::chrono::steady_clock::now().time_since_epoch().count();
     while (!nodes.empty()) {
