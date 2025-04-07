@@ -126,14 +126,6 @@ struct benchmark_bfs : benchmark_timed<> {
 
     template <typename T>
     void output(T& stream) {
-        for (std::size_t i = 0; i < info.distances.size(); i++) {
-            if (distances[i].value != info.distances[i]) {
-                std::cout << "Node " << i << " has distance " << distances[i].value << ", should be " << info.distances[i] << std::endl;
-                stream << "ERR_DIST_WRONG";
-                return;
-            }
-        }
-
         auto total_counts =
             std::accumulate(counters.begin(), counters.end(), Counter{}, [](auto sum, auto const& counter) {
             sum.pushed_nodes += counter.pushed_nodes;
@@ -143,6 +135,12 @@ struct benchmark_bfs : benchmark_timed<> {
             return sum;
         });
 
+        if (total_counts.err) {
+            std::cout << "Push failed!" << std::endl;
+            stream << "ERR_PUSH_FAIL";
+            return;
+        }
+
         auto lost_nodes = total_counts.pushed_nodes - (total_counts.processed_nodes + total_counts.ignored_nodes);
         if (lost_nodes != 0) {
             std::cout << lost_nodes << " lost nodes!" << std::endl;
@@ -150,10 +148,12 @@ struct benchmark_bfs : benchmark_timed<> {
             return;
         }
 
-        if (total_counts.err) {
-            std::cout << "Push failed!" << std::endl;
-            stream << "ERR_PUSH_FAIL";
-            return;
+        for (std::size_t i = 0; i < info.distances.size(); i++) {
+            if (distances[i].value != info.distances[i]) {
+                std::cout << "Node " << i << " has distance " << distances[i].value << ", should be " << info.distances[i] << std::endl;
+                stream << "ERR_DIST_WRONG";
+                return;
+            }
         }
 
         auto longest_distance =
