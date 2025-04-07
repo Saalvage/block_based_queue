@@ -143,6 +143,13 @@ struct benchmark_bfs : benchmark_timed<> {
             return sum;
         });
 
+        auto lost_nodes = total_counts.pushed_nodes - (total_counts.processed_nodes + total_counts.ignored_nodes);
+        if (lost_nodes != 0) {
+            std::cout << lost_nodes << " lost nodes!" << std::endl;
+            stream << "ERR_LOST_NODE";
+            return;
+        }
+
         if (total_counts.err) {
             std::cout << "Push failed!" << std::endl;
             stream << "ERR_PUSH_FAIL";
