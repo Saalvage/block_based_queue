@@ -18,7 +18,7 @@
 
 template <std::size_t THREAD_COUNT, std::size_t BLOCK_MULTIPLIER>
 void test_consistency(std::size_t fifo_size, std::size_t elements_per_thread, double prefill) {
-	bbq_min_block_count<std::uint64_t, THREAD_COUNT * BLOCK_MULTIPLIER> fifo{ THREAD_COUNT, fifo_size };
+	block_based_queue<std::uint64_t> fifo{ THREAD_COUNT, fifo_size, BLOCK_MULTIPLIER, 7 };
 	auto handle = fifo.get_handle();
 
 	std::size_t pre_push = static_cast<std::size_t>(fifo_size * prefill);
