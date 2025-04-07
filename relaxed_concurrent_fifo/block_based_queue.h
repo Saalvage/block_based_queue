@@ -228,7 +228,8 @@ public:
 
 		friend block_based_queue;
 
-		static constexpr bool epoch_valid(std::uint32_t check, std::uint32_t curr) {
+		// They're typed as uint64_t, but only hold 32 bits of data.
+		static constexpr bool epoch_valid(std::uint64_t check, std::uint64_t curr) {
 			return (curr - check) < std::numeric_limits<std::uint32_t>::max() / 2;
 		}
 
@@ -365,7 +366,7 @@ public:
 					// 2. A force-move occured, the block had its epoch updated by force, a delayed writer claimed the bit,
 					//    but can't write the header, we simply reset the bit (would fail anyway if epoch is incorrect).
 					// In case 1. we invalidate both block and bitset, in case 2. block is already invalidated.
-					if (get_epoch(ei) != read_epoch || header->compare_exchange_strong(ei, epoch_to_header(read_epoch + 1), std::memory_order_relaxed)) {
+					if (!epoch_valid(get_epoch(ei), read_epoch) || header->compare_exchange_strong(ei, epoch_to_header(read_epoch + 1), std::memory_order_relaxed)) {
 						fifo.filled_set.reset(read_window, fifo.block_index(read_window, read_block), read_epoch, std::memory_order_relaxed);
 					}
 					// If the CAS fails, the only thing that could've occurred was the write index being increased,
