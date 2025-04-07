@@ -19,7 +19,6 @@ static constexpr std::size_t make_po2(std::size_t size) {
 
 std::tuple<std::uint64_t, std::uint32_t, std::vector<std::uint32_t>> sequential_bfs(const Graph& graph) {
     multififo::RingBuffer<std::uint32_t> nodes(make_po2(graph.num_nodes()));
-    // max() - 1 so it holds that for all nodes par_dist = seq_dist + 1.
     std::vector<std::uint32_t> distances(graph.num_nodes(), std::numeric_limits<std::uint32_t>::max());
     distances[0] = 1;
 
