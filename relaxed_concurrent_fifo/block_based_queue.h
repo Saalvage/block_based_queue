@@ -34,54 +34,44 @@
 #pragma GCC diagnostic ignored "-Winterference-size"
 #endif // __GNUC__
 
-struct header_t {
-	// 16 bits epoch, 16 bits read started index, 16 bits read finished index, 16 bits write index
-	std::atomic_uint64_t epoch_and_indices;
-};
-
-template <typename T, std::size_t CELLS_PER_BLOCK>
+template <typename T>
 struct block {
-	static_assert(sizeof(header_t) == 8);
-	header_t header;
-	std::array<std::atomic<T>, CELLS_PER_BLOCK> cells;
-};
+	// Can allocate without alignment considerations.
+	static_assert(alignof(T) == sizeof(T));
 
-template <typename BLOCK_T, std::size_t BLOCKS_PER_WINDOW, typename BITSET_T>
-struct window {
-	alignas(std::hardware_destructive_interference_size) atomic_bitset<BLOCKS_PER_WINDOW, BITSET_T> filled_set;
-	alignas(std::hardware_destructive_interference_size) BLOCK_T blocks[BLOCKS_PER_WINDOW];
+	std::byte* ptr;
 
-	BLOCK_T* try_get_write_block(int starting_bit) {
-		std::size_t free_bit = filled_set.template claim_bit<claim_value::ZERO, claim_mode::READ_WRITE>(starting_bit, std::memory_order_relaxed);
-		if (free_bit == std::numeric_limits<std::size_t>::max()) {
-			return nullptr;
-		}
-		return &blocks[free_bit];
+	block() = default;
+	block(std::byte* ptr) : ptr(ptr) { }
+
+	// 32 bit epoch, 16 bit read index, 16 bit write index.
+	std::atomic_uint64_t& get_header() {
+		return *std::launder(reinterpret_cast<std::atomic_uint64_t*>(ptr));
 	}
 
-	BLOCK_T* try_get_read_block(int starting_bit) {
-		std::size_t free_bit = filled_set.template claim_bit<claim_value::ONE, claim_mode::READ_ONLY>(starting_bit, std::memory_order_relaxed);
-		if (free_bit == std::numeric_limits<std::size_t>::max()) {
-			return nullptr;
-		}
-		return &blocks[free_bit];
+	std::atomic<T>& get_cell(std::size_t cell) {
+		return *std::launder(reinterpret_cast<std::atomic<T>*>(ptr + sizeof(std::atomic_uint64_t) + cell * sizeof(T)));
 	}
+
+	// No need to explicitly call dtor.
+	static_assert(std::is_trivially_destructible_v<std::atomic_uint64_t>);
+	static_assert(std::is_trivially_destructible_v<std::atomic<T>>);
 };
 
-template <typename T, std::size_t LOG_BLOCKS_PER_WINDOW, std::size_t CELLS_PER_BLOCK, typename BITSET_T>
+template <typename T, typename BITSET_T = std::uint8_t>
 class block_based_queue {
 private:
-	// PO2 for modulo performance.
-	static constexpr std::size_t blocks_per_window = 1ull << LOG_BLOCKS_PER_WINDOW;
-	// At least as big as the bitset's type.
-	static_assert(blocks_per_window >= sizeof(BITSET_T) * 8);
+	std::size_t blocks_per_window;
 
 	std::size_t window_count;
 	std::size_t window_count_mod_mask;
 	std::size_t window_count_log2;
 
+	std::size_t cells_per_block;
+	std::size_t block_size;
+
 	std::size_t capacity() const {
-		return window_count * blocks_per_window * CELLS_PER_BLOCK;
+		return window_count * blocks_per_window * cells_per_block;
 	}
 
 #if BBQ_DEBUG_FUNCTIONS
@@ -109,50 +99,98 @@ private:
 #endif // BBQ_RELAXED_DEBUG_FUNCTIONS
 
 	// We use 64 bit return types here to avoid potential deficits through 16-bit comparisons.
-	static constexpr std::uint64_t get_epoch(std::uint64_t ei) { return ei >> 48 & 0xffff; }
-	static constexpr std::uint64_t mask_epoch(std::uint64_t window_index) { return window_index & 0xffff; }
-	static constexpr std::uint64_t get_read_index(std::uint64_t ei) { return (ei >> 32) & 0xffff; }
+	static constexpr std::uint64_t get_epoch(std::uint64_t ei) { return ei >> 32; }
+	static constexpr std::uint64_t get_read_index(std::uint64_t ei) { return (ei >> 16) & 0xffff; }
 	static constexpr std::uint64_t get_write_index(std::uint64_t ei) { return ei & 0xffff; }
 	static constexpr std::uint64_t increment_write_index(std::uint64_t ei) { return ei + 1; }
-	static constexpr std::uint64_t increment_read_index(std::uint64_t ei) { return ei + (1ull << 32); }
-	static constexpr std::uint64_t epoch_to_header(std::uint64_t epoch) { return epoch << 48; }
+	static constexpr std::uint64_t increment_read_index(std::uint64_t ei) { return ei + (1ull << 16); }
+	static constexpr std::uint64_t epoch_to_header(std::uint64_t epoch) { return epoch << 32; }
 
-	using block_t = block<T, CELLS_PER_BLOCK>;
-	static_assert(sizeof(block_t) == CELLS_PER_BLOCK * sizeof(T) + sizeof(header_t));
+	using block_t = block<T>;
+	static_assert(std::is_trivial_v<block_t>);
 
 	// Doing it like this avoids having to have a special case for first-time initialization, while only claiming a block on first use.
-	static inline block_t dummy_block{ header_t{0xffffull << 48}, {} };
+	static inline std::atomic_uint64_t dummy_block_value{ epoch_to_header(0xffff'ffffull) };
+	static inline block_t dummy_block{ reinterpret_cast<std::byte*>(&dummy_block_value) };
 
-	using window_t = window<block_t, blocks_per_window, BITSET_T>;
-	std::unique_ptr<window_t[]> buffer;
+	atomic_bitset<BITSET_T> filled_set;
+	std::unique_ptr<std::byte[]> buffer;
 
 	std::uint64_t window_to_epoch(std::uint64_t window) const {
 		return window >> window_count_log2;
 	}
 
-	window_t& index_to_window(std::size_t index) const {
-		return buffer[index & window_count_mod_mask];
+	std::uint64_t window_to_index(std::uint64_t index) const {
+		return index & window_count_mod_mask;
+	}
+
+	block_t get_block(std::uint64_t window_index, std::uint64_t block_index) {
+		return &buffer[(window_index * blocks_per_window + block_index) * block_size];
+	}
+
+	std::size_t block_index(std::uint64_t window_index, block_t block) {
+		return (block.ptr - get_block(window_index, 0).ptr) / block_size;
+	}
+
+	block_t try_get_write_block(std::uint64_t window_index, int starting_bit, std::uint64_t epoch) {
+		auto index = window_to_index(window_index);
+		std::size_t free_bit = filled_set.template claim_bit<claim_value::ZERO, claim_mode::READ_WRITE>(index, starting_bit, epoch, std::memory_order_relaxed);
+		if (free_bit == std::numeric_limits<std::size_t>::max()) {
+			return nullptr;
+		}
+		return get_block(index, free_bit);
+	}
+
+	block_t try_get_read_block(std::uint64_t window_index, int starting_bit, std::uint64_t epoch) {
+		auto index = window_to_index(window_index);
+		std::size_t free_bit = filled_set.template claim_bit<claim_value::ONE, claim_mode::READ_ONLY>(index, starting_bit, epoch, std::memory_order_relaxed);
+		if (free_bit == std::numeric_limits<std::size_t>::max()) {
+			return nullptr;
+		}
+		return get_block(index, free_bit);
 	}
 
 	alignas(std::hardware_destructive_interference_size) std::atomic_uint64_t read_window = 0;
 	alignas(std::hardware_destructive_interference_size) std::atomic_uint64_t write_window = 1;
 
+	static constexpr std::size_t align_cache_line_size(std::size_t size) {
+		std::size_t ret = std::hardware_destructive_interference_size;
+		while (ret < size) {
+			ret += std::hardware_destructive_interference_size;
+		}
+		return ret;
+	}
+
 public:
-	// TODO: Remove unused parameter!!
-	block_based_queue([[maybe_unused]] int thread_count, std::size_t min_size) :
-			window_count(std::max<std::size_t>(4, std::bit_ceil(min_size / blocks_per_window / CELLS_PER_BLOCK))),
+	block_based_queue(int thread_count, std::size_t min_size, std::size_t blocks_per_window_per_thread, std::size_t cells_per_block) :
+			blocks_per_window(std::bit_ceil(std::max(sizeof(BITSET_T) * 8, thread_count * blocks_per_window_per_thread))),
+			window_count(std::max<std::size_t>(4, std::bit_ceil(min_size / blocks_per_window / cells_per_block))),
 			window_count_mod_mask(window_count - 1),
 			window_count_log2(std::bit_width(window_count) - 1),
-			buffer(std::make_unique<window_t[]>(window_count)) {
+			cells_per_block(cells_per_block),
+			block_size(align_cache_line_size(sizeof(std::atomic_uint64_t) + cells_per_block * sizeof(T))),
+			filled_set(window_count, blocks_per_window),
+			buffer(std::make_unique<std::byte[]>(window_count * blocks_per_window * block_size)) {
 #if BBQ_LOG_CREATION_SIZE
 		std::cout << "Window count: " << window_count << std::endl;
 		std::cout << "Block count: " << blocks_per_window << std::endl;
 #endif // BBQ_LOG_CREATION_SIZE
 
-		window_t& window = buffer[0];
+		// At least as big as the bitset's type.
+		assert(blocks_per_window >= sizeof(BITSET_T) * 8);
+		assert(std::bit_ceil(blocks_per_window) == blocks_per_window);
+
+		for (std::size_t i = 0; i < window_count * blocks_per_window; i++) {
+			auto ptr = buffer.get() + i * block_size;
+			new (ptr) std::atomic_uint64_t{ 0 };
+			for (std::size_t j = 0; j < cells_per_block; j++) {
+				new (ptr + sizeof(std::atomic_uint64_t) + j * sizeof(T)) std::atomic<T>{ };
+			}
+		}
+
 		for (std::size_t j = 0; j < blocks_per_window; j++) {
-			header_t& header = window.blocks[j].header;
-			header.epoch_and_indices = epoch_to_header(1);
+			filled_set.set_epoch_if_empty(0, 0);
+			get_block(0, j).get_header() = epoch_to_header(1);
 		}
 	}
 
@@ -181,8 +219,8 @@ public:
 		std::uint64_t write_epoch = 0;
 		std::uint64_t read_epoch = 0;
 
-		block_t* read_block = &dummy_block;
-		block_t* write_block = &dummy_block;
+		block_t read_block = dummy_block;
+		block_t write_block = dummy_block;
 
 		std::minstd_rand rng;
 
@@ -191,16 +229,17 @@ public:
 		friend block_based_queue;
 
 		int random_bit_index() {
-			return std::uniform_int_distribution<int>(0, blocks_per_window - 1)(rng);
+			// TODO: Probably want to store this somewhere.
+			return std::uniform_int_distribution(0, static_cast<int>(fifo.blocks_per_window - 1))(rng);
 		}
 
 		bool claim_new_block_write() {
-			block_t* new_block;
+			block_t new_block;
 			std::uint64_t window_index;
 			do {
 				window_index = fifo.write_window.load(std::memory_order_relaxed);
-				new_block = fifo.index_to_window(window_index).try_get_write_block(random_bit_index());
-				if (new_block == nullptr) {
+				new_block = fifo.try_get_write_block(fifo.window_to_index(window_index), random_bit_index(), fifo.window_to_epoch(window_index));
+				if (new_block.ptr == nullptr) {
 					// No more free bits, we move.
 					if (window_index + 1 - fifo.read_window.load(std::memory_order_relaxed) == fifo.window_count) {
 						return false;
@@ -214,24 +253,24 @@ public:
 				}
 			} while (true);
 
-			write_window = window_index;
+			write_window = fifo.window_to_index(window_index);
 			write_epoch = fifo.window_to_epoch(window_index);
 			write_block = new_block;
 			return true;
 		}
 
 		bool claim_new_block_read() {
-			block_t* new_block;
+			block_t new_block;
 			std::uint64_t window_index;
 			do {
 				window_index = fifo.read_window.load(std::memory_order_relaxed);
-				new_block = fifo.index_to_window(window_index).try_get_read_block(random_bit_index());
-				if (new_block == nullptr) {
+				new_block = fifo.try_get_read_block(fifo.window_to_index(window_index), random_bit_index(), fifo.window_to_epoch(window_index));
+				if (new_block.ptr == nullptr) {
 					std::uint64_t write_window = fifo.write_window.load(std::memory_order_relaxed);
 					if (write_window == window_index + 1) {
-						window_t& new_window = fifo.index_to_window(write_window);
 						std::uint64_t write_epoch = fifo.window_to_epoch(write_window);
-						if (!new_window.filled_set.any(std::memory_order_relaxed)) {
+						std::uint64_t write_window_index = fifo.window_to_index(write_window);
+						if (!fifo.filled_set.any(write_window_index, write_epoch, std::memory_order_relaxed)) {
 							return false;
 						}
 
@@ -240,7 +279,7 @@ public:
 						// the read window from being moved before all blocks have either been claimed or invalidated.
 						// By just fully setting the bitset we share the task of incrementing the epochs of unclaimed blocks
 						// among the read threads.
-						new_window.filled_set.set_all(write_epoch, std::memory_order_relaxed);
+						fifo.filled_set.set_all(write_window_index, write_epoch, std::memory_order_relaxed);
 
 						fifo.write_window.compare_exchange_strong(write_window, write_window + 1, std::memory_order_relaxed);
 #if BBQ_LOG_WINDOW_MOVE
@@ -248,20 +287,7 @@ public:
 #endif // BBQ_LOG_WINDOW_MOVE
 					}
 
-					// TODO: Remove this.
-					bool all_correct = true;
-					window_t& new_window = fifo.index_to_window(window_index);
-					std::uint64_t next_epoch = epoch_to_header(fifo.window_to_epoch(window_index) + 1);
-					for (std::size_t i = 0; i < blocks_per_window; i++) {
-						if (get_epoch(new_window.blocks[i].header.epoch_and_indices) != get_epoch(next_epoch)) {
-							new_window.filled_set.set(i);
-							all_correct = false;
-							break;
-						}
-					}
-					if (all_correct) {
-						fifo.read_window.compare_exchange_strong(window_index, window_index + 1, std::memory_order_relaxed);
-					}
+					fifo.read_window.compare_exchange_strong(window_index, window_index + 1, std::memory_order_relaxed);
 #if BBQ_LOG_WINDOW_MOVE
 					std::cout << "Read move " << (window_index + 1) << std::endl;
 #endif // BBQ_LOG_WINDOW_MOVE
@@ -270,7 +296,7 @@ public:
 				}
 			} while (true);
 
-			read_window = window_index;
+			read_window = fifo.window_to_index(window_index);
 			read_epoch = fifo.window_to_epoch(window_index);
 			read_block = new_block;
 			return true;
@@ -280,27 +306,28 @@ public:
 		bool push(T t) {
 			assert(t != 0);
 
-			header_t* header = &write_block->header;
-			std::uint64_t ei = header->epoch_and_indices.load(std::memory_order_relaxed);
+			std::atomic_uint64_t* header = &write_block.get_header();
+			std::uint64_t ei = header->load(std::memory_order_relaxed);
 			std::uint64_t index;
 
 			bool failure = true;
 			while (failure) {
 				T old = 0;
-				while (get_epoch(ei) != mask_epoch(write_epoch) || (index = get_write_index(ei)) == CELLS_PER_BLOCK
-					|| !write_block->cells[index].compare_exchange_weak(old, std::move(t), std::memory_order_relaxed)) {
+				while (get_epoch(ei) != write_epoch || (index = get_write_index(ei)) == fifo.cells_per_block
+					|| !write_block.get_cell(index).compare_exchange_weak(old, t, std::memory_order_relaxed)) {
 					if (!claim_new_block_write()) {
 						return false;
 					}
-					header = &write_block->header;
-					ei = header->epoch_and_indices.load(std::memory_order_relaxed);
+					header = &write_block.get_header();
+					ei = header->load(std::memory_order_relaxed);
 					old = 0;
 				}
 
-				failure = !header->epoch_and_indices.compare_exchange_strong(ei, increment_write_index(ei), std::memory_order_release);
+				failure = !header->compare_exchange_strong(ei, increment_write_index(ei),
+					std::memory_order_release, std::memory_order_relaxed);
 				if (failure) {
 					// The header changed, we need to undo our write and try again.
-					write_block->cells[index].store(0, std::memory_order_relaxed);
+					write_block.get_cell(index).store(0, std::memory_order_relaxed);
 					// We do NOT unclaim the block's bit here, readers handle empty blocks by themselves.
 				}
 			}
@@ -309,66 +336,52 @@ public:
 		}
 
 		std::optional<T> pop() {
-			header_t* header = &read_block->header;
-			std::uint64_t ei = header->epoch_and_indices.load(std::memory_order_relaxed);
+			std::atomic_uint64_t* header = &read_block.get_header();
+			std::uint64_t ei = header->load(std::memory_order_relaxed);
 			std::uint64_t index;
 
-			while (get_epoch(ei) != mask_epoch(read_epoch) || (index = get_read_index(ei)) == get_write_index(ei)
-				|| !header->epoch_and_indices.compare_exchange_weak(ei, increment_read_index(ei), std::memory_order_acquire)) {
+			while (true) {
+				if (get_epoch(ei) == read_epoch) {
+					if ((index = get_read_index(ei)) + 1 == get_write_index(ei)) {
+						if (header->compare_exchange_weak(ei, epoch_to_header(read_epoch + 1), std::memory_order_acquire, std::memory_order_relaxed)) {
+							fifo.filled_set.reset(read_window, fifo.block_index(read_window, read_block), read_epoch, std::memory_order_relaxed);
+							break;
+						}
+					} else {
+						if (header->compare_exchange_weak(ei, increment_read_index(ei), std::memory_order_acquire, std::memory_order_relaxed)) {
+							break;
+						}
+					}
+				}
 				if (!claim_new_block_read()) {
 					return std::nullopt;
 				}
-				header = &read_block->header;
-				// TODO: With 2 threads there seems to exist a condition where suspiciously low epochs are encountered
-				// and the blocks immediately abandoned. Is this just because of overflowing? Investigate.
-				ei = header->epoch_and_indices.load(std::memory_order_relaxed);
-				// TODO: The problem here is that if epoch == (read_window + fifo.window_count) we only reset the bit, which might lead to lost
-				// writes, because for the write the block header didn't change, so it fills the block, but the bit is unset.
-				// But if we simply ignore that case, then we're stuck because the bit will be set forever.
-				// We cannot differentiate if it is a spurious claim from the LAST epoch (must reset bit),
-				// or a regular one from the current one (must NOT reset bit).
-				if (get_write_index(ei) == get_read_index(ei)) {
-					// We need this in case of a spurious claim where a bit was claimed, but the writer couldn't place an element inside,
-					// because the write window was already forced-moved.
-					if (header->epoch_and_indices.compare_exchange_strong(ei, epoch_to_header(read_epoch + 1), std::memory_order_relaxed)) {
-						// We're abandoning an empty block!
-						window_t& window = fifo.block_to_window(read_block);
-						auto diff = read_block - window.blocks;
-						window.filled_set.reset(diff, std::memory_order_relaxed);
+				header = &read_block.get_header();
+				ei = header->load(std::memory_order_relaxed);
+				if (get_write_index(ei) == 0) {
+					// We need to consider two situations:
+					// 1. A writer in the current epoch claimed this block, but never completed a full push, we update epoch & bitset.
+					// 2. A force-move occured, the block had its epoch updated by force, a delayed writer claimed the bit,
+					//    but can't write the header, we simply reset the bit (would fail anyway if epoch is incorrect).
+					// In case 1. we invalidate both block and bitset, in case 2. block is already invalidated.
+					if (get_epoch(ei) != read_epoch || header->compare_exchange_strong(ei, epoch_to_header(read_epoch + 1), std::memory_order_relaxed)) {
+						fifo.filled_set.reset(read_window, fifo.block_index(read_window, read_block), read_epoch, std::memory_order_relaxed);
 					}
 					// If the CAS fails, the only thing that could've occurred was the write index being increased,
 					// making us able to read an element from the block.
+					// TODO: Maybe it's better to immediately claim a new block here?
 				}
 			}
 
-			T ret = read_block->cells[index].exchange(0, std::memory_order_relaxed);
+			T ret = read_block.get_cell(index).exchange(0, std::memory_order_relaxed);
 			assert(ret != 0);
-
-			if (index == get_write_index(ei)) {
-				// Apply local read index update.
-				ei = (ei & 0xffff'0000'ffff'ffffull) | (index << 32);
-				// Before we mark this block as empty, we make it unavailable for other readers and writers of this epoch.
-				if (header->epoch_and_indices.compare_exchange_strong(ei, epoch_to_header(read_epoch + 1), std::memory_order_relaxed)) {
-					// TODO: Store block index instead of calculating?
-					window_t& window = fifo.index_to_window(read_window);
-					auto diff = read_block - window.blocks;
-					window.filled_set.reset(diff, std::memory_order_relaxed);
-				}
-				// else a different read thread has already wrapped up this block.
-			}
-
 			return ret;
 		}
 	};
 
 	handle get_handle() { return handle(*this, std::random_device()()); }
 };
-static_assert(fifo<block_based_queue<std::uint64_t, 8, 7, std::uint8_t>, std::uint64_t>);
-
-template <typename T, std::size_t MIN_BLOCKS_PER_WINDOW = 1, std::size_t CELLS_PER_BLOCK = 7, typename BITSET_T = std::uint8_t>
-using bbq_min_block_count =
-	block_based_queue<T, std::bit_width(std::max(8 * sizeof(BITSET_T),
-		std::bit_ceil(MIN_BLOCKS_PER_WINDOW))) - 1, CELLS_PER_BLOCK, BITSET_T>;
+static_assert(fifo<block_based_queue<std::uint64_t>, std::uint64_t>);
 
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
