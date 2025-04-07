@@ -33,6 +33,7 @@ std::tuple<std::uint64_t, std::uint32_t, std::vector<std::uint32_t>> sequential_
             auto node_id = graph.edges[i].target;
             if (distances[node_id] == std::numeric_limits<std::uint32_t>::max()) {
                 distances[node_id] = d;
+                std::cout << "SET DISTANCE TO " << d << std::endl;
                 nodes.push(static_cast<std::uint32_t>(node_id));
             }
         }
