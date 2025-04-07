@@ -19,7 +19,8 @@ static constexpr std::size_t make_po2(std::size_t size) {
 
 std::tuple<std::uint64_t, std::uint32_t, std::vector<std::uint32_t>> sequential_bfs(const Graph& graph) {
     multififo::RingBuffer<std::uint32_t> nodes(make_po2(graph.num_nodes()));
-    std::vector<std::uint32_t> distances(graph.num_nodes(), std::numeric_limits<std::uint32_t>::max());
+    // max() - 1 so it holds that for all nodes par_dist = seq_dist + 1.
+    std::vector<std::uint32_t> distances(graph.num_nodes(), std::numeric_limits<std::uint32_t>::max() - 1);
     distances[0] = 0;
 
     nodes.push(static_cast<std::uint32_t>(graph.nodes[0]));
@@ -128,7 +129,7 @@ struct benchmark_bfs : benchmark_timed<> {
     void output(T& stream) {
         for (std::size_t i = 0; i < info.distances.size(); i++) {
             if (distances[i].value != info.distances[i] + 1) {
-                std::cout << "Node i has distance " << distances[i].value << ", should be " << info.distances[i]  + 1 << std::endl;
+                std::cout << "Node " << i << " has distance " << distances[i].value << ", should be " << info.distances[i] + 1 << std::endl;
                 stream << "ERR_DIST_WRONG";
                 return;
             }
