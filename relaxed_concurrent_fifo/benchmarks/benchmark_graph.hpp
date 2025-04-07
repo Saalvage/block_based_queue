@@ -173,7 +173,7 @@ struct benchmark_bfs : benchmark_timed<> {
         })->value.load();
 
         std::ofstream a{ "par.csv" };
-        for (auto i : distances) {
+        for (auto& i : distances) {
             a << i.value << '\n';
         }
 
