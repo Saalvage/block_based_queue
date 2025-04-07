@@ -136,6 +136,11 @@ struct benchmark_bfs : benchmark_timed<> {
 
     template <typename T>
     void output(T& stream) {
+        std::ofstream a{ "par.csv" };
+        for (auto& i : distances) {
+            a << i.value << '\n';
+        }
+
         for (std::size_t i = 0; i < info.distances.size(); i++) {
             if (distances[i].value != info.distances[i] + 1) {
                 std::cout << "Node i has distance " << distances[i].value << ", should be " << info.distances[i]  + 1 << std::endl;
@@ -171,11 +176,6 @@ struct benchmark_bfs : benchmark_timed<> {
             }
             return a_val < b_val;
         })->value.load();
-
-        std::ofstream a{ "par.csv" };
-        for (auto& i : distances) {
-            a << i.value << '\n';
-        }
 
         stream << time_nanos << ',' << longest_distance << ',' << total_counts.pushed_nodes << ',' << total_counts.processed_nodes << ',' << total_counts.ignored_nodes;
     }
