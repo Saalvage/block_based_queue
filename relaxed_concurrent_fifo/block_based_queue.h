@@ -134,10 +134,6 @@ private:
 		return buffer[index & window_count_mod_mask];
 	}
 
-	window_t& block_to_window(block_t* block) const {
-		return buffer[(reinterpret_cast<char*>(block) - reinterpret_cast<const char*>(buffer.get())) / sizeof(window_t)];
-	}
-
 	alignas(std::hardware_destructive_interference_size) std::atomic_uint64_t read_window = 0;
 	alignas(std::hardware_destructive_interference_size) std::atomic_uint64_t write_window = 1;
 
@@ -178,12 +174,15 @@ public:
 	class handle {
 	private:
 		block_based_queue& fifo;
-	
-		block_t* read_block = &dummy_block;
-		block_t* write_block = &dummy_block;
+
+		std::uint64_t read_window = 0;
+		std::uint64_t write_window = 0;
 
 		std::uint64_t write_epoch = 0;
 		std::uint64_t read_epoch = 0;
+
+		block_t* read_block = &dummy_block;
+		block_t* write_block = &dummy_block;
 
 		std::minstd_rand rng;
 
@@ -215,6 +214,7 @@ public:
 				}
 			} while (true);
 
+			write_window = window_index;
 			write_epoch = fifo.window_to_epoch(window_index);
 			write_block = new_block;
 			return true;
@@ -229,7 +229,9 @@ public:
 				if (new_block == nullptr) {
 					std::uint64_t write_window = fifo.write_window.load(std::memory_order_relaxed);
 					if (write_window == window_index + 1) {
-						if (!fifo.index_to_window(write_window).filled_set.any(std::memory_order_relaxed)) {
+						window_t& new_window = fifo.index_to_window(write_window);
+						std::uint64_t write_epoch = fifo.window_to_epoch(write_window);
+						if (!new_window.filled_set.any(std::memory_order_relaxed)) {
 							return false;
 						}
 
@@ -238,7 +240,7 @@ public:
 						// the read window from being moved before all blocks have either been claimed or invalidated.
 						// By just fully setting the bitset we share the task of incrementing the epochs of unclaimed blocks
 						// among the read threads.
-						fifo.index_to_window(write_window).filled_set.set_all(std::memory_order_relaxed);
+						new_window.filled_set.set_all(write_epoch, std::memory_order_relaxed);
 
 						fifo.write_window.compare_exchange_strong(write_window, write_window + 1, std::memory_order_relaxed);
 #if BBQ_LOG_WINDOW_MOVE
@@ -268,6 +270,7 @@ public:
 				}
 			} while (true);
 
+			read_window = window_index;
 			read_epoch = fifo.window_to_epoch(window_index);
 			read_block = new_block;
 			return true;
@@ -346,7 +349,8 @@ public:
 				ei = (ei & 0xffff'0000'ffff'ffffull) | (index << 32);
 				// Before we mark this block as empty, we make it unavailable for other readers and writers of this epoch.
 				if (header->epoch_and_indices.compare_exchange_strong(ei, epoch_to_header(read_epoch + 1), std::memory_order_relaxed)) {
-					window_t& window = fifo.block_to_window(read_block);
+					// TODO: Store block index instead of calculating?
+					window_t& window = fifo.index_to_window(read_window);
 					auto diff = read_block - window.blocks;
 					window.filled_set.reset(diff, std::memory_order_relaxed);
 				}
