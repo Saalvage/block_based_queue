@@ -5,6 +5,8 @@
 
 #include <optional>
 
+#include <fstream>
+
 #include "../contenders/multififo/ring_buffer.hpp"
 #include "../contenders/multififo/util/graph.hpp"
 #include "../contenders/multififo/util/termination_detection.hpp"
@@ -37,12 +39,15 @@ std::tuple<std::uint64_t, std::uint32_t, std::vector<std::uint32_t>> sequential_
             auto node_id = graph.edges[i].target;
             if (distances[node_id] == std::numeric_limits<std::uint32_t>::max()) {
                 distances[node_id] = d;
-                std::cout << "SET DISTANCE TO " << d << std::endl;
                 nodes.push(static_cast<std::uint32_t>(node_id));
             }
         }
     }
     auto end = std::chrono::steady_clock::now().time_since_epoch().count();
+    std::ofstream a{ "seq.csv" };
+    for (auto i : distances) {
+        a << i << '\n';
+    }
     return std::tuple(end - now, *std::max_element(distances.begin(), distances.end()), distances);
 }
 
@@ -166,6 +171,11 @@ struct benchmark_bfs : benchmark_timed<> {
             }
             return a_val < b_val;
         })->value.load();
+
+        std::ofstream a{ "par.csv" };
+        for (auto i : distances) {
+            a << i.value << '\n';
+        }
 
         stream << time_nanos << ',' << longest_distance << ',' << total_counts.pushed_nodes << ',' << total_counts.processed_nodes << ',' << total_counts.ignored_nodes;
     }
