@@ -99,7 +99,7 @@ private:
                 }
                 // Keep retrying until the bit we are trying to claim has changed.
                 while (true) {
-                    if (epoch_and_bits.compare_exchange_weak(eb, make_unit(epoch) | test, order)) {
+                    if (epoch_and_bits.compare_exchange_weak(eb, test == 0 ? make_unit(epoch + 1) : (make_unit(epoch) | test), order)) {
                         return original_index;
                     }
                     if (get_epoch(eb) != epoch) [[unlikely]] {
