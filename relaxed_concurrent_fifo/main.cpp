@@ -128,11 +128,6 @@ int main(int argc, const char** argv) {
 
 	//test_consistency<8, 16>(20000, 200000, 0);
 
-	std::vector<int> processor_counts;
-	for (int i = 1; i <= static_cast<int>(std::thread::hardware_concurrency()); i *= 2) {
-		processor_counts.emplace_back(i);
-	}
-
 	constexpr int TEST_ITERATIONS_DEFAULT = 2;
 	constexpr int TEST_TIME_SECONDS_DEFAULT = 5;
 
@@ -175,6 +170,15 @@ int main(int argc, const char** argv) {
 	}
 
 	input = std::strtol(argv[1], nullptr, 10);
+
+	std::vector<int> processor_counts;
+	if (input == 6) {
+		processor_counts.emplace_back(std::thread::hardware_concurrency());
+	} else {
+		for (int i = 1; i <= static_cast<int>(std::thread::hardware_concurrency()); i *= 2) {
+			processor_counts.emplace_back(i);
+		}
+	}
 
 	std::optional<double> prefill_override;
 	auto test_its = TEST_ITERATIONS_DEFAULT;
@@ -254,12 +258,20 @@ int main(int argc, const char** argv) {
 	case 6: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_prodcon>>> instances;
 		add_instances(instances, fifo_set, is_exclude);
-		// TODO: This can be done nicer to account for different thread counts.
-		for (int producers = 8; producers < 128; producers += 8) {
-			auto consumers = 128 - producers;
+		if (processor_counts.size() != 1) {
+			std::cout << "Notice: Producer-consumer benchmark only considers last provided processor count" << std::endl;
+		}
+		auto threads = processor_counts.back();
+		auto increments = threads / 16;
+		if (threads % 16 != 0) {
+			std::cout << "Error: Thread count must be divisible by 16 for producer-consumer benchmark!" << std::endl;
+			return 6;
+		}
+		for (int producers = increments; producers < threads; producers += increments) {
+			auto consumers = threads - producers;
 			run_benchmark<benchmark_prodcon, benchmark_info_prodcon, int, int>(
 				std::format("prodcon-{}-{}", producers, consumers), instances, prefill_override.value_or(0.5),
-				{ processor_counts.back() }, test_its, test_time_secs, producers, consumers);
+				{ threads }, test_its, test_time_secs, producers, consumers);
 		}
 	} break;
 	case 7: {
