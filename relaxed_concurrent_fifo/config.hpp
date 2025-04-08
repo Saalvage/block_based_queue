@@ -41,7 +41,7 @@ static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 #if defined(INCLUDE_BBQ) || defined(INCLUDE_ALL)
 #ifdef PARAMETER_TUNING
 	for (int b = 1; b <= 16; b *= 2) {
-		for (int c = 2; c <= 128; c *= 2) {
+		for (int c = 2; c <= 512; c *= 2) {
 			instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("{},{},bbq", b, c - 1));
 		}
 	}
@@ -80,9 +80,13 @@ static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 #endif
 
 #if defined(__GNUC__) && (defined(INCLUDE_DCBO) || defined(INCLUDE_ALL))
-	for (int w = 1; w <= 8; w *= 2) {
-		instances.push_back(std::make_unique<benchmark_provider_dcbo<BENCHMARK>>("{}-dcbo", w));
+#ifdef PARAMETER_TUNING
+    for (int w = 1; w <= 8; w *= 2) {
+		instances.push_back(std::make_unique<benchmark_provider_dcbo<BENCHMARK>>("{},dcbo", w));
 	}
+#else
+	instances.push_back(std::make_unique<benchmark_provider_dcbo<BENCHMARK>>("{}-dcbo", 1));
+#endif
 #endif
 
 #if defined (__GNUC__) && (defined(INCLUDE_2D) || defined(INCLUDE_ALL))
