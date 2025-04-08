@@ -82,7 +82,7 @@ class MultiFifo {
 
             assert((size_per_queue_ & (size_per_queue_ - 1)) == 0);
 
-            std::allocator_traits<buffer_allocator_type>::allocate(
+            buffer_ = std::allocator_traits<buffer_allocator_type>::allocate(
                 alloc_,
                 ((sizeof(guard_type) + size_per_queue_ * sizeof(Element)) *
                  num_queues_));
