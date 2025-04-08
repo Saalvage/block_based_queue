@@ -13,36 +13,40 @@ class Handle : public multififo::mode::StickRandom<2> {
     using value_type = typename Context::value_type;
 
     bool scan_push(value_type const &v) {
-        for (auto *it = context_->queue_guards(); it != context_->queue_guards() + context_->num_queues(); ++it) {
-            if (!it->try_lock()) {
+        for (std::size_t i = 0; i < context_->num_queues(); ++i) {
+            auto ptr = context_->queue_storage(i);
+            auto* guard = context_->queue_guard(ptr);
+            if (!guard->try_lock()) {
                 continue;
             }
-            if (it->get_queue().full()) {
-                it->unlock();
+            if (guard->unsafe_size() == context_->size_per_queue()) {
+                guard->unlock();
                 continue;
             }
             auto tick = __rdtsc();
-            it->get_queue().push({tick, v});
-            it->pushed();
-            it->unlock();
+            context_->push(ptr, {tick, v});
+            context_->pushed(ptr);
+            guard->unlock();
             return true;
         }
         return false;
     }
 
     std::optional<value_type> scan_pop() {
-        for (auto *it = context_->queue_guards(); it != context_->queue_guards() + context_->num_queues(); ++it) {
-            if (!it->try_lock()) {
+        for (std::size_t i = 0; i < context_->num_queues(); ++i) {
+            auto ptr = context_->queue_storage(i);
+            auto * guard = context_->queue_guard(ptr);
+            if (!guard->try_lock()) {
                 continue;
             }
-            if (it->get_queue().empty()) {
-                it->unlock();
+            if (guard->unsafe_empty()) {
+                guard->unlock();
                 continue;
             }
-            auto v = it->get_queue().top().value;
-            it->get_queue().pop();
-            it->popped();
-            it->unlock();
+            auto v = context_->top(ptr);
+            context_->pop(ptr);
+            context_->popped(ptr);
+            guard->unlock();
             return v;
         }
         return std::nullopt;
