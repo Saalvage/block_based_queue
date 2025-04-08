@@ -203,6 +203,7 @@ public:
 		}
 
 		for (std::size_t j = 0; j < blocks_per_window; j++) {
+			touched_set.set_epoch_if_empty(0, 0);
 			filled_set.set_epoch_if_empty(0, 0);
 			get_block(0, j).get_header() = epoch_to_header(1);
 		}
@@ -229,6 +230,9 @@ public:
 
 		std::uint64_t read_window = 0;
 		std::uint64_t write_window = 0;
+
+		std::uint64_t read_index = 0;
+		std::uint64_t write_index = 0;
 
 		std::uint64_t write_epoch = 0;
 		std::uint64_t read_epoch = 0;
@@ -272,7 +276,8 @@ public:
 				}
 			} while (true);
 
-			write_window = fifo.window_to_index(window_index);
+			write_window = window_index;
+			write_index = fifo.window_to_index(window_index);
 			write_epoch = fifo.window_to_epoch(window_index);
 			write_block = new_block;
 			return true;
@@ -336,7 +341,8 @@ public:
 				}
 			} while (true);
 
-			read_window = fifo.window_to_index(window_index);
+			read_window = window_index;
+			read_index = fifo.window_to_index(window_index);
 			read_epoch = fifo.window_to_epoch(window_index);
 			read_block = new_block;
 			return true;
@@ -384,7 +390,7 @@ public:
 				if (epoch_valid(get_epoch(ei), read_epoch)) {
 					if ((index = get_read_index(ei)) + 1 == get_write_index(ei)) {
 						if (header->compare_exchange_weak(ei, epoch_to_header(read_epoch + 1), std::memory_order_acquire, std::memory_order_relaxed)) {
-							fifo.filled_set.reset(read_window, fifo.block_index(read_window, read_block), read_epoch, std::memory_order_relaxed);
+							fifo.filled_set.reset(read_index, fifo.block_index(read_index, read_block), read_epoch, std::memory_order_relaxed);
 							break;
 						}
 					} else {
@@ -405,7 +411,7 @@ public:
 					//    but can't write the header, we simply reset the bit (would fail anyway if epoch is incorrect).
 					// In case 1. we invalidate both block and bitset, in case 2. block is already invalidated.
 					if (!epoch_valid(get_epoch(ei), read_epoch) || header->compare_exchange_strong(ei, epoch_to_header(read_epoch + 1), std::memory_order_relaxed)) {
-						fifo.filled_set.reset(read_window, fifo.block_index(read_window, read_block), read_epoch, std::memory_order_relaxed);
+						fifo.filled_set.reset(read_index, fifo.block_index(read_index, read_block), read_epoch, std::memory_order_relaxed);
 					}
 					// If the CAS fails, the only thing that could've occurred was the write index being increased,
 					// making us able to read an element from the block.
