@@ -38,11 +38,10 @@ Graph::Graph(std::filesystem::path const& graph_file) {
     std::size_t num_nodes = 0;
     std::size_t num_edges = 0;
     if (*it == 'p') {
-        while (std::isspace(*++it) != 0) {
-        }
-        while (std::isspace(*++it) == 0) {
-        }
-        while (std::isspace(*++it) != 0) {
+        while (std::isspace(*++it));
+        if (!std::isdigit(*it)) {
+            while (!std::isspace(*++it));
+            while (std::isspace(*++it));
         }
         auto res = std::from_chars(it, end, num_nodes);
         if (res.ec != std::errc{}) {
@@ -73,7 +72,7 @@ Graph::Graph(std::filesystem::path const& graph_file) {
         while (std::isspace(*it) != 0) {
             ++it;
         }
-        if (*it != 'a' || (std::isspace(*(it + 1)) == 0)) {
+        if ((*it != 'a' && *it != 'e') || !std::isspace(*(it + 1))) {
             throw std::runtime_error("Invalid edge format");
         }
         it += 2;
@@ -87,7 +86,7 @@ Graph::Graph(std::filesystem::path const& graph_file) {
         }
         ++nodes[edge.first + 1];
         it = res.ptr;
-        while (std::isspace(*it) != 0) {
+        while (std::isspace(*it)) {
             ++it;
         }
         res = std::from_chars(it, end, edge.second.target);
@@ -99,13 +98,10 @@ Graph::Graph(std::filesystem::path const& graph_file) {
             throw std::runtime_error("Invalid edge target");
         }
         it = res.ptr;
-        while (std::isspace(*it) != 0) {
+        while (std::isspace(*it)) {
             ++it;
         }
         res = std::from_chars(it, end, edge.second.weight);
-        if (res.ec != std::errc{}) {
-            throw std::runtime_error("Failed to parse edge weight");
-        }
         it = res.ptr;
         edge_list.push_back(edge);
     }
