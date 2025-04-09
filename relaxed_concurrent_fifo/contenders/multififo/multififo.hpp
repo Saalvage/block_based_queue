@@ -9,8 +9,8 @@
 **/
 #pragma once
 
+#include "build_config.hpp"
 #include "handle.hpp"
-#include "queue_guard.hpp"
 #include "ring_buffer.hpp"
 
 #include <atomic>
@@ -21,6 +21,24 @@
 
 namespace multififo {
 
+struct alignas(build_config::l1_cache_line_size) QueueIndex {
+    std::uint64_t head{0};
+    std::uint64_t tail{0};
+};
+
+struct alignas(build_config::l1_cache_line_size) QueueGuard {
+    std::atomic<std::uint64_t> top_tick =
+        std::numeric_limits<std::uint64_t>::max();
+    std::atomic_uint32_t lock = 0;
+    QueueIndex queue_index;
+    /* QueueGuard() = default; */
+    /* QueueGuard(QueueGuard const &) = delete; */
+    /* QueueGuard(QueueGuard &&) { */
+    /*     queue_index = {}; */
+    /*     top_tick.store(std::numeric_limits<std::uint64_t>::max(), */
+    /*                    std::memory_order_relaxed); */
+    /* } */
+};
 template <typename T, typename Allocator = std::allocator<T>>
 class MultiFifo {
    public:
@@ -84,17 +102,16 @@ class MultiFifo {
 
             buffer_ = std::allocator_traits<buffer_allocator_type>::allocate(
                 alloc_,
-                ((sizeof(guard_type) + size_per_queue_ * sizeof(Element)) *
-                 num_queues_));
+                (sizeof(guard_type) + size_per_queue_ * sizeof(Element)) *
+                    num_queues_);
             auto guard_alloc = guard_allocator_type(alloc_);
             auto elem_alloc = elem_allocator_type(alloc_);
             for (int i = 0; i < num_queues_; ++i) {
-                std::byte *ptr = reinterpret_cast<std::byte *>(buffer_) +
-                                 i * (sizeof(guard_type) +
-                                      size_per_queue_ * sizeof(Element));
+                std::byte *ptr =
+                    buffer_ + (i * (sizeof(guard_type) +
+                                    size_per_queue_ * sizeof(Element)));
                 std::allocator_traits<guard_allocator_type>::construct(
-                    guard_alloc, reinterpret_cast<guard_type *>(ptr),
-                    guard_type{});
+                    guard_alloc, reinterpret_cast<guard_type *>(ptr));
                 for (int j = 0; j < size_per_queue_; ++j) {
                     std::allocator_traits<elem_allocator_type>::construct(
                         elem_alloc,
@@ -129,45 +146,78 @@ class MultiFifo {
             return top_elem(ptr).value;
         }
 
-        void pop(std::byte *ptr) {
-            auto &guard = *std::launder(reinterpret_cast<guard_type *>(ptr));
-            assert(!guard.unsafe_empty());
-            ++guard.queue_index.tail;
+        [[nodiscard]] bool empty(std::byte *ptr) const noexcept {
+            return std::launder(reinterpret_cast<guard_type *>(ptr))
+                       ->top_tick.load(std::memory_order_relaxed) ==
+                   std::numeric_limits<std::uint64_t>::max();
         }
 
-        void push(std::byte *ptr, element_type const& value) {
-            auto &guard = *std::launder(reinterpret_cast<guard_type *>(ptr));
-            assert(guard.queue_index.head - guard.queue_index.tail <
-                   size_per_queue_);
+        bool try_lock(std::byte *ptr) noexcept {
+            auto &lock =
+                std::launder(reinterpret_cast<guard_type *>(ptr))->lock;
+            // Test first to not invalidate the cache line
+            return (lock.load(std::memory_order_relaxed) & 1U) == 0U &&
+                   (lock.exchange(1U, std::memory_order_acquire) & 1) == 0U;
+        }
+
+        [[nodiscard]] constexpr bool unsafe_empty(
+            std::byte *ptr) const noexcept {
+            auto const &queue_index =
+                std::launder(reinterpret_cast<guard_type *>(ptr))->queue_index;
+            return queue_index.head == queue_index.tail;
+        }
+
+        constexpr size_type unsafe_size(std::byte *ptr) const noexcept {
+            auto const &queue_index =
+                std::launder(reinterpret_cast<guard_type *>(ptr))->queue_index;
+            return queue_index.head - queue_index.tail;
+        }
+
+        void unlock(std::byte *ptr) {
+            std::launder(reinterpret_cast<guard_type *>(ptr))
+                ->lock.store(0U, std::memory_order_release);
+        }
+
+        void pop(std::byte *ptr) {
+            assert(!unsafe_empty(ptr));
+            ++(std::launder(reinterpret_cast<guard_type *>(ptr))
+                   ->queue_index.tail);
+        }
+
+        void push(std::byte *ptr, element_type const &value) {
+            auto &queue_index =
+                std::launder(reinterpret_cast<guard_type *>(ptr))->queue_index;
+            assert(queue_index.head - queue_index.tail < size_per_queue_);
             *std::launder(reinterpret_cast<Element *>(
                 ptr + sizeof(guard_type) +
-                (guard.queue_index.head & mask_) * sizeof(Element))) = value;
-            ++guard.queue_index.head;
+                (queue_index.head & mask_) * sizeof(Element))) = value;
+            ++queue_index.head;
         }
 
         void push(std::byte *ptr, element_type &&value) {
-            auto &guard = *std::launder(reinterpret_cast<guard_type *>(ptr));
-            assert(guard.queue_index.head - guard.queue_index.tail <
-                   size_per_queue_);
+            auto &head = std::launder(reinterpret_cast<guard_type *>(ptr))
+                             ->queue_index.head;
             *std::launder(reinterpret_cast<Element *>(
-                ptr + sizeof(guard_type) +
-                (guard.queue_index.head & mask_) * sizeof(Element))) =
+                ptr + sizeof(guard_type) + (head & mask_) * sizeof(Element))) =
                 std::move(value);
-            ++guard.queue_index.head;
+            ++head;
         }
 
         void popped(std::byte *ptr) {
-            auto &guard = *std::launder(reinterpret_cast<guard_type *>(ptr));
-            auto tick = (guard.unsafe_empty()
-                             ? std::numeric_limits<std::uint64_t>::max()
-                             : top_elem(ptr).tick);
+            auto &top_tick =
+                std::launder(reinterpret_cast<guard_type *>(ptr))->top_tick;
+            top_tick.store(
+                (unsafe_empty(ptr) ? std::numeric_limits<std::uint64_t>::max()
+                                   : top_elem(ptr).tick),
+                std::memory_order_relaxed);
         }
 
         void pushed(std::byte *ptr) {
-            auto &guard = *std::launder(reinterpret_cast<guard_type *>(ptr));
+            auto &top_tick =
+                std::launder(reinterpret_cast<guard_type *>(ptr))->top_tick;
             auto tick = top_elem(ptr).tick;
-            if (tick != guard.top_tick.load(std::memory_order_relaxed)) {
-                guard.top_tick.store(tick, std::memory_order_relaxed);
+            if (tick != top_tick.load(std::memory_order_relaxed)) {
+                top_tick.store(tick, std::memory_order_relaxed);
             }
         }
 

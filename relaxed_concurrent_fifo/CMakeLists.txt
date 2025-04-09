@@ -11,9 +11,14 @@ if(NOT MSVC)
 else()
   set(sources ${sources} "contenders/multififo/util/graph.portable.cpp")
 endif()
-
+find_package(Threads REQUIRED)
+find_package(TBB REQUIRED)
 # Add source to this project's executable.
 add_executable (relaxed_concurrent_fifo ${sources})
+set_target_properties(relaxed_concurrent_fifo PROPERTIES
+  CXX_STANDARD 23
+)
+target_link_libraries(relaxed_concurrent_fifo PRIVATE Threads::Threads TBB::tbb)
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET relaxed_concurrent_fifo PROPERTY CXX_STANDARD 20)

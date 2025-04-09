@@ -69,17 +69,16 @@ class StickRandom {
                     best_tick = tick;
                 }
             }
-            auto& guard = *ctx.queue_guard(best_ptr);
-            if (guard.try_lock()) {
-                if (guard.unsafe_empty()) {
-                    guard.unlock();
+            if (ctx.try_lock(best_ptr)) {
+                if (ctx.unsafe_empty(best_ptr)) {
+                    ctx.unlock(best_ptr);
                     count_ = 0;
                     return std::nullopt;
                 }
                 auto v = ctx.top(best_ptr);
                 ctx.pop(best_ptr);
                 ctx.popped(best_ptr);
-                guard.unlock();
+                ctx.unlock(best_ptr);
                 --count_;
                 return v;
             }
@@ -97,17 +96,16 @@ class StickRandom {
         std::size_t push_index = rng_() % num_pop_candidates;
         while (true) {
             auto *ptr = ctx.queue_storage(pop_index_[push_index]);
-            auto& guard = *ctx.queue_guard(ptr);
-            if (guard.try_lock()) {
-                if (guard.unsafe_size() == ctx.size_per_queue()) {
-                    guard.unlock();
+            if (ctx.try_lock(ptr)) {
+                if (ctx.unsafe_size(ptr) == ctx.size_per_queue()) {
+                    ctx.unlock(ptr);
                     count_ = 0;
                     return false;
                 }
                 auto tick = __rdtsc();
                 ctx.push(ptr, {tick, v});
                 ctx.pushed(ptr);
-                guard.unlock();
+                ctx.unlock(ptr);
                 --count_;
                 return true;
             }

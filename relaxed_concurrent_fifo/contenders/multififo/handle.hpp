@@ -15,18 +15,17 @@ class Handle : public multififo::mode::StickRandom<2> {
     bool scan_push(value_type const &v) {
         for (std::size_t i = 0; i < context_->num_queues(); ++i) {
             auto ptr = context_->queue_storage(i);
-            auto* guard = context_->queue_guard(ptr);
-            if (!guard->try_lock()) {
+            if (!context_->try_lock(ptr)) {
                 continue;
             }
-            if (guard->unsafe_size() == context_->size_per_queue()) {
-                guard->unlock();
+            if (context_->unsafe_size(ptr) == context_->size_per_queue()) {
+                context_->unlock(ptr);
                 continue;
             }
             auto tick = __rdtsc();
             context_->push(ptr, {tick, v});
             context_->pushed(ptr);
-            guard->unlock();
+            context_->unlock(ptr);
             return true;
         }
         return false;
@@ -35,18 +34,17 @@ class Handle : public multififo::mode::StickRandom<2> {
     std::optional<value_type> scan_pop() {
         for (std::size_t i = 0; i < context_->num_queues(); ++i) {
             auto ptr = context_->queue_storage(i);
-            auto * guard = context_->queue_guard(ptr);
-            if (!guard->try_lock()) {
+            if (!context_->try_lock(ptr)) {
                 continue;
             }
-            if (guard->unsafe_empty()) {
-                guard->unlock();
+            if (context_->unsafe_empty(ptr)) {
+                context_->unlock(ptr);
                 continue;
             }
             auto v = context_->top(ptr);
             context_->pop(ptr);
             context_->popped(ptr);
-            guard->unlock();
+            context_->unlock(ptr);
             return v;
         }
         return std::nullopt;
