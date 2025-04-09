@@ -228,11 +228,11 @@ public:
 	private:
 		block_based_queue& fifo;
 
+		// Write equivalent not needed.
 		std::uint64_t read_window = 0;
-		std::uint64_t write_window = 0;
 
+		// Write equivalent not needed.
 		std::uint64_t read_index = 0;
-		std::uint64_t write_index = 0;
 
 		std::uint64_t write_epoch = 0;
 		std::uint64_t read_epoch = 0;
@@ -276,8 +276,6 @@ public:
 				}
 			} while (true);
 
-			write_window = window_index;
-			write_index = fifo.window_to_index(window_index);
 			write_epoch = fifo.window_to_epoch(window_index);
 			write_block = new_block;
 			return true;
