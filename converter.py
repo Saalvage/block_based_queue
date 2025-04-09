@@ -9,7 +9,8 @@ class impl:
 
 impls = { }
 
-file = sys.argv[1] if len(sys.argv) == 2 else input("Please enter the .csv data file: ")
+file = sys.argv[1] if len(sys.argv) >= 2 else input("Please enter the .csv data file: ")
+output_prefix = sys.argv[2] if len(sys.argv) >= 3 else input("Please enter the output file prefix: ")
 
 with open(file) as file:
     lines = csv.reader(file)
@@ -25,6 +26,7 @@ with open(file) as file:
             impls[name].values[x].append(y)
 
 for k, v in impls.items():
-    for x, y in sorted(v.values.items()):
-        print(k + " " + str(x) + " " + str(statistics.mean(y)) + " " + str(statistics.stdev(y)))
-    print()
+    with open(output_prefix + "-" + k + ".dat", "w") as file:
+        file.write("threads its std\n")
+        for x, y in sorted(v.values.items()):
+            file.write(str(x) + " " + str(statistics.mean(y)) + " " + str(statistics.stdev(y)) + "\n")
