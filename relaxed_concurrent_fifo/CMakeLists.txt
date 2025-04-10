@@ -19,6 +19,11 @@ if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET relaxed_concurrent_fifo PROPERTY CXX_STANDARD 20)
 endif()
 
+find_package(Threads REQUIRED)
+find_package(TBB REQUIRED)
+
+target_link_libraries(relaxed_concurrent_fifo PRIVATE Threads::Threads TBB::tbb)
+
 if(MSVC)
   target_compile_options(relaxed_concurrent_fifo PRIVATE /W3 /WX /bigobj)
 else()
