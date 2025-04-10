@@ -30,10 +30,10 @@ std::tuple<std::uint64_t, std::uint32_t, std::vector<std::uint32_t>> sequential_
         nodes.pop();
         auto d = distances[node_id] + 1;
         for (auto i = graph.nodes[node_id]; i < graph.nodes[node_id + 1]; ++i) {
-            auto node_id = graph.edges[i].target;
-            if (distances[node_id] == std::numeric_limits<std::uint32_t>::max()) {
-                distances[node_id] = d;
-                nodes.push(static_cast<std::uint32_t>(node_id));
+            auto new_node_id = graph.edges[i].target;
+            if (distances[new_node_id] == std::numeric_limits<std::uint32_t>::max()) {
+                distances[new_node_id] = d;
+                nodes.push(static_cast<std::uint32_t>(new_node_id));
             }
         }
     }

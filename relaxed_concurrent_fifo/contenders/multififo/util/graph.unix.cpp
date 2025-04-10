@@ -106,7 +106,7 @@ Graph::Graph(std::filesystem::path const& graph_file) {
         edge_list.push_back(edge);
     }
     munmap(addr, static_cast<std::size_t>(sb.st_size));
-    std::exclusive_scan(nodes.begin() + 1, nodes.end(), nodes.begin() + 1, 0);
+    std::exclusive_scan(nodes.begin() + 1, nodes.end(), nodes.begin() + 1, static_cast<std::size_t>(0));
     edges.resize(edge_list.size());
     for (auto& edge : edge_list) {
         edges[nodes[edge.first + 1]++] = edge.second;
