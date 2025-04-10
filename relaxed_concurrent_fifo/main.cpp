@@ -165,6 +165,7 @@ int main(int argc, const char** argv) {
 			"[-s | --test_time_seconds <count> (default " << TEST_TIME_SECONDS_DEFAULT << ")] "
 			"[-r | --run_count <count> (default " << TEST_ITERATIONS_DEFAULT << ")]"
 			"[-f | --prefill <factor>]"
+			"[-p | --parameter-tuning]"
 			" ([-i | --include <fifo>]* | [-e | --exclude <fifo>]*)\n";
 		return 0;
 	}
@@ -201,7 +202,7 @@ int main(int argc, const char** argv) {
 		} else if (strcmp(argv[i], "-r") == 0 || strcmp(argv[i], "--run_count") == 0) {
 			i++;
 			test_its = std::strtol(argv[i], nullptr, 10);
-		} else if (strcmp(argv[i], "-s") == 0 || strcmp(argv[i], "--thread_count_seconds") == 0) {
+		} else if (strcmp(argv[i], "-s") == 0 || strcmp(argv[i], "--test_time_seconds") == 0) {
 			i++;
 			test_time_secs = std::strtol(argv[i], nullptr, 10);
 		} else if (strcmp(argv[i], "-f") == 0 || strcmp(argv[i], "--prefill") == 0) {

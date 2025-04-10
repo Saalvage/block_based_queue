@@ -18,6 +18,10 @@ public:
             seeds = seed_rand();
         }
 
+        ~handle() {
+            d_balanced_free();
+        }
+
         bool push(std::uint64_t value) {
             return enqueue_dcbo(queue, value, value);
         }
@@ -38,8 +42,17 @@ public:
 
     ~wrapper_dcbo_queue() {
         // How can you not offer this functionality built-in??
-        auto handle = get_handle();
-        while (handle.pop().has_value()) { }
+        for (std::size_t i = 0; i < queue->width; i++) {
+            queue_t& partial_queue = queue->queues[i];
+            RingQueue* head = partial_queue.head;
+            while (head != nullptr) {
+                RingQueue* tmp = head->next;
+                ssfree(head);
+                head = tmp;
+            }
+        }
+        ssfree(queue->queues);
+        ssfree(queue);
     }
 };
 

@@ -158,6 +158,12 @@ dbco_queue* d_balanced_register(dbco_queue *set, int thread_id)
     return set;
 }
 
+void d_balanced_free()
+{
+    free(double_collect_counts);
+    double_collect_counts = NULL;
+}
+
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
 #endif // __GNUC__
