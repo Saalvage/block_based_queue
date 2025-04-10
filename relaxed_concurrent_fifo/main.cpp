@@ -440,29 +440,6 @@ int main(int argc, const char** argv) {
                 instances, 0, processor_counts, test_its, 0, &graph);
             break;
         }
-        case 8: {
-            std::filesystem::path graph_file;
-            if (argc > 2) {
-                graph_file = argv[2];
-            } else {
-                std::cout << "Please enter your graph file: ";
-                std::cin >> graph_file;
-            }
-            Graph graph{graph_file};
-
-            for (int i = 0; i < test_its; i++) {
-                auto [time, dist] = sequential_bfs(graph);
-                std::cout << "Sequential time: " << time
-                          << "; Dist: " << dist + 1 << std::endl;
-            }
-
-            std::vector<std::unique_ptr<benchmark_provider<benchmark_bfs_no_dist>>>
-                instances;
-            add_instances(instances, fifo_set, is_exclude);
-            run_benchmark<benchmark_bfs_no_dist, benchmark_info_graph, Graph*>(
-                std::format("bfs-no-dist-{}", graph_file.filename().string()),
-                instances, 0, processor_counts, test_its, 0, &graph);
-        } break;
     }
 
     return 0;
