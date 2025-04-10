@@ -89,7 +89,7 @@ static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 #endif
 #endif
 
-#if defined (__GNUC__) && (defined(INCLUDE_2D) || defined(INCLUDE_ALL))
+#if defined (__GNUC__) && (defined(INCLUDE_2D)/* || defined(INCLUDE_ALL)*/)
 	for (int w = 1; w <= 8; w *= 2) {
 		for (int k = 1; k <= 8192; k *= 2) {
 			instances.push_back(std::make_unique<benchmark_provider_2Dd<BENCHMARK>>("{},{}-2Dqueue", w, k));
