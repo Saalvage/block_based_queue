@@ -185,6 +185,7 @@ int main(int argc, const char** argv) {
 	auto test_time_secs = TEST_TIME_SECONDS_DEFAULT;
 
 	std::unordered_set<std::string> fifo_set;
+	bool parameter_tuning = false;
 	bool is_exclude = true;
 
 	for (int i = input == 7 ? 3 : 2; i < argc; i++) {
@@ -203,9 +204,11 @@ int main(int argc, const char** argv) {
 		} else if (strcmp(argv[i], "-s") == 0 || strcmp(argv[i], "--thread_count_seconds") == 0) {
 			i++;
 			test_time_secs = std::strtol(argv[i], nullptr, 10);
-		}  else if (strcmp(argv[i], "-f") == 0 || strcmp(argv[i], "--prefill") == 0) {
+		} else if (strcmp(argv[i], "-f") == 0 || strcmp(argv[i], "--prefill") == 0) {
 			i++;
 			prefill_override = std::strtod(argv[i], nullptr);
+		} else if (strcmp(argv[i], "-p") == 0 || strcmp(argv[i], "--parameter-tuning") == 0) {
+			parameter_tuning = true;
 		} else if (strcmp(argv[i], "-i") == 0 || strcmp(argv[i], "--include") == 0) {
 			i++;
 			if (is_exclude) {
@@ -232,32 +235,32 @@ int main(int argc, const char** argv) {
 	switch (input) {
 	case 1: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_default>>> instances;
-		add_instances(instances, fifo_set, is_exclude);
+		add_instances(instances, parameter_tuning, fifo_set, is_exclude);
 		run_benchmark("comp", instances, prefill_override.value_or(0.5), processor_counts, test_its, test_time_secs);
 		} break;
 	case 2: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_quality<>>>> instances;
-		add_instances(instances, fifo_set, is_exclude);
+		add_instances(instances, parameter_tuning, fifo_set, is_exclude);
 		run_benchmark("quality", instances, prefill_override.value_or(0.5), processor_counts, test_its, test_time_secs);
 		} break;
 	case 3: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_quality<true>>>> instances;
-		add_instances(instances, fifo_set, is_exclude);
+		add_instances(instances, parameter_tuning, fifo_set, is_exclude);
 		run_benchmark("quality-max", instances, prefill_override.value_or(0.5), { processor_counts.back() }, 1, test_time_secs);
 	} break;
 	case 4: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_fill>>> instances;
-		add_instances(instances, fifo_set, is_exclude);
+		add_instances(instances, parameter_tuning, fifo_set, is_exclude);
 		run_benchmark("fill", instances, prefill_override.value_or(0), processor_counts, test_its, 10);
 		} break;
 	case 5: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_empty>>> instances;
-		add_instances(instances, fifo_set, is_exclude);
+		add_instances(instances, parameter_tuning, fifo_set, is_exclude);
 		run_benchmark("empty", instances, prefill_override.value_or(1), processor_counts, test_its, 10);
 		} break;
 	case 6: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_prodcon>>> instances;
-		add_instances(instances, fifo_set, is_exclude);
+		add_instances(instances, parameter_tuning, fifo_set, is_exclude);
 		if (processor_counts.size() != 1) {
 			std::cout << "Notice: Producer-consumer benchmark only considers last provided processor count" << std::endl;
 		}
@@ -292,7 +295,7 @@ int main(int argc, const char** argv) {
 			}
 
 			std::vector<std::unique_ptr<benchmark_provider<benchmark_bfs>>> instances;
-			add_instances(instances, fifo_set, is_exclude);
+			add_instances(instances, parameter_tuning, fifo_set, is_exclude);
 			run_benchmark<benchmark_bfs, benchmark_info_graph, const Graph&, const std::vector<std::uint32_t>&>(std::format("bfs-{}", graph_file.filename().string()), instances, 0, processor_counts, test_its, 0, graph, distances);
 	} break;
 	}
