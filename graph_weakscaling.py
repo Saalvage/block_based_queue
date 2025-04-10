@@ -11,7 +11,7 @@ while i <= os.cpu_count():
     subprocess.run([exe, "7", graph + str(i) + ".gr", "-t", str(i)] + sys.argv[3:], check=True)
     i *= 2
 
-outfile = "weakscaling-" + graph_file + ".csv", "w"
+outfile = "weakscaling-" + graph_file + ".csv"
 with open(outfile, "w") as out:
     i = 1
     while i <= os.cpu_count():
