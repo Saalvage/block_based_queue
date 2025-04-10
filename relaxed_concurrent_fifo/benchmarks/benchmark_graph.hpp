@@ -76,7 +76,9 @@ struct benchmark_bfs : benchmark_timed<> {
             graph(info.graph),
             distances(graph.num_nodes()),
             termination_detection(info.num_threads),
-            counters(info.num_threads) { }
+            counters(info.num_threads) {
+        fifo_size = std::bit_ceil(graph.nodes.size());
+    }
 
     template <typename FIFO>
     void process_node(std::uint64_t node, typename FIFO::handle& handle, Counter& counter) {

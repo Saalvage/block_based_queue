@@ -26,11 +26,10 @@ public:
 
 protected:
     template <fifo FIFO>
-    static BENCHMARK test_single(FIFO& fifo, const benchmark_info& info, double prefill_amount) {
+    static void test_single(FIFO& fifo, BENCHMARK& b, const benchmark_info& info, double prefill_amount) {
         std::barrier a{info.num_threads + 1};
         std::atomic_bool over = false;
         std::vector<std::jthread> threads(info.num_threads);
-        BENCHMARK b{info};
 
         for (int i = 0; i < info.num_threads; i++) {
             threads[i] = std::jthread([&, i]() {
@@ -48,8 +47,8 @@ protected:
 
                 // If PREFILL_IN_ORDER is set we sequentially fill the queue from a single handle.
                 std::size_t prefill = static_cast<std::size_t>(BENCHMARK::PREFILL_IN_ORDER
-                    ? (i == 0 ? prefill_amount * BENCHMARK::SIZE : 0)
-                    : prefill_amount * BENCHMARK::SIZE / info.num_threads);
+                    ? (i == 0 ? prefill_amount * b.fifo_size : 0)
+                    : prefill_amount * b.fifo_size / info.num_threads);
 
                 // We prefill from all handles since this may improve performance for certain implementations.
                 for (std::size_t j = 0; j < prefill; j++) {
@@ -88,8 +87,6 @@ protected:
         if constexpr (BENCHMARK::RECORD_TIME) {
             b.time_nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start).count();
         }
-
-        return b;
     }
 };
 

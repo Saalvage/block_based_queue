@@ -15,8 +15,10 @@ public:
     }
 
     BENCHMARK test(const benchmark_info& info, double prefill_amount) const override {
-        FIFO fifo = std::apply([&](Args... args) { return FIFO{ info.num_threads, BENCHMARK::SIZE, args... }; }, args);
-        return benchmark_provider<BENCHMARK>::template test_single<FIFO>(fifo, info, prefill_amount);
+        BENCHMARK b{info};
+        FIFO fifo = std::apply([&](Args... args) { return FIFO{ info.num_threads, b.fifo_size, args...}; }, args);
+        benchmark_provider<BENCHMARK>::template test_single<FIFO>(fifo, b, info, prefill_amount);
+        return b;
     }
 
 private:
