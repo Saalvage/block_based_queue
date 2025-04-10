@@ -54,14 +54,6 @@ class MultiFifo {
         int seed_{1};
         [[no_unique_address]] internal_allocator_type alloc_;
 
-        static constexpr size_t make_po2(size_t size) {
-            size_t ret = 1;
-            while (size > ret) {
-                ret *= 2;
-            }
-            return ret;
-        }
-
         explicit Context(int queue_count, size_t size, int stickiness, int seed,
                          allocator_type const &alloc)
             : num_queues_{queue_count},
@@ -71,7 +63,7 @@ class MultiFifo {
               alloc_{alloc} {
             assert(num_queues_ > 0);
 
-            auto cap_per_queue = make_po2(size / num_queues_);
+            auto cap_per_queue = std::bit_ceil(size / num_queues_);
             assert((cap_per_queue & (cap_per_queue - 1)) == 0);
 
             for (auto *it = queue_guards_; it != queue_guards_ + num_queues_; ++it) {

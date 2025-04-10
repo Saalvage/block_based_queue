@@ -13,6 +13,15 @@ static constexpr std::size_t modulo_po2(std::size_t dividend, std::size_t diviso
 	return dividend & (divisor - 1);
 }
 
+template <typename T>
+struct alignas(std::hardware_destructive_interference_size) cache_aligned_t {
+	T value;
+	T* operator->() { return &value; }
+	const T* operator->() const { return &value; }
+	operator T& () { return value; }
+	operator const T& () const { return value; }
+};
+
 template <template <typename> typename Fifo, typename Elem>
 class wrapper_handle {
 	friend Fifo<Elem>;

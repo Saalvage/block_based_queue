@@ -8,6 +8,8 @@
 #include <limits>
 #include <random>
 
+#include "utility.h"
+
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Winterference-size"
@@ -25,15 +27,6 @@ enum class claim_value {
 enum class claim_mode {
     READ_WRITE,
     READ_ONLY,
-};
-
-template <typename T>
-struct alignas(std::hardware_destructive_interference_size) cache_aligned_t {
-    T atomic;
-    T* operator->() { return &atomic; }
-    const T* operator->() const { return &atomic; }
-    operator T& () { return atomic; }
-    operator const T& () const { return atomic; }
 };
 
 template <typename ARR_TYPE = std::uint8_t>
@@ -135,13 +128,13 @@ public:
     constexpr void set(std::size_t window_index, std::size_t index, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
         assert(window_index < window_count);
         assert(index < blocks_per_window);
-        set_bit_atomic<true>(data[window_index * blocks_per_window + index / bit_count].atomic, index % bit_count, epoch, order);
+        set_bit_atomic<true>(data[window_index * blocks_per_window + index / bit_count], index % bit_count, epoch, order);
     }
 
     constexpr void reset(std::size_t window_index, std::size_t index, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
         assert(window_index < window_count);
         assert(index < blocks_per_window);
-        set_bit_atomic<false>(data[window_index * blocks_per_window + index / bit_count].atomic, index % bit_count, epoch, order);
+        set_bit_atomic<false>(data[window_index * blocks_per_window + index / bit_count], index % bit_count, epoch, order);
     }
 
     [[nodiscard]] constexpr bool test(std::size_t window_index, std::size_t index, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) const {
