@@ -175,7 +175,7 @@ public:
     template <claim_value VALUE, claim_mode MODE>
     std::size_t claim_bit(std::size_t window_index, int starting_bit, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
         assert(window_index < window_count);
-        assert(starting_bit < blocks_per_window);
+        assert(static_cast<std::size_t>(starting_bit) < blocks_per_window);
         int off = starting_bit / bit_count;
         int initial_rot = starting_bit % bit_count;
         for (std::size_t i = 0; i < blocks_per_window; i++) {
