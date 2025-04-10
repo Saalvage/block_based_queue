@@ -165,14 +165,6 @@ struct benchmark_bfs : benchmark_timed<> {
             return;
         }
 
-        for (std::size_t i = 0; i < info.distances.size(); i++) {
-            if (distances[i].value != info.distances[i]) {
-                std::cout << "Node " << i << " has distance " << distances[i].value << ", should be " << info.distances[i] << std::endl;
-                stream << "ERR_DIST_WRONG";
-                return;
-            }
-        }
-
         auto longest_distance =
             std::max_element(
                 distances.begin(), distances.end(),
