@@ -21,9 +21,12 @@ file_quality = sys.argv[2] if len(sys.argv) > 2 else input("Please enter the qua
 
 values = { }
 
+def is_data(entry):
+    return entry.replace(".", "", 1).isdigit()
+
 def get_key(row):
-    if row[0].isdigit():
-        if row[1].isdigit():
+    if is_data(row[0]):
+        if is_data(row[1]):
             return ((row[0], row[1]), 2)
         return ((row[0],), 1)
     return ((), 0)
