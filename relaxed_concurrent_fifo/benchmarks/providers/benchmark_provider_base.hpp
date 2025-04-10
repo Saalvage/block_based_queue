@@ -27,20 +27,6 @@ public:
 protected:
     template <fifo FIFO>
     static BENCHMARK test_single(FIFO& fifo, const benchmark_info& info, double prefill_amount) {
-        std::vector<typename FIFO::handle> handles;
-        handles.reserve(info.num_threads);
-        for (int i = 0; i < info.num_threads; i++) {
-            handles.push_back(fifo.get_handle());
-        }
-        // We prefill from all handles since this may improve performance for certain implementations.
-        // TODO: Is there the possibility of the performance improvement coming from actually being filled concurrently?
-        for (std::size_t i = 0; i < prefill_amount * BENCHMARK::SIZE; i++) {
-            // If PREFILL_IN_ORDER is set we sequentially fill the queue from a single handle.
-            if (!handles[BENCHMARK::PREFILL_IN_ORDER ? 0 : (i % info.num_threads)].push(i + 1)) {
-                break;
-            }
-        }
-
         std::barrier a{info.num_threads + 1};
         std::atomic_bool over = false;
         std::vector<std::jthread> threads(info.num_threads);
