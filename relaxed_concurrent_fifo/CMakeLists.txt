@@ -7,8 +7,10 @@ set(sources
 
 if(NOT MSVC)
    set(sources ${sources} "contenders/2D/2Dd-queue_optimized.c" "contenders/2D/ssalloc.c" "contenders/2D/test.c"
-   "contenders/2D/d-balanced-queue.c" "contenders/2D/lcrq.c")
- endif()
+   "contenders/2D/d-balanced-queue.c" "contenders/2D/lcrq.c" "contenders/multififo/util/graph.unix.cpp")
+else()
+  set(sources ${sources} "contenders/multififo/util/graph.portable.cpp")
+endif()
 
 # Add source to this project's executable.
 add_executable (relaxed_concurrent_fifo ${sources})
