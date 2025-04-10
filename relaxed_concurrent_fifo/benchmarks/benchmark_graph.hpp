@@ -93,8 +93,8 @@ struct benchmark_bfs : benchmark_timed<> {
         } while (!distances[node].value.compare_exchange_weak(
             current_distance, current_distance & ~0x1,
             std::memory_order_relaxed));
-        for (auto i = graph->nodes[node]; i < graph->nodes[node + 1]; ++i) {
-            auto target = graph->edges[i].target;
+        for (auto i = graph.nodes[node]; i < graph.nodes[node + 1]; ++i) {
+            auto target = graph.edges[i].target;
             auto d = current_distance + 2;
             auto old_d =
                 distances[target].value.load(std::memory_order_relaxed);
