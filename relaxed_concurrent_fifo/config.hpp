@@ -61,10 +61,10 @@ static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 		}
 	}
 #else // PARAMETER_TUNING
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("{}-{}-multififo", 2, 2));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("{}-{}-multififo", 4, 16));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("{}-{}-multififo", 4, 32));
-	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("{}-{}-multififo", 4, 128));
+	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("multififo-{}-{}", 2, 2));
+	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("multififo-{}-{}", 4, 16));
+	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("multififo-{}-{}", 4, 32));
+	instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("multififo-{}-{}", 4, 128));
 #endif // PARAMETER_TUNING
 #endif
 
@@ -74,8 +74,8 @@ static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 		instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("{},kfifo", k));
 	}
 #else // PARAMETER_TUNING
-	instances.push_back(std::make_unique<benchmark_provider_ws_kfifo<BENCHMARK>>("ws-{}-kfifo", 1));
-	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("ss-{}-kfifo", 512));
+	instances.push_back(std::make_unique<benchmark_provider_ws_kfifo<BENCHMARK>>("kfifo-ws-{}", 1));
+	instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("kfifo-ss-{}", 512));
 #endif // PARAMETER_TUNING
 #endif
 
@@ -85,7 +85,7 @@ static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 		instances.push_back(std::make_unique<benchmark_provider_dcbo<BENCHMARK>>("{},dcbo", w));
 	}
 #else
-	instances.push_back(std::make_unique<benchmark_provider_dcbo<BENCHMARK>>("{}-dcbo", 1));
+	instances.push_back(std::make_unique<benchmark_provider_dcbo<BENCHMARK>>("dcbo-{}", 1));
 #endif
 #endif
 
