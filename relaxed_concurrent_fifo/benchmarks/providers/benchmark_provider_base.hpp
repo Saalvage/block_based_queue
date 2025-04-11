@@ -74,12 +74,20 @@ protected:
             }
         });
         if constexpr (BENCHMARK::HAS_TIMEOUT) {
-            std::this_thread::sleep_until(start + std::chrono::seconds(info.test_time_seconds));
-            over = true;
+            if constexpr (BENCHMARK::RECORD_TIME) {
+                std::thread([&]() {
+                    std::this_thread::sleep_until(start + std::chrono::seconds(info.test_time_seconds));
+                    over = true;
+                }).detach();
+                joined.wait();
+            } else {
+                std::this_thread::sleep_until(start + std::chrono::seconds(info.test_time_seconds));
+                over = true;
 
-            if (joined.wait_for(std::chrono::seconds(10)) == std::future_status::timeout) {
-                std::cout << "Threads did not complete within timeout, assuming deadlock!" << std::endl;
-                std::exit(1);
+                if (joined.wait_for(std::chrono::seconds(10)) == std::future_status::timeout) {
+                    std::cout << "Threads did not complete within timeout, assuming deadlock!" << std::endl;
+                    std::exit(1);
+                }
             }
         } else {
             joined.wait();

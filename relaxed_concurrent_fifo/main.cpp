@@ -252,12 +252,12 @@ int main(int argc, const char** argv) {
 	case 4: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_fill>>> instances;
 		add_instances(instances, parameter_tuning, fifo_set, is_exclude);
-		run_benchmark("fill", instances, prefill_override.value_or(0), processor_counts, test_its, 10);
+		run_benchmark("fill", instances, prefill_override.value_or(0), processor_counts, test_its, test_time_secs);
 		} break;
 	case 5: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_empty>>> instances;
 		add_instances(instances, parameter_tuning, fifo_set, is_exclude);
-		run_benchmark("empty", instances, prefill_override.value_or(1), processor_counts, test_its, 10);
+		run_benchmark("empty", instances, prefill_override.value_or(1), processor_counts, test_its, test_time_secs);
 		} break;
 	case 6: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_prodcon>>> instances;
