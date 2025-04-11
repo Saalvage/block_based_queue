@@ -8,6 +8,8 @@
 #include <limits>
 #include <random>
 
+#include "utility.h"
+
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Winterference-size"
@@ -25,15 +27,6 @@ enum class claim_value {
 enum class claim_mode {
     READ_WRITE,
     READ_ONLY,
-};
-
-template <typename T>
-struct alignas(std::hardware_destructive_interference_size) cache_aligned_t {
-    T atomic;
-    T* operator->() { return &atomic; }
-    const T* operator->() const { return &atomic; }
-    operator T& () { return atomic; }
-    operator const T& () const { return atomic; }
 };
 
 template <typename ARR_TYPE = std::uint8_t>
@@ -99,7 +92,7 @@ private:
                 }
                 // Keep retrying until the bit we are trying to claim has changed.
                 while (true) {
-                    if (epoch_and_bits.compare_exchange_weak(eb, make_unit(epoch) | test, order)) {
+                    if (epoch_and_bits.compare_exchange_weak(eb, test == 0 ? make_unit(epoch + 1) : (make_unit(epoch) | test), order)) {
                         return original_index;
                     }
                     if (get_epoch(eb) != epoch) [[unlikely]] {
@@ -135,13 +128,13 @@ public:
     constexpr void set(std::size_t window_index, std::size_t index, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
         assert(window_index < window_count);
         assert(index < blocks_per_window);
-        set_bit_atomic<true>(data[window_index * blocks_per_window + index / bit_count].atomic, index % bit_count, epoch, order);
+        set_bit_atomic<true>(data[window_index * blocks_per_window + index / bit_count], index % bit_count, epoch, order);
     }
 
     constexpr void reset(std::size_t window_index, std::size_t index, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
         assert(window_index < window_count);
         assert(index < blocks_per_window);
-        set_bit_atomic<false>(data[window_index * blocks_per_window + index / bit_count].atomic, index % bit_count, epoch, order);
+        set_bit_atomic<false>(data[window_index * blocks_per_window + index / bit_count], index % bit_count, epoch, order);
     }
 
     [[nodiscard]] constexpr bool test(std::size_t window_index, std::size_t index, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) const {
@@ -175,7 +168,7 @@ public:
     template <claim_value VALUE, claim_mode MODE>
     std::size_t claim_bit(std::size_t window_index, int starting_bit, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
         assert(window_index < window_count);
-        assert(starting_bit < blocks_per_window);
+        assert(static_cast<std::size_t>(starting_bit) < blocks_per_window);
         int off = starting_bit / bit_count;
         int initial_rot = starting_bit % bit_count;
         for (std::size_t i = 0; i < blocks_per_window; i++) {

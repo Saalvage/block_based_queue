@@ -63,5 +63,6 @@ size_t queue_size_dcbo(dbco_queue *set);
 uint32_t random_index_dcbo(dbco_queue *set);
 sval_t double_collect(dbco_queue *set, uint32_t start_index);
 dbco_queue* d_balanced_register(dbco_queue *set, int thread_id);
+void d_balanced_free();
 
 #endif

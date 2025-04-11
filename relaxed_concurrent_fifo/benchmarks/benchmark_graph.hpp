@@ -5,20 +5,13 @@
 
 #include <optional>
 
+#include "../utility.h"
 #include "../contenders/multififo/ring_buffer.hpp"
 #include "../contenders/multififo/util/graph.hpp"
 #include "../contenders/multififo/util/termination_detection.hpp"
 
-static constexpr std::size_t make_po2(std::size_t size) {
-    std::size_t ret = 1;
-    while (size > ret) {
-        ret *= 2;
-    }
-    return ret;
-}
-
 std::tuple<std::uint64_t, std::uint32_t, std::vector<std::uint32_t>> sequential_bfs(const Graph& graph) {
-    multififo::RingBuffer<std::uint32_t> nodes(make_po2(graph.num_nodes()));
+    multififo::RingBuffer<std::uint32_t> nodes(std::bit_ceil(graph.num_nodes()));
     std::vector<std::uint32_t> distances(graph.num_nodes(), std::numeric_limits<std::uint32_t>::max());
     distances[0] = 1;
 
@@ -30,10 +23,10 @@ std::tuple<std::uint64_t, std::uint32_t, std::vector<std::uint32_t>> sequential_
         nodes.pop();
         auto d = distances[node_id] + 1;
         for (auto i = graph.nodes[node_id]; i < graph.nodes[node_id + 1]; ++i) {
-            auto node_id = graph.edges[i].target;
-            if (distances[node_id] == std::numeric_limits<std::uint32_t>::max()) {
-                distances[node_id] = d;
-                nodes.push(static_cast<std::uint32_t>(node_id));
+            auto new_node_id = graph.edges[i].target;
+            if (distances[new_node_id] == std::numeric_limits<std::uint32_t>::max()) {
+                distances[new_node_id] = d;
+                nodes.push(static_cast<std::uint32_t>(new_node_id));
             }
         }
     }
@@ -76,7 +69,9 @@ struct benchmark_bfs : benchmark_timed<> {
             graph(info.graph),
             distances(graph.num_nodes()),
             termination_detection(info.num_threads),
-            counters(info.num_threads) { }
+            counters(info.num_threads) {
+        fifo_size = std::bit_ceil(graph.nodes.size());
+    }
 
     template <typename FIFO>
     void process_node(std::uint64_t node, typename FIFO::handle& handle, Counter& counter) {

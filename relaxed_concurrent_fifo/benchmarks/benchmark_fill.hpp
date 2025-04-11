@@ -3,10 +3,12 @@
 
 #include "benchmark_base.hpp"
 
-struct benchmark_fill : benchmark_timed<false, true, 1 << 28> {
+struct benchmark_fill : benchmark_timed<false, true> {
     std::vector<std::uint64_t> results;
 
-    benchmark_fill(const benchmark_info& info) : results(info.num_threads) { }
+    benchmark_fill(const benchmark_info& info) : results(info.num_threads) {
+        fifo_size = 1 << 28;
+    }
 
     template <typename T>
     void per_thread(int thread_index, typename T::handle& handle, std::barrier<>& a, std::atomic_bool& over) {

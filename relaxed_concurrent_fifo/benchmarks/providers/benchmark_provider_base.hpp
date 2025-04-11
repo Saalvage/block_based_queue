@@ -26,25 +26,10 @@ public:
 
 protected:
     template <fifo FIFO>
-    static BENCHMARK test_single(FIFO& fifo, const benchmark_info& info, double prefill_amount) {
-        std::vector<typename FIFO::handle> handles;
-        handles.reserve(info.num_threads);
-        for (int i = 0; i < info.num_threads; i++) {
-            handles.push_back(fifo.get_handle());
-        }
-        // We prefill from all handles since this may improve performance for certain implementations.
-        // TODO: Is there the possibility of the performance improvement coming from actually being filled concurrently?
-        for (std::size_t i = 0; i < prefill_amount * BENCHMARK::SIZE; i++) {
-            // If PREFILL_IN_ORDER is set we sequentially fill the queue from a single handle.
-            if (!handles[BENCHMARK::PREFILL_IN_ORDER ? 0 : (i % info.num_threads)].push(i + 1)) {
-                break;
-            }
-        }
-
+    static void test_single(FIFO& fifo, BENCHMARK& b, const benchmark_info& info, double prefill_amount) {
         std::barrier a{info.num_threads + 1};
         std::atomic_bool over = false;
         std::vector<std::jthread> threads(info.num_threads);
-        BENCHMARK b{info};
 
         for (int i = 0; i < info.num_threads; i++) {
             threads[i] = std::jthread([&, i]() {
@@ -62,8 +47,8 @@ protected:
 
                 // If PREFILL_IN_ORDER is set we sequentially fill the queue from a single handle.
                 std::size_t prefill = static_cast<std::size_t>(BENCHMARK::PREFILL_IN_ORDER
-                    ? (i == 0 ? prefill_amount * BENCHMARK::SIZE : 0)
-                    : prefill_amount * BENCHMARK::SIZE / info.num_threads);
+                    ? (i == 0 ? prefill_amount * b.fifo_size : 0)
+                    : prefill_amount * b.fifo_size / info.num_threads);
 
                 // We prefill from all handles since this may improve performance for certain implementations.
                 for (std::size_t j = 0; j < prefill; j++) {
@@ -89,12 +74,20 @@ protected:
             }
         });
         if constexpr (BENCHMARK::HAS_TIMEOUT) {
-            std::this_thread::sleep_until(start + std::chrono::seconds(info.test_time_seconds));
-            over = true;
+            if constexpr (BENCHMARK::RECORD_TIME) {
+                std::thread([&]() {
+                    std::this_thread::sleep_until(start + std::chrono::seconds(info.test_time_seconds));
+                    over = true;
+                }).detach();
+                joined.wait();
+            } else {
+                std::this_thread::sleep_until(start + std::chrono::seconds(info.test_time_seconds));
+                over = true;
 
-            if (joined.wait_for(std::chrono::seconds(10)) == std::future_status::timeout) {
-                std::cout << "Threads did not complete within timeout, assuming deadlock!" << std::endl;
-                std::exit(1);
+                if (joined.wait_for(std::chrono::seconds(10)) == std::future_status::timeout) {
+                    std::cout << "Threads did not complete within timeout, assuming deadlock!" << std::endl;
+                    std::exit(1);
+                }
             }
         } else {
             joined.wait();
@@ -102,8 +95,6 @@ protected:
         if constexpr (BENCHMARK::RECORD_TIME) {
             b.time_nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start).count();
         }
-
-        return b;
     }
 };
 

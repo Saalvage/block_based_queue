@@ -40,7 +40,7 @@ Graph::Graph(std::filesystem::path const& graph_file) {
     for (std::size_t i = 0; i != num_edges; ++i) {
         std::pair<std::size_t, Edge> edge;
         file >> c;
-        if (c != 'a') {
+        if (c != 'a' && c != 'e') {
             throw std::runtime_error("Invalid edge format");
         }
         file >> edge.first;
