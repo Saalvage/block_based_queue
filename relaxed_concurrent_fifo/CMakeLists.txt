@@ -19,6 +19,10 @@ set_target_properties(relaxed_concurrent_fifo PROPERTIES
   CXX_STANDARD 23
 )
 target_link_libraries(relaxed_concurrent_fifo PRIVATE Threads::Threads TBB::tbb)
+target_include_directories(relaxed_concurrent_fifo PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}/contenders/multififo
+)
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET relaxed_concurrent_fifo PROPERTY CXX_STANDARD 20)

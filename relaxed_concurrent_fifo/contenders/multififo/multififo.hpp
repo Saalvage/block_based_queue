@@ -11,9 +11,10 @@
 
 #include "build_config.hpp"
 #include "handle.hpp"
-#include "ring_buffer.hpp"
+#include "stick_random.hpp"
 
 #include <atomic>
+#include <bit>
 #include <cassert>
 #include <cstddef>
 #include <cstdlib>
@@ -26,20 +27,15 @@ struct alignas(build_config::l1_cache_line_size) QueueIndex {
     std::uint64_t tail{0};
 };
 
+template <typename QueueData>
 struct alignas(build_config::l1_cache_line_size) QueueGuard {
-    std::atomic<std::uint64_t> top_tick =
-        std::numeric_limits<std::uint64_t>::max();
+    QueueData queue_data{};
     std::atomic_uint32_t lock = 0;
     QueueIndex queue_index;
-    /* QueueGuard() = default; */
-    /* QueueGuard(QueueGuard const &) = delete; */
-    /* QueueGuard(QueueGuard &&) { */
-    /*     queue_index = {}; */
-    /*     top_tick.store(std::numeric_limits<std::uint64_t>::max(), */
-    /*                    std::memory_order_relaxed); */
-    /* } */
 };
-template <typename T, typename Allocator = std::allocator<T>>
+
+template <typename T, typename Mode = mode::StickRandom<2>,
+          typename Allocator = std::allocator<T>>
 class MultiFifo {
    public:
     using value_type = T;
@@ -53,8 +49,8 @@ class MultiFifo {
         std::uint64_t tick;
         value_type value;
     };
-    using queue_type = RingBuffer<Element>;
-    using guard_type = QueueGuard;
+    using mode_type = Mode;
+    using guard_type = QueueGuard<typename mode_type::QueueData>;
     using buffer_allocator_type = typename std::allocator_traits<
         allocator_type>::template rebind_alloc<std::byte>;
     using guard_allocator_type = typename std::allocator_traits<
@@ -69,24 +65,28 @@ class MultiFifo {
         using element_type = Element;
         using value_type = MultiFifo::value_type;
         using guard_type = MultiFifo::guard_type;
+        using mode_type = MultiFifo::mode_type;
 
        private:
         int num_queues_{};
         std::size_t size_per_queue_{};
         std::byte *buffer_{nullptr};
         std::uint64_t mask_{0};
-        /* guard_type *queue_guards_{nullptr}; */
         std::atomic_int id_count{0};
         int stickiness_{16};
         int seed_{1};
+        [[no_unique_address]] typename mode_type::SharedData shared_data_;
         [[no_unique_address]] buffer_allocator_type alloc_;
 
         explicit Context(int queue_count, size_t size, int stickiness, int seed,
                          allocator_type const &alloc)
             : num_queues_{queue_count},
-              size_per_queue_{std::bit_ceil((size + num_queues_ - 1) / num_queues_)},
+              size_per_queue_{
+                  std::bit_ceil((size + num_queues_ - 1) / num_queues_)},
+              mask_{size_per_queue_ - 1},
               stickiness_{stickiness},
               seed_{seed},
+              shared_data_{num_queues_},
               alloc_{alloc} {
             assert(num_queues_ > 0);
 
@@ -132,13 +132,20 @@ class MultiFifo {
                 ptr + sizeof(guard_type) + (tail & mask_) * sizeof(Element)));
         }
 
+        constexpr element_type const &bottom_elem(std::byte const *ptr) const {
+            auto head = std::launder(reinterpret_cast<guard_type const *>(ptr))
+                            ->queue_index.head;
+            return *std::launder(reinterpret_cast<Element const *>(
+                ptr + sizeof(guard_type) + (head & mask_) * sizeof(Element)));
+        }
+
         constexpr const_reference top(std::byte const *ptr) const {
             return top_elem(ptr).value;
         }
 
         [[nodiscard]] bool empty(std::byte *ptr) const noexcept {
             return std::launder(reinterpret_cast<guard_type *>(ptr))
-                       ->top_tick.load(std::memory_order_relaxed) ==
+                       ->oldest_tick.load(std::memory_order_relaxed) ==
                    std::numeric_limits<std::uint64_t>::max();
         }
 
@@ -193,25 +200,13 @@ class MultiFifo {
             ++head;
         }
 
-        void popped(std::byte *ptr) {
-            auto &top_tick =
-                std::launder(reinterpret_cast<guard_type *>(ptr))->top_tick;
-            top_tick.store(
-                (unsafe_empty(ptr) ? std::numeric_limits<std::uint64_t>::max()
-                                   : top_elem(ptr).tick),
-                std::memory_order_relaxed);
-        }
-
-        void pushed(std::byte *ptr) {
-            auto &top_tick =
-                std::launder(reinterpret_cast<guard_type *>(ptr))->top_tick;
-            auto tick = top_elem(ptr).tick;
-            if (tick != top_tick.load(std::memory_order_relaxed)) {
-                top_tick.store(tick, std::memory_order_relaxed);
-            }
-        }
-
         [[nodiscard]] std::byte *queue_storage(std::size_t i) noexcept {
+            return buffer_ +
+                   i * (sizeof(guard_type) + size_per_queue_ * sizeof(Element));
+        }
+
+        [[nodiscard]] std::byte const *queue_storage(
+            std::size_t i) const noexcept {
             return buffer_ +
                    i * (sizeof(guard_type) + size_per_queue_ * sizeof(Element));
         }
@@ -233,6 +228,9 @@ class MultiFifo {
         [[nodiscard]] int stickiness() const noexcept { return stickiness_; }
 
         [[nodiscard]] int seed() const noexcept { return seed_; }
+
+        auto &shared_data() noexcept { return shared_data_; }
+        auto const &shared_data() const noexcept { return shared_data_; }
 
         [[nodiscard]] int new_id() noexcept {
             return id_count.fetch_add(1, std::memory_order_relaxed);

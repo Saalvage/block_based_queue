@@ -3,9 +3,12 @@
 
 #include "benchmark_provider_generic.hpp"
 
-#include "../../block_based_queue.h"
-#include "../../contenders/scal/scal_wrapper.h"
-#include "../../contenders/multififo/multififo.hpp"
+#include "block_based_queue.h"
+#include "contenders/scal/scal_wrapper.h"
+#include "contenders/multififo/multififo.hpp"
+#include "contenders/multififo/stick_random.hpp"
+#include "contenders/multififo/stick_swap.hpp"
+#include "contenders/multififo/stick_random_symmetric.hpp"
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -14,8 +17,8 @@
 #pragma GCC diagnostic ignored "-Wpedantic"
 #pragma GCC diagnostic ignored "-Wvolatile"
 
-#include "../../contenders/2D/wrapper_dcbo.hpp"
-#include "../../contenders/2D/wrapper_2D.hpp"
+#include "contenders/2D/wrapper_dcbo.hpp"
+#include "contenders/2D/wrapper_2D.hpp"
 
 #pragma GCC diagnostic pop
 #endif // __GNUC__
@@ -30,7 +33,13 @@ template <typename BENCHMARK>
 using benchmark_provider_ss_kfifo = benchmark_provider_generic<ss_k_fifo<std::uint64_t>, BENCHMARK, std::size_t>;
 
 template <typename BENCHMARK>
-using benchmark_provider_multififo = benchmark_provider_generic<multififo::MultiFifo<std::uint64_t>, BENCHMARK, int, int>;
+using benchmark_provider_multififo = benchmark_provider_generic<multififo::MultiFifo<std::uint64_t, multififo::mode::StickRandom<2>>, BENCHMARK, int, int>;
+
+template <typename BENCHMARK>
+using benchmark_provider_multififo_swap = benchmark_provider_generic<multififo::MultiFifo<std::uint64_t, multififo::mode::StickSwap<2>>, BENCHMARK, int, int>;
+
+template <typename BENCHMARK>
+using benchmark_provider_multififo_symmetric = benchmark_provider_generic<multififo::MultiFifo<std::uint64_t, multififo::mode::StickRandomSymmetric<2>>, BENCHMARK, int, int>;
 
 #ifdef __GNUC__
 template <typename BENCHMARK>

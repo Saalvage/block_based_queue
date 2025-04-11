@@ -1,14 +1,12 @@
 #pragma once
 
-#include "stick_random.hpp"
-
 #include <optional>
 
 namespace multififo {
 
 template <typename Context>
-class Handle : public multififo::mode::StickRandom<2> {
-    using mode_type = multififo::mode::StickRandom<2>;
+class Handle : public Context::mode_type {
+    using mode_type = typename Context::mode_type;
     Context *context_;
     using value_type = typename Context::value_type;
 
@@ -24,7 +22,7 @@ class Handle : public multififo::mode::StickRandom<2> {
             }
             auto tick = __rdtsc();
             context_->push(ptr, {tick, v});
-            context_->pushed(ptr);
+            mode_type::pushed(*context_, ptr);
             context_->unlock(ptr);
             return true;
         }
@@ -43,7 +41,7 @@ class Handle : public multififo::mode::StickRandom<2> {
             }
             auto v = context_->top(ptr);
             context_->pop(ptr);
-            context_->popped(ptr);
+            mode_type::popped(*context_, ptr);
             context_->unlock(ptr);
             return v;
         }
@@ -51,8 +49,8 @@ class Handle : public multififo::mode::StickRandom<2> {
     }
 
    public:
-    explicit Handle(Context &ctx) noexcept : mode_type{ctx.seed(), ctx.new_id()}, context_{&ctx} {
-    }
+    explicit Handle(Context &ctx) noexcept
+        : mode_type{ctx.seed(), ctx.new_id()}, context_{&ctx} {}
 
     Handle(Handle const &) = delete;
     Handle(Handle &&) noexcept = default;

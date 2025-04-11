@@ -58,6 +58,8 @@ static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 		for (int queues_per_thread = 2; queues_per_thread <= 8; queues_per_thread *= 2) {
 			for (int stickiness = 1; stickiness <= 4096; stickiness *= 2) {
 				instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("{},{},multififo", queues_per_thread, stickiness));
+				instances.push_back(std::make_unique<benchmark_provider_multififo_swap<BENCHMARK>>("{},{},multififo-swap", queues_per_thread, stickiness));
+				instances.push_back(std::make_unique<benchmark_provider_multififo_symmetric<BENCHMARK>>("{},{},multififo-swap", queues_per_thread, stickiness));
 			}
 		}
 	} else {
@@ -65,6 +67,14 @@ static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 		instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("multififo-{}-{}", 4, 16));
 		instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("multififo-{}-{}", 4, 32));
 		instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("multififo-{}-{}", 4, 128));
+		instances.push_back(std::make_unique<benchmark_provider_multififo_swap<BENCHMARK>>("multififo-swap-{}-{}", 2, 2));
+		instances.push_back(std::make_unique<benchmark_provider_multififo_swap<BENCHMARK>>("multififo-swap-{}-{}", 4, 16));
+		instances.push_back(std::make_unique<benchmark_provider_multififo_swap<BENCHMARK>>("multififo-swap-{}-{}", 4, 32));
+		instances.push_back(std::make_unique<benchmark_provider_multififo_swap<BENCHMARK>>("multififo-swap-{}-{}", 4, 128));
+		instances.push_back(std::make_unique<benchmark_provider_multififo_symmetric<BENCHMARK>>("multififo-symmetric-{}-{}", 2, 2));
+		instances.push_back(std::make_unique<benchmark_provider_multififo_symmetric<BENCHMARK>>("multififo-symmetric-{}-{}", 4, 16));
+		instances.push_back(std::make_unique<benchmark_provider_multififo_symmetric<BENCHMARK>>("multififo-symmetric-{}-{}", 4, 32));
+		instances.push_back(std::make_unique<benchmark_provider_multififo_symmetric<BENCHMARK>>("multififo-symmetric-{}-{}", 4, 128));
 	}
 #endif
 
