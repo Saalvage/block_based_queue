@@ -18,6 +18,8 @@ struct benchmark_fill : benchmark_timed<false, true> {
         }
     }
 
+    static constexpr const char* header = "operations_per_nanosecond";
+
     template <typename T>
     void output(T& stream) {
         stream << static_cast<double>(std::reduce(results.begin(), results.end())) / time_nanos;

@@ -79,6 +79,9 @@ public:
         } while (chunks_done.fetch_add(1) < CHUNK_COUNT);
     }
 
+    static constexpr const char* header = "rank_error_avg,rank_error_std,rank_error_max,rank_error_distribution,"
+                                          "delay_avg,delay_std,delay_max,delay_distribution";
+
     template <typename T>
     void output(T& stream) {
         auto total_count = std::accumulate(results.begin(), results.end(), static_cast<std::size_t>(0), [](std::size_t size, const auto& v) { return size + v.size(); });

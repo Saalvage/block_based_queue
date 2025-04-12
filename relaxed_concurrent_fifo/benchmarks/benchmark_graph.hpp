@@ -119,6 +119,8 @@ struct benchmark_bfs : benchmark_timed<> {
         counters[thread_index] = counter;
     }
 
+    static constexpr const char* header = "time_nanoseconds,longest_distance,pushed_nodes,processed_nodes,ignored_nodes";
+
     template <typename T>
     void output(T& stream) {
         auto total_counts =

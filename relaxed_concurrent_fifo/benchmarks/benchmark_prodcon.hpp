@@ -37,6 +37,8 @@ struct benchmark_prodcon : benchmark_default {
         results[thread_index] = its;
     }
 
+    static constexpr const char* header = "operations_per_second";
+
     template <typename T>
     void output(T& stream) {
         stream << std::min(
