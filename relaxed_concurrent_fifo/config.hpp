@@ -59,7 +59,7 @@ static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 			for (int stickiness = 1; stickiness <= 4096; stickiness *= 2) {
 				instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("{},{},multififo", queues_per_thread, stickiness));
 				instances.push_back(std::make_unique<benchmark_provider_multififo_swap<BENCHMARK>>("{},{},multififo-swap", queues_per_thread, stickiness));
-				instances.push_back(std::make_unique<benchmark_provider_multififo_symmetric<BENCHMARK>>("{},{},multififo-swap", queues_per_thread, stickiness));
+				instances.push_back(std::make_unique<benchmark_provider_multififo_symmetric<BENCHMARK>>("{},{},multififo-symmetric", queues_per_thread, stickiness));
 			}
 		}
 	} else {

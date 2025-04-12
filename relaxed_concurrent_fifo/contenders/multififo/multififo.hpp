@@ -86,7 +86,7 @@ class MultiFifo {
               mask_{size_per_queue_ - 1},
               stickiness_{stickiness},
               seed_{seed},
-              shared_data_{num_queues_},
+              shared_data_(num_queues_),
               alloc_{alloc} {
             assert(num_queues_ > 0);
 
