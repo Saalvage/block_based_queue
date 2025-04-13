@@ -63,6 +63,7 @@ template <typename T, typename BITSET_T = std::uint8_t>
 class block_based_queue {
 private:
 	std::size_t blocks_per_window;
+	std::uniform_int_distribution<int> window_block_distribution;
 
 	std::size_t window_count;
 	std::size_t window_count_mod_mask;
@@ -179,6 +180,7 @@ public:
 	block_based_queue(int thread_count, std::size_t min_size, double blocks_per_window_per_thread, std::size_t cells_per_block) :
 			blocks_per_window(std::bit_ceil(std::max<std::size_t>(sizeof(BITSET_T) * 8,
 				std::lround(thread_count * blocks_per_window_per_thread)))),
+			window_block_distribution(0, blocks_per_window - 1),
 			window_count(std::max<std::size_t>(4, std::bit_ceil(min_size / blocks_per_window / cells_per_block))),
 			window_count_mod_mask(window_count - 1),
 			window_count_log2(std::bit_width(window_count) - 1),
@@ -253,8 +255,7 @@ public:
 		}
 
 		int random_bit_index() {
-			// TODO: Probably want to store this somewhere.
-			return std::uniform_int_distribution(0, static_cast<int>(fifo.blocks_per_window - 1))(rng);
+			return fifo.window_block_distribution(rng);
 		}
 
 		bool claim_new_block_write() {
