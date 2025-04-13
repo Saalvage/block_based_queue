@@ -81,7 +81,7 @@ static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 
 #if defined(__GNUC__) && (defined(INCLUDE_DCBO) || defined(INCLUDE_ALL))
 	if (parameter_tuning) {
-		for (int w = 1; w <= 8; w *= 2) {
+		for (double w = 0.125; w <= 8; w *= 2) {
 			instances.push_back(std::make_unique<benchmark_provider_dcbo<BENCHMARK>>("{},dcbo", w));
 		}
 	} else {
