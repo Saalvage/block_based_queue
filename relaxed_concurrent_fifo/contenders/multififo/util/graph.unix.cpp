@@ -75,12 +75,14 @@ Graph::Graph(std::filesystem::path const& graph_file) {
             ++it;
         }
         if ((*it != 'a' && *it != 'e') || !std::isspace(*(it + 1))) {
-            it -= 10;
-            for (int i = 0; i < 20; i++) {
-                std::cout << "ERR:";
+            it -= 50;
+            std::cout << "ERR:";
+
+            for (int i = 0; i < 100; i++) {
                 std::cout << *(it + i);
-                std::cout << "-";
             }
+            std::cout << "-";
+
             throw std::runtime_error("Invalid edge format");
         }
         it += 2;
