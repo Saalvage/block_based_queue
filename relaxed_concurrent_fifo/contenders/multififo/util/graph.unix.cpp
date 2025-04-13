@@ -7,6 +7,8 @@
 #include <charconv>
 #include <numeric>
 
+#include <iostream>
+
 Graph::Graph(std::filesystem::path const& graph_file) {
     int fd = open(graph_file.c_str(), O_RDONLY);
     if (fd == -1) {
@@ -73,6 +75,12 @@ Graph::Graph(std::filesystem::path const& graph_file) {
             ++it;
         }
         if ((*it != 'a' && *it != 'e') || !std::isspace(*(it + 1))) {
+            it -= 10;
+            for (int i = 0; i < 20; i++) {
+                std::cout << "ERR:";
+                std::cout << *(it + i);
+                std::cout << "-";
+            }
             throw std::runtime_error("Invalid edge format");
         }
         it += 2;
