@@ -10,6 +10,7 @@
 
 #include "fifo.h"
 #include "atomic_bitset.h"
+#include "atomic_bitset_no_epoch.h"
 
 #ifndef BBQ_LOG_WINDOW_MOVE
 #define BBQ_LOG_WINDOW_MOVE 0
@@ -113,7 +114,7 @@ private:
 	static inline std::atomic_uint64_t dummy_block_value{ epoch_to_header(0x1000'0000ull) };
 	static inline block_t dummy_block{ reinterpret_cast<std::byte*>(&dummy_block_value) };
 
-	atomic_bitset<BITSET_T> touched_set;
+	atomic_bitset_no_epoch<BITSET_T> touched_set;
 	atomic_bitset<BITSET_T> filled_set;
 	std::unique_ptr<std::byte[]> buffer;
 
@@ -141,13 +142,13 @@ private:
 		}
 		// The touched set update can be missed, which might trigger a reader to attempt to move,
 		// but the filled set will prevent the move from occuring.
-		touched_set.set(index, free_bit, epoch, std::memory_order_relaxed);
+		touched_set.set(index, free_bit, std::memory_order_relaxed);
 		return get_block(index, free_bit);
 	}
 
-	block_t try_get_free_read_block(std::uint64_t window_index, int starting_bit, std::uint64_t epoch) {
+	block_t try_get_free_read_block(std::uint64_t window_index, int starting_bit) {
 		auto index = window_to_index(window_index);
-		std::size_t free_bit = touched_set.template claim_bit<claim_value::ONE, claim_mode::READ_WRITE>(index, starting_bit, epoch, std::memory_order_relaxed);
+		std::size_t free_bit = touched_set.template claim_bit<claim_value::ONE, claim_mode::READ_WRITE>(index, starting_bit, std::memory_order_relaxed);
 		if (free_bit == std::numeric_limits<std::size_t>::max()) {
 			return nullptr;
 		}
@@ -204,7 +205,6 @@ public:
 		}
 
 		for (std::size_t j = 0; j < blocks_per_window; j++) {
-			touched_set.set_epoch_if_empty(0, 0);
 			filled_set.set_epoch_if_empty(0, 0);
 			get_block(0, j).get_header() = epoch_to_header(1);
 		}
@@ -293,7 +293,7 @@ public:
 					is_ahead = true;
 					window_index = read_window;
 				}
-				new_block = fifo.try_get_free_read_block(fifo.window_to_index(window_index), random_bit_index(), fifo.window_to_epoch(window_index));
+				new_block = fifo.try_get_free_read_block(fifo.window_to_index(window_index), random_bit_index());
 				if (new_block.ptr == nullptr) {
 					if (is_ahead) {
 						dont_advance = true;
