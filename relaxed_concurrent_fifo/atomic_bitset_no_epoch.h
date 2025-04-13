@@ -12,11 +12,6 @@
 
 #include "utility.h"
 
-#ifdef __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Winterference-size"
-#endif // __GNUC__
-
 template <typename ARR_TYPE = std::uint8_t>
 class atomic_bitset_no_epoch {
 private:
@@ -115,9 +110,5 @@ public:
         return std::numeric_limits<std::size_t>::max();
     }
 };
-
-#ifdef __GNUC__
-#pragma GCC diagnostic pop
-#endif // __GNUC__
 
 #endif // ATOMIC_BITSET_NO_EPOCH_H_INCLUDED
