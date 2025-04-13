@@ -248,7 +248,7 @@ public:
 					fifo.global_write_superblock.compare_exchange_strong(superblock_start, superblock_start + std::min(fifo.superblocks_per_window, max_movable), std::memory_order_relaxed);
 					continue;
 				} else if (should_advance) {
-					if (superblock_start + fifo.superblocks_per_window + 1 < fifo.global_read_superblock.load(std::memory_order_relaxed)) {
+					if (superblock_start + fifo.superblocks_per_window < fifo.global_read_superblock.load(std::memory_order_relaxed) + fifo.superblock_count) {
 						fifo.global_write_superblock.compare_exchange_strong(superblock_start, superblock_start + 1, std::memory_order_relaxed);
 					}
 				}
