@@ -267,7 +267,7 @@ public:
 				if (new_block == std::numeric_limits<std::size_t>::max()) [[unlikely]] {
 					std::uint64_t write_superblock_start = fifo.global_write_superblock.load(std::memory_order_relaxed);
 					auto max_movable = write_superblock_start - superblock_start - fifo.superblocks_per_window;
-					if (max_movable == 0 || max_movable > fifo.superblock_count) {
+					if (max_movable == 0) {
 						auto [new_block_desperate, _] = fifo.filled_set.template claim_bit<claim_value::ONE, claim_mode::READ_ONLY>(write_superblock_start, random_bit_index(), std::memory_order_relaxed);
 						if (new_block_desperate == std::numeric_limits<std::size_t>::max()) {
 							return false;
@@ -277,16 +277,16 @@ public:
 						}
 						// TODO: I'm not entirely sure if this is correct.
 						// If the CAS fails could we get a situation where we are outside the write window?
-						fifo.global_write_superblock.compare_exchange_strong(write_superblock_start, write_superblock_start + fifo.superblocks_per_window, std::memory_order_relaxed);
-						fifo.global_read_superblock.compare_exchange_strong(superblock_start, superblock_start + fifo.superblocks_per_window, std::memory_order_relaxed);
+						if (fifo.global_write_superblock.compare_exchange_strong(write_superblock_start, write_superblock_start + fifo.superblocks_per_window, std::memory_order_relaxed)) {
+							fifo.global_read_superblock.compare_exchange_strong(superblock_start, superblock_start + fifo.superblocks_per_window, std::memory_order_relaxed);
+						}
 						new_block = new_block_desperate;
-						superblock_start = write_superblock_start;
 					} else {
 						fifo.global_read_superblock.compare_exchange_strong(superblock_start, superblock_start + std::min(fifo.superblocks_per_window, max_movable), std::memory_order_relaxed);
 						continue;    
 					}
 				} else if (should_advance) {
-					if (fifo.global_write_superblock.load(std::memory_order_relaxed) - superblock_start - fifo.superblocks_per_window > 0) {
+					if (superblock_start + fifo.superblocks_per_window != fifo.global_write_superblock.load(std::memory_order_relaxed)) {
 						fifo.global_read_superblock.compare_exchange_strong(superblock_start, superblock_start + 1, std::memory_order_relaxed);
 					}
 				}
