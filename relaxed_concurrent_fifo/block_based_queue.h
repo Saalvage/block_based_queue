@@ -220,8 +220,15 @@ public:
 		block_t write_block = dummy_block;
 
 		std::minstd_rand rng;
+		std::discrete_distribution<> dist;
 
-		handle(block_based_queue& fifo, std::random_device::result_type seed) : fifo(fifo), rng(seed) { }
+		static double min_c_uniform_dists(double k, double n, double c) {
+			return std::pow((n - k + 1) / (n + 1), c) - std::pow((n - k) / (n + 1), c);
+		}
+
+		handle(block_based_queue& fifo, std::random_device::result_type seed) : fifo(fifo), rng(seed),
+			dist(fifo.blocks_per_window, 0.5, static_cast<double>(fifo.blocks_per_window) + 0.5,
+				[&](double k) { return min_c_uniform_dists(k, static_cast<double>(fifo.blocks_per_window), 2); }) { }
 
 		friend block_based_queue;
 
@@ -237,8 +244,7 @@ public:
 		}
 
 		int random_bit_index() {
-			// TODO: Probably want to store this somewhere.
-			return std::uniform_int_distribution(0, static_cast<int>(fifo.blocks_per_window - 1))(rng);
+			return dist(rng);
 		}
 
 		bool claim_new_block_write() {
