@@ -230,6 +230,12 @@ public:
 			return (curr - check) < std::numeric_limits<std::uint32_t>::max() / 2;
 		}
 
+		void try_slide_read(std::uint64_t superblock_start) {
+			if (superblock_start + fifo.superblocks_per_window != fifo.global_write_superblock.load(std::memory_order_relaxed)) {
+				fifo.global_read_superblock.compare_exchange_strong(superblock_start, superblock_start + 1, std::memory_order_relaxed);
+			}
+		}
+
 		int random_bit_index() {
 			// TODO: Probably want to store this somewhere.
 			return std::uniform_int_distribution(0, static_cast<int>(fifo.blocks_per_window - 1))(rng);
@@ -286,9 +292,7 @@ public:
 						continue;    
 					}
 				} else if (should_advance) {
-					if (superblock_start + fifo.superblocks_per_window != fifo.global_write_superblock.load(std::memory_order_relaxed)) {
-						fifo.global_read_superblock.compare_exchange_strong(superblock_start, superblock_start + 1, std::memory_order_relaxed);
-					}
+					try_slide_read(superblock_start);
 				}
 
 				read_superblock = new_block / blocks_per_superblock;
@@ -341,7 +345,9 @@ public:
 				if (epoch_valid(get_epoch(ei), read_epoch)) {
 					if ((index = get_read_index(ei)) + 1 == get_write_index(ei)) {
 						if (header->compare_exchange_weak(ei, epoch_to_header(read_epoch + 1), std::memory_order_acquire, std::memory_order_relaxed)) {
-							fifo.filled_set.reset(read_superblock, read_bit_index, read_epoch, std::memory_order_relaxed);
+							if (fifo.filled_set.reset(read_superblock, read_bit_index, read_epoch, std::memory_order_relaxed) && read_bit_index == 0) {
+								try_slide_read(read_superblock);
+							}
 							break;
 						}
 					} else {
@@ -362,7 +368,9 @@ public:
 					//    but can't write the header, we simply reset the bit (would fail anyway if epoch is incorrect).
 					// In case 1. we invalidate both block and bitset, in case 2. block is already invalidated.
 					if (!epoch_valid(get_epoch(ei), read_epoch) || header->compare_exchange_strong(ei, epoch_to_header(read_epoch + 1), std::memory_order_relaxed)) {
-						fifo.filled_set.reset(read_superblock, read_bit_index, read_epoch, std::memory_order_relaxed);
+						if (fifo.filled_set.reset(read_superblock, read_bit_index, read_epoch, std::memory_order_relaxed) && read_bit_index == 0) {
+							try_slide_read(read_superblock);
+						}
 					}
 					// If the CAS fails, the only thing that could've occurred was the write index being increased,
 					// making us able to read an element from the block.

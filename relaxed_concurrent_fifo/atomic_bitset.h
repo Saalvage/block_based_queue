@@ -47,13 +47,14 @@ private:
     static constexpr std::uint64_t make_unit(std::uint64_t epoch) { return epoch << 32; }
 
     template <bool SET>
-    static constexpr void set_bit_atomic(std::atomic<std::uint64_t>& epoch_and_bits, std::size_t index, std::uint64_t epoch, std::memory_order order) {
+    static constexpr bool set_bit_atomic(std::atomic<std::uint64_t>& epoch_and_bits, std::size_t index, std::uint64_t epoch, std::memory_order order) {
         std::uint64_t eb = epoch_and_bits.load(order);
         std::uint64_t test;
         std::uint64_t stencil = 1ull << index;
+        bool ret = false;
         do {
             if (get_epoch(eb) != epoch) {
-                return;
+                return false;
             }
             if constexpr (SET) {
                 test = eb | stencil;
@@ -61,11 +62,13 @@ private:
                 // TODO: Special case handling like this is probably bad.
                 // We basically want to increment the epoch when the last filled bit has been reset.
                 test = eb & ~stencil;
-                if (get_bits(test) == 0) {
+                if (!SET && get_bits(test) == 0) {
                     test = make_unit(epoch + 1);
+                    ret = true;
                 }
             }
         } while (!epoch_and_bits.compare_exchange_strong(eb, test, order));
+        return ret;
     }
 
     template <claim_value VALUE, claim_mode MODE>
@@ -91,10 +94,11 @@ private:
                 }
                 // Keep retrying until the bit we are trying to claim has changed.
                 while (true) {
+                    // If we ever claim ones with READ_WRITE we need to update the epoch here.
+                    // (And let the window slide.)
+                    assert(VALUE != claim_value::ONE);
                     if (epoch_and_bits.compare_exchange_weak(eb,
-                        VALUE == claim_value::ONE && test == 0
-                            ? make_unit(epoch + 1)
-                            : (make_unit(epoch) | test), order)) {
+                            make_unit(epoch) | test, order)) {
                         return original_index;
                     }
                     if (get_epoch(eb) != epoch) [[unlikely]] {
@@ -126,9 +130,9 @@ public:
         assert(block_count % bit_count == 0);
     }
 
-    constexpr void reset(std::size_t superblock_index, std::size_t index, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
+    constexpr bool reset(std::size_t superblock_index, std::size_t index, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
         assert(index < bit_count);
-        set_bit_atomic<false>(data[superblock_index & superblock_count_mod_mask], index, epoch, order);
+        return set_bit_atomic<false>(data[superblock_index & superblock_count_mod_mask], index, epoch, order);
     }
 
     void set_epoch_if_empty(std::size_t superblock_index, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
