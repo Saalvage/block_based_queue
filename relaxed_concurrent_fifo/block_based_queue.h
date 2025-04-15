@@ -180,7 +180,7 @@ public:
 	block_based_queue(int thread_count, std::size_t min_size, double blocks_per_window_per_thread, std::size_t cells_per_block) :
 			blocks_per_window(std::bit_ceil(std::max<std::size_t>(sizeof(BITSET_T) * 8,
 				std::lround(thread_count * blocks_per_window_per_thread)))),
-			window_block_distribution(0, blocks_per_window - 1),
+			window_block_distribution(0, static_cast<int>(blocks_per_window - 1)),
 			window_count(std::max<std::size_t>(4, std::bit_ceil(min_size / blocks_per_window / cells_per_block))),
 			window_count_mod_mask(window_count - 1),
 			window_count_log2(std::bit_width(window_count) - 1),
