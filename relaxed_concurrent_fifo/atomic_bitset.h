@@ -60,7 +60,7 @@ private:
                     test = make_unit(epoch + 1);
                 }
             }
-        } while (!epoch_and_bits.compare_exchange_strong(eb, test, order));
+        } while (!epoch_and_bits.compare_exchange_weak(eb, test, order));
     }
 
     template <claim_value VALUE, claim_mode MODE>
