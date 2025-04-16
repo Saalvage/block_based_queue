@@ -22,7 +22,7 @@ private:
     std::size_t units_per_window_mod_mask;
 
     static constexpr std::size_t bit_count = sizeof(ARR_TYPE) * 8;
-    std::unique_ptr<cache_aligned_t<std::atomic<ARR_TYPE>>[]> data;
+    cache_aligned_t<std::atomic<ARR_TYPE>>* data;
 
     template <bool SET>
     static constexpr void set_bit_atomic(std::atomic<ARR_TYPE>& bits, std::size_t index, std::memory_order order) {
@@ -72,13 +72,14 @@ private:
     }
 
 public:
-    atomic_bitset_no_epoch(std::size_t window_count, std::size_t blocks_per_window) :
+    atomic_bitset_no_epoch() = default;
+    atomic_bitset_no_epoch(std::size_t window_count, std::size_t blocks_per_window, cache_aligned_t<std::atomic<ARR_TYPE>>* data) :
 #ifndef NDEBUG
             window_count(window_count),
 #endif
             blocks_per_window(blocks_per_window),
             units_per_window_mod_mask((blocks_per_window / bit_count) - 1),
-            data(std::make_unique<cache_aligned_t<std::atomic<ARR_TYPE>>[]>(window_count * blocks_per_window)) {
+            data(data) {
         assert(blocks_per_window % bit_count == 0);
     }
 

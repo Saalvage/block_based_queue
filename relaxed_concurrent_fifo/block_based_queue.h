@@ -71,6 +71,7 @@ private:
 
 	std::size_t cells_per_block;
 	std::size_t block_size;
+	std::size_t total_bitset_size;
 
 	// We use 64 bit return types here to avoid potential deficits through 16-bit comparisons.
 	static constexpr std::uint64_t get_epoch(std::uint64_t ei) { return ei >> 32; }
@@ -100,7 +101,7 @@ private:
 	}
 
 	block_t get_block(std::uint64_t window_index, std::uint64_t block_index) {
-		return &buffer[(window_index * blocks_per_window + block_index) * block_size];
+		return &buffer[total_bitset_size + (window_index * blocks_per_window + block_index) * block_size];
 	}
 
 	std::size_t block_index(std::uint64_t window_index, block_t block) {
@@ -158,9 +159,8 @@ public:
 			window_count_log2(std::bit_width(window_count) - 1),
 			cells_per_block(cells_per_block),
 			block_size(align_cache_line_size(sizeof(std::atomic_uint64_t) + cells_per_block * sizeof(T))),
-			touched_set(window_count, blocks_per_window),
-			filled_set(window_count, blocks_per_window),
-			buffer(std::make_unique<std::byte[]>(window_count * blocks_per_window * block_size)) {
+	        total_bitset_size(2 * ((blocks_per_window * window_count) / (sizeof(BITSET_T) * 8)) * std::hardware_destructive_interference_size),
+			buffer(std::make_unique<std::byte[]>(total_bitset_size + window_count * blocks_per_window * block_size)) {
 #if BBQ_LOG_CREATION_SIZE
 		std::cout << "Window count: " << window_count << std::endl;
 		std::cout << "Block count: " << blocks_per_window << std::endl;
@@ -170,8 +170,11 @@ public:
 		assert(blocks_per_window >= sizeof(BITSET_T) * 8);
 		assert(std::bit_ceil(blocks_per_window) == blocks_per_window);
 
+		touched_set = atomic_bitset_no_epoch<BITSET_T>(window_count, blocks_per_window, std::launder(reinterpret_cast<cache_aligned_t<std::atomic<BITSET_T>>*>(buffer.get())));
+		filled_set = atomic_bitset<BITSET_T>(window_count, blocks_per_window, std::launder(reinterpret_cast<cache_aligned_t<std::atomic_uint64_t>*>(buffer.get() + total_bitset_size / 2)));
+
 		for (std::size_t i = 0; i < window_count * blocks_per_window; i++) {
-			auto ptr = buffer.get() + i * block_size;
+			auto ptr = buffer.get() + total_bitset_size + i * block_size;
 			new (ptr) std::atomic_uint64_t{ 0 };
 			for (std::size_t j = 0; j < cells_per_block; j++) {
 				new (ptr + sizeof(std::atomic_uint64_t) + j * sizeof(T)) std::atomic<T>{ };

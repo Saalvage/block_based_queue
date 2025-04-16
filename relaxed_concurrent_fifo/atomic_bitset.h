@@ -35,7 +35,7 @@ private:
     std::size_t units_per_window_mod_mask;
 
     static constexpr std::size_t bit_count = sizeof(ARR_TYPE) * 8;
-    std::unique_ptr<cache_aligned_t<std::atomic<std::uint64_t>>[]> data;
+    cache_aligned_t<std::atomic_uint64_t>* data;
 
     static constexpr std::uint64_t get_epoch(std::uint64_t epoch_and_bits) { return epoch_and_bits >> 32; }
     static constexpr std::uint64_t get_bits(std::uint64_t epoch_and_bits) { return epoch_and_bits & 0xffff'ffff; }
@@ -112,13 +112,14 @@ private:
     }
 
 public:
-    atomic_bitset(std::size_t window_count, std::size_t blocks_per_window) :
+    atomic_bitset() = default;
+    atomic_bitset(std::size_t window_count, std::size_t blocks_per_window, cache_aligned_t<std::atomic_uint64_t>* data) :
 #ifndef NDEBUG
             window_count(window_count),
 #endif
             blocks_per_window(blocks_per_window),
             units_per_window_mod_mask((blocks_per_window / bit_count) - 1),
-            data(std::make_unique<cache_aligned_t<std::atomic<std::uint64_t>>[]>(window_count * blocks_per_window)) {
+            data(data) {
         assert(blocks_per_window % bit_count == 0);
     }
 
