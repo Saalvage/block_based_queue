@@ -181,9 +181,10 @@ int main(int argc, const char** argv) {
 	if (input == 6) {
 		processor_counts.emplace_back(std::thread::hardware_concurrency());
 	} else {
-		for (int i = 1; i <= static_cast<int>(std::thread::hardware_concurrency()); i *= 2) {
+		for (int i = 1; i < static_cast<int>(std::thread::hardware_concurrency()); i *= 2) {
 			processor_counts.emplace_back(i);
 		}
+        processor_counts.emplace_back(std::thread::hardware_concurrency());
 	}
 
 	std::optional<double> prefill_override;
