@@ -86,13 +86,13 @@ public:
     constexpr void set(std::size_t window_index, std::size_t index, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
         assert(window_index < window_count);
         assert(index < blocks_per_window);
-        set_bit_atomic<true>(data[window_index * blocks_per_window + index / bit_count], index % bit_count, order);
+        set_bit_atomic<true>(data[window_index * blocks_per_window / bit_count + index / bit_count], index % bit_count, order);
     }
 
     constexpr void reset(std::size_t window_index, std::size_t index, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
         assert(window_index < window_count);
         assert(index < blocks_per_window);
-        set_bit_atomic<false>(data[window_index * blocks_per_window + index / bit_count], index % bit_count, order);
+        set_bit_atomic<false>(data[window_index * blocks_per_window / bit_count + index / bit_count], index % bit_count, order);
     }
 
     template <claim_value VALUE, claim_mode MODE>
@@ -103,7 +103,7 @@ public:
         int initial_rot = starting_bit % bit_count;
         for (std::size_t i = 0; i < blocks_per_window; i++) {
             auto index = (i + off) & units_per_window_mod_mask;
-            if (auto ret = claim_bit_singular<VALUE, MODE>(data[window_index * blocks_per_window + index], initial_rot, order);
+            if (auto ret = claim_bit_singular<VALUE, MODE>(data[window_index * blocks_per_window / bit_count + index], initial_rot, order);
                     ret != std::numeric_limits<std::size_t>::max()) {
                 return ret + index * bit_count;
             }

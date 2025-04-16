@@ -30,8 +30,9 @@ private:
 
 #ifndef NDEBUG
     std::size_t window_count;
-#endif
     std::size_t blocks_per_window;
+#endif
+    std::size_t units_per_window;
     std::size_t units_per_window_mod_mask;
 
     static constexpr std::size_t bit_count = sizeof(ARR_TYPE) * 8;
@@ -116,8 +117,9 @@ public:
     atomic_bitset(std::size_t window_count, std::size_t blocks_per_window, cache_aligned_t<std::atomic_uint64_t>* data) :
 #ifndef NDEBUG
             window_count(window_count),
-#endif
             blocks_per_window(blocks_per_window),
+#endif
+            units_per_window(blocks_per_window / bit_count),
             units_per_window_mod_mask((blocks_per_window / bit_count) - 1),
             data(data) {
         assert(blocks_per_window % bit_count == 0);
@@ -126,19 +128,19 @@ public:
     constexpr void set(std::size_t window_index, std::size_t index, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
         assert(window_index < window_count);
         assert(index < blocks_per_window);
-        set_bit_atomic<true>(data[window_index * blocks_per_window + index / bit_count], index % bit_count, epoch, order);
+        set_bit_atomic<true>(data[window_index * units_per_window + index / bit_count], index % bit_count, epoch, order);
     }
 
     constexpr void reset(std::size_t window_index, std::size_t index, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
         assert(window_index < window_count);
         assert(index < blocks_per_window);
-        set_bit_atomic<false>(data[window_index * blocks_per_window + index / bit_count], index % bit_count, epoch, order);
+        set_bit_atomic<false>(data[window_index * units_per_window + index / bit_count], index % bit_count, epoch, order);
     }
 
     [[nodiscard]] constexpr bool test(std::size_t window_index, std::size_t index, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) const {
         assert(window_index < window_count);
         assert(index < blocks_per_window);
-        return data[window_index * blocks_per_window + index / bit_count]->load(order) & (1ull << (index % bit_count));
+        return data[window_index * units_per_window + index / bit_count]->load(order) & (1ull << (index % bit_count));
     }
 
     [[nodiscard]] constexpr bool operator[](std::size_t index) const {
@@ -146,8 +148,8 @@ public:
     }
 
     [[nodiscard]] constexpr bool any(std::size_t window_index, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) const {
-        for (std::size_t i = 0; i < blocks_per_window; i++) {
-            std::uint64_t eb = data[window_index * blocks_per_window + i]->load(order);
+        for (std::size_t i = 0; i < units_per_window; i++) {
+            std::uint64_t eb = data[window_index * units_per_window + i]->load(order);
             if (get_epoch(eb) == epoch && get_bits(eb)) {
                 return true;
             }
@@ -157,9 +159,9 @@ public:
 
     void set_epoch_if_empty(std::size_t window_index, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
         std::uint64_t next_eb = make_unit(epoch + 1);
-        for (std::size_t i = 0; i < blocks_per_window; i++) {
+        for (std::size_t i = 0; i < units_per_window; i++) {
             std::uint64_t eb = make_unit(epoch);
-            data[window_index * blocks_per_window + i]->compare_exchange_strong(eb, next_eb, order);
+            data[window_index * units_per_window + i]->compare_exchange_strong(eb, next_eb, order);
         }
     }
 
@@ -169,9 +171,9 @@ public:
         assert(static_cast<std::size_t>(starting_bit) < blocks_per_window);
         int off = starting_bit / bit_count;
         int initial_rot = starting_bit % bit_count;
-        for (std::size_t i = 0; i < blocks_per_window; i++) {
+        for (std::size_t i = 0; i < units_per_window; i++) {
             auto index = (i + off) & units_per_window_mod_mask;
-            if (auto ret = claim_bit_singular<VALUE, MODE>(data[window_index * blocks_per_window + index], initial_rot, epoch, order);
+            if (auto ret = claim_bit_singular<VALUE, MODE>(data[window_index * units_per_window + index], initial_rot, epoch, order);
                     ret != std::numeric_limits<std::size_t>::max()) {
                 return ret + index * bit_count;
             }
