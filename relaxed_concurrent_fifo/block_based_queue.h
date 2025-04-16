@@ -72,34 +72,6 @@ private:
 	std::size_t cells_per_block;
 	std::size_t block_size;
 
-	std::size_t capacity() const {
-		return window_count * blocks_per_window * cells_per_block;
-	}
-
-#if BBQ_DEBUG_FUNCTIONS
-	std::size_t size_full() const {
-		std::size_t filled_cells = 0;
-		for (std::size_t i = 0; i < window_count; i++) {
-			for (std::size_t j = 0; j < blocks_per_window; j++) {
-				auto ei = buffer[i].blocks[j].header.epoch_and_indices.load();
-				filled_cells += get_write_index(ei) - get_read_finished_index(ei);
-			}
-		}
-		return filled_cells;
-	}
-
-	std::size_t size() const {
-		std::size_t filled_cells = 0;
-		for (std::size_t i = global_read_window; i <= global_write_window; i++) {
-			for (std::size_t j = 0; j < blocks_per_window; j++) {
-				auto ei = buffer[i].blocks[j].header.epoch_and_indices.load();
-				filled_cells += get_write_index(ei) - get_read_index(ei);
-			}
-		}
-		return filled_cells;
-	}
-#endif // BBQ_RELAXED_DEBUG_FUNCTIONS
-
 	// We use 64 bit return types here to avoid potential deficits through 16-bit comparisons.
 	static constexpr std::uint64_t get_epoch(std::uint64_t ei) { return ei >> 32; }
 	static constexpr std::uint64_t get_read_index(std::uint64_t ei) { return (ei >> 16) & 0xffff; }
@@ -212,14 +184,40 @@ public:
 		}
 	}
 
+	std::size_t capacity() const {
+		return window_count * blocks_per_window * cells_per_block;
+	}
+
+	std::size_t size_full() {
+		std::size_t filled_cells = 0;
+		for (std::size_t i = 0; i < window_count; i++) {
+			for (std::size_t j = 0; j < blocks_per_window; j++) {
+				std::uint64_t ei = get_block(i, j).get_header();
+				filled_cells += get_write_index(ei) - get_read_index(ei);
+			}
+		}
+		return filled_cells;
+	}
+
+	std::size_t size() {
+		std::size_t filled_cells = 0;
+		for (std::size_t i = global_read_window; i <= global_write_window; i++) {
+			for (std::size_t j = 0; j < blocks_per_window; j++) {
+				std::uint64_t ei = get_block(window_to_index(i), j).get_header();
+				filled_cells += get_write_index(ei) - get_read_index(ei);
+			}
+		}
+		return filled_cells;
+	}
+
 #if BBQ_DEBUG_FUNCTIONS
-	std::ostream& operator<<(std::ostream& os) const {
+	std::ostream& operator<<(std::ostream& os) {
 		os << "Printing block_based_queue:\n"
 			<< "Read: " << global_read_window << "; Write: " << global_write_window << '\n';
 		for (std::size_t i = 0; i < window_count; i++) {
 			for (std::size_t j = 0; j < blocks_per_window; j++) {
-				std::uint64_t val = buffer[i].blocks[j].header.epoch_and_indices;
-				os << get_epoch(val) << " " << get_read_index(val) << " " << " " << get_write_index(val) << " | ";
+				std::uint64_t ei = get_block(i, j).get_header();
+				os << get_epoch(ei) << " " << get_read_index(ei) << " " << " " << get_write_index(ei) << " | ";
 			}
 			os << "\n======================\n";
 		}
