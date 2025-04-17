@@ -39,8 +39,8 @@ with open(file) as f:
     for row in lines:
         # We have enough data as-is, only use a single testrun
         if int(row[1]) == threads and row[0] not in done:
-            with open(row[0] + "_rank_error.txt", "w") as out:
+            with open("rank_error-" + row[0] + ".dat", "w") as out:
                 compute(row[5], out)
-            with open(row[0] + "_delay.txt", "w") as out:
+            with open("delay-" + row[0] + ".dat", "w") as out:
                 compute(row[9], out)
             done[row[0]] = None

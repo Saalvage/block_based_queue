@@ -25,6 +25,8 @@ struct benchmark_default : benchmark_base<> {
         results[thread_index] = its;
     }
 
+    static constexpr const char* header = "iterations_per_second";
+
     template <typename T>
     void output(T& stream) {
         stream << std::reduce(results.begin(), results.end()) / test_time_seconds;

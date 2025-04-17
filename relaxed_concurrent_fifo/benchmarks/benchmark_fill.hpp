@@ -13,10 +13,14 @@ struct benchmark_fill : benchmark_timed<false, true> {
     template <typename T>
     void per_thread(int thread_index, typename T::handle& handle, std::barrier<>& a, std::atomic_bool& over) {
         a.arrive_and_wait();
+        std::size_t its = 0;
         while (handle.push(thread_index + 1) && !over) {
-            results[thread_index]++;
+            its++;
         }
+        results[thread_index] = its;
     }
+
+    static constexpr const char* header = "operations_per_nanosecond";
 
     template <typename T>
     void output(T& stream) {

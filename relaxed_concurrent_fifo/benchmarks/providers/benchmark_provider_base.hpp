@@ -75,10 +75,8 @@ protected:
         });
         if constexpr (BENCHMARK::HAS_TIMEOUT) {
             if constexpr (BENCHMARK::RECORD_TIME) {
-                std::thread([&]() {
-                    std::this_thread::sleep_until(start + std::chrono::seconds(info.test_time_seconds));
-                    over = true;
-                }).detach();
+                joined.wait_until(start + std::chrono::seconds(info.test_time_seconds));
+                over = true;
                 joined.wait();
             } else {
                 std::this_thread::sleep_until(start + std::chrono::seconds(info.test_time_seconds));

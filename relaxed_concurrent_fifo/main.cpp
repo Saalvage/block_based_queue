@@ -74,7 +74,7 @@ void test_consistency(std::size_t fifo_size, std::size_t elements_per_thread, do
 
 template <typename BENCHMARK, typename BENCHMARK_DATA_TYPE = benchmark_info, typename... Args>
 void run_benchmark(const std::string& test_name, const std::vector<std::unique_ptr<benchmark_provider<BENCHMARK>>>& instances, double prefill,
-	const std::vector<int>& processor_counts, int test_iterations, int test_time_seconds, const Args&... args) {
+	const std::vector<int>& processor_counts, int test_iterations, int test_time_seconds, bool print_header, const Args&... args) {
 	constexpr const char* format = "fifo-{}-{}-{:%FT%H-%M-%S}.csv";
 
 	if (BENCHMARK::HAS_TIMEOUT) {
@@ -100,6 +100,10 @@ void run_benchmark(const std::string& test_name, const std::vector<std::unique_p
 
 	std::string filename = std::format(format, test_name, prefill, std::chrono::round<std::chrono::seconds>(std::chrono::file_clock::now()));
 	std::ofstream file{ filename };
+	if (print_header) {
+		// TODO: Doesn't take into account parameter tuning.
+		file << "queue,thread_count," << BENCHMARK::header << '\n';
+	}
 	for (auto i : std::views::iota(0, test_iterations)) {
 		std::cout << "Test run " << (i + 1) << " of " << test_iterations << std::endl;
 		for (const auto& imp : instances) {
@@ -161,6 +165,7 @@ int main(int argc, const char** argv) {
 			"[-r | --run_count <count> (default " << TEST_ITERATIONS_DEFAULT << ")]"
 			"[-f | --prefill <factor>]"
 			"[-p | --parameter-tuning]"
+            "[-n | --no-header]"
 			" ([-i | --include <fifo>]* | [-e | --exclude <fifo>]*)\n";
 		return 0;
 	}
@@ -171,9 +176,10 @@ int main(int argc, const char** argv) {
 	if (input == 6) {
 		processor_counts.emplace_back(std::thread::hardware_concurrency());
 	} else {
-		for (int i = 1; i <= static_cast<int>(std::thread::hardware_concurrency()); i *= 2) {
+		for (int i = 1; i < static_cast<int>(std::thread::hardware_concurrency()); i *= 2) {
 			processor_counts.emplace_back(i);
 		}
+        processor_counts.emplace_back(std::thread::hardware_concurrency());
 	}
 
 	std::optional<double> prefill_override;
@@ -181,6 +187,7 @@ int main(int argc, const char** argv) {
 	auto test_time_secs = TEST_TIME_SECONDS_DEFAULT;
 
 	std::unordered_set<std::string> fifo_set;
+	bool include_header = true;
 	bool parameter_tuning = false;
 	bool is_exclude = true;
 
@@ -222,6 +229,8 @@ int main(int argc, const char** argv) {
 				return 1;
 			}
 			fifo_set.emplace(argv[i]);
+		} else if (strcmp(argv[i], "-n") == 0 || strcmp(argv[i], "--no-header") == 0) {
+			include_header = false;
 		} else {
 			std::cerr << std::format("Unknown argument \"{}\"!", argv[i]) << std::endl;
 			return 1;
@@ -232,27 +241,27 @@ int main(int argc, const char** argv) {
 	case 1: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_default>>> instances;
 		add_instances(instances, parameter_tuning, fifo_set, is_exclude);
-		run_benchmark("comp", instances, prefill_override.value_or(0.5), processor_counts, test_its, test_time_secs);
+		run_benchmark("comp", instances, prefill_override.value_or(0.5), processor_counts, test_its, test_time_secs, include_header);
 		} break;
 	case 2: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_quality<>>>> instances;
 		add_instances(instances, parameter_tuning, fifo_set, is_exclude);
-		run_benchmark("quality", instances, prefill_override.value_or(0.5), processor_counts, test_its, test_time_secs);
+		run_benchmark("quality", instances, prefill_override.value_or(0.5), processor_counts, test_its, test_time_secs, include_header);
 		} break;
 	case 3: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_quality<true>>>> instances;
 		add_instances(instances, parameter_tuning, fifo_set, is_exclude);
-		run_benchmark("quality-max", instances, prefill_override.value_or(0.5), { processor_counts.back() }, 1, test_time_secs);
+		run_benchmark("quality-max", instances, prefill_override.value_or(0.5), { processor_counts.back() }, 1, test_time_secs, include_header);
 	} break;
 	case 4: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_fill>>> instances;
 		add_instances(instances, parameter_tuning, fifo_set, is_exclude);
-		run_benchmark("fill", instances, prefill_override.value_or(0), processor_counts, test_its, test_time_secs);
+		run_benchmark("fill", instances, prefill_override.value_or(0), processor_counts, test_its, test_time_secs, include_header);
 		} break;
 	case 5: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_empty>>> instances;
 		add_instances(instances, parameter_tuning, fifo_set, is_exclude);
-		run_benchmark("empty", instances, prefill_override.value_or(1), processor_counts, test_its, test_time_secs);
+		run_benchmark("empty", instances, prefill_override.value_or(1), processor_counts, test_its, test_time_secs, include_header);
 		} break;
 	case 6: {
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_prodcon>>> instances;
@@ -270,7 +279,7 @@ int main(int argc, const char** argv) {
 			auto consumers = threads - producers;
 			run_benchmark<benchmark_prodcon, benchmark_info_prodcon, int, int>(
 				std::format("prodcon-{}-{}", producers, consumers), instances, prefill_override.value_or(0.5),
-				{ threads }, test_its, test_time_secs, producers, consumers);
+				{ threads }, test_its, test_time_secs, include_header, producers, consumers);
 		}
 	} break;
 	case 7: {
@@ -292,7 +301,9 @@ int main(int argc, const char** argv) {
 
 			std::vector<std::unique_ptr<benchmark_provider<benchmark_bfs>>> instances;
 			add_instances(instances, parameter_tuning, fifo_set, is_exclude);
-			run_benchmark<benchmark_bfs, benchmark_info_graph, const Graph&, const std::vector<std::uint32_t>&>(std::format("bfs-{}", graph_file.filename().string()), instances, 0, processor_counts, test_its, 0, graph, distances);
+			run_benchmark<benchmark_bfs, benchmark_info_graph, const Graph&, const std::vector<std::uint32_t>&>(
+				std::format("bfs-{}", graph_file.filename().string()), instances, 0, processor_counts,
+				test_its, 0, include_header, graph, distances);
 	} break;
 	}
 

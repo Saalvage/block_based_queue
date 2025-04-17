@@ -13,6 +13,11 @@ static constexpr std::size_t modulo_po2(std::size_t dividend, std::size_t diviso
 	return dividend & (divisor - 1);
 }
 
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Winterference-size"
+#endif // __GNUC__
+
 template <typename T>
 struct alignas(std::hardware_destructive_interference_size) cache_aligned_t {
 	T value;
@@ -21,6 +26,10 @@ struct alignas(std::hardware_destructive_interference_size) cache_aligned_t {
 	operator T& () { return value; }
 	operator const T& () const { return value; }
 };
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif // __GNUC__
 
 template <template <typename> typename Fifo, typename Elem>
 class wrapper_handle {

@@ -32,8 +32,8 @@ public:
         }
     };
 
-    wrapper_dcbo_queue(int num_threads, std::size_t size, std::uint32_t queue_factor) {
-        queue = create_queue_dcbo(num_threads * queue_factor, 2, num_threads);
+    wrapper_dcbo_queue(int num_threads, std::size_t size, double queue_factor) {
+        queue = create_queue_dcbo(std::max<long>(1, std::lround(num_threads * queue_factor)), 2, num_threads);
     }
 
     handle get_handle() const {

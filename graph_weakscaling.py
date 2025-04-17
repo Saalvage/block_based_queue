@@ -8,7 +8,7 @@ graph_file = os.path.basename(graph)
 
 i = 1
 while i <= os.cpu_count():
-    subprocess.run([exe, "7", graph + str(i) + ".gr", "-t", str(i)] + sys.argv[3:], check=True)
+    subprocess.run([exe, "7", graph + str(i) + ".gr", "-n", "-t", str(i)] + sys.argv[3:], check=True)
     i *= 2
 
 outfile = "weakscaling-" + graph_file + ".csv"
