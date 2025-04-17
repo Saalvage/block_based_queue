@@ -10,11 +10,7 @@
 #pragma warning(pop)
 #endif  // _WIN32
 
-#ifdef _WIN32
-#include <intrin.h>
-#else
-#include <x86intrin.h>
-#endif
+#include "timestamp.hpp"
 
 #include <algorithm>
 #include <array>
@@ -153,7 +149,7 @@ class StickRandomSymmetric {
                     count_ = 0;
                     return false;
                 }
-                auto tick = __rdtsc();
+                auto tick = get_timestamp();
                 ctx.push(best_ptr, {tick, v});
                 pushed(ctx, best_ptr);
                 ctx.unlock(best_ptr);

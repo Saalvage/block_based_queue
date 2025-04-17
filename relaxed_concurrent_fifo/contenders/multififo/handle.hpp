@@ -1,14 +1,12 @@
 #pragma once
 
-#ifdef _WIN32
-#include <intrin.h>
-#else
-#include <x86intrin.h>
-#endif
+#include "timestamp.hpp"
 
 #include <optional>
 
 namespace multififo {
+
+std::uint64_t get_timestamp();
 
 template <typename Context>
 class Handle : public Context::mode_type {
@@ -26,7 +24,7 @@ class Handle : public Context::mode_type {
                 context_->unlock(ptr);
                 continue;
             }
-            auto tick = __rdtsc();
+            auto tick = get_timestamp();
             context_->push(ptr, {tick, v});
             mode_type::pushed(*context_, ptr);
             context_->unlock(ptr);
