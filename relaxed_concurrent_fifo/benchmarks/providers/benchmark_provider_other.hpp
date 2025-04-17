@@ -32,14 +32,14 @@ using benchmark_provider_ws_kfifo = benchmark_provider_generic<ws_k_fifo<std::ui
 template <typename BENCHMARK>
 using benchmark_provider_ss_kfifo = benchmark_provider_generic<ss_k_fifo<std::uint64_t>, BENCHMARK, std::size_t>;
 
-template <typename BENCHMARK>
-using benchmark_provider_multififo = benchmark_provider_generic<multififo::MultiFifo<std::uint64_t, multififo::mode::StickRandom<2>>, BENCHMARK, int, int>;
+template <typename BENCHMARK, int POP_CANDIDATES = 2>
+using benchmark_provider_multififo = benchmark_provider_generic<multififo::MultiFifo<std::uint64_t, multififo::mode::StickRandom<POP_CANDIDATES>>, BENCHMARK, int, int>;
 
-template <typename BENCHMARK>
-using benchmark_provider_multififo_swap = benchmark_provider_generic<multififo::MultiFifo<std::uint64_t, multififo::mode::StickSwap<2>>, BENCHMARK, int, int>;
+template <typename BENCHMARK, int POP_CANDIDATES = 2>
+using benchmark_provider_multififo_swap = benchmark_provider_generic<multififo::MultiFifo<std::uint64_t, multififo::mode::StickSwap<POP_CANDIDATES>>, BENCHMARK, int, int>;
 
-template <typename BENCHMARK>
-using benchmark_provider_multififo_symmetric = benchmark_provider_generic<multififo::MultiFifo<std::uint64_t, multififo::mode::StickRandomSymmetric<2>>, BENCHMARK, int, int>;
+template <typename BENCHMARK, int POP_CANDIDATES = 2>
+using benchmark_provider_multififo_symmetric = benchmark_provider_generic<multififo::MultiFifo<std::uint64_t, multififo::mode::StickRandomSymmetric<POP_CANDIDATES>>, BENCHMARK, int, int>;
 
 #ifdef __GNUC__
 template <typename BENCHMARK>
