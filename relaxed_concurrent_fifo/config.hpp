@@ -55,27 +55,9 @@ static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 
 #if defined(INCLUDE_MULTIFIFO) || defined(INCLUDE_ALL)
 	if (parameter_tuning) {
-		for (int d = 2; d <= 4; d++) {
-			for (int queues_per_thread = 2; queues_per_thread <= 8; queues_per_thread *= 2) {
-				if (queues_per_thread >= d) {
-					for (int stickiness = 1; stickiness <= 4096; stickiness *= 2) {
-						switch (d) {
-						default:
-						case 2:
-							instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("2,{},{},multififo", queues_per_thread, stickiness));
-							instances.push_back(std::make_unique<benchmark_provider_multififo_swap<BENCHMARK>>("2,{},{},multififo-swap", queues_per_thread, stickiness));
-							break;
-						case 3:
-							instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK, 3>>("3,{},{},multififo", queues_per_thread, stickiness));
-							instances.push_back(std::make_unique<benchmark_provider_multififo_swap<BENCHMARK, 3>>("3,{},{},multififo-swap", queues_per_thread, stickiness));
-							break;
-						case 4:
-							instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK, 4>>("4,{},{},multififo", queues_per_thread, stickiness));
-							instances.push_back(std::make_unique<benchmark_provider_multififo_swap<BENCHMARK, 4>>("4,{},{},multififo-swap", queues_per_thread, stickiness));
-							break;
-						}
-					}
-				}
+		for (int queues_per_thread = 2; queues_per_thread <= 8; queues_per_thread *= 2) {
+			for (int stickiness = 1; stickiness <= 4096; stickiness *= 2) {
+				instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("{},{},multififo", queues_per_thread, stickiness));
 			}
 		}
 	} else {
