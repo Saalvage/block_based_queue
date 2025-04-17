@@ -26,19 +26,21 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  ******************************************************************************
  */
-#pragma once
+
+#ifndef _HAZARD_POINTERS_H_
+#define _HAZARD_POINTERS_H_
 
 #include <atomic>
+#include <vector>
 #include <iostream>
 
-#ifndef DISABLE_HP
 
 template<typename T>
 class HazardPointers {
 
 private:
     static const int      HP_MAX_THREADS = 192;
-    static const int      HP_MAX_HPS = 11;     // This is named 'K' in the HP paper
+    static const int      HP_MAX_HPS = 4;     // This is named 'K' in the HP paper
     static const int      CLPAD = 128/sizeof(std::atomic<T*>);
     static const int      HP_THRESHOLD_R = 0; // This is named 'R' in the HP paper
     static const int      MAX_RETIRED = HP_MAX_THREADS*HP_MAX_HPS; // Maximum number of retired objects per thread
@@ -46,21 +48,23 @@ private:
     const int             maxHPs;
     const int             maxThreads;
 
-    std::atomic<T*>       hp[HP_MAX_THREADS*CLPAD][HP_MAX_HPS];
+    std::atomic<T*>*      hp[HP_MAX_THREADS];
     // It's not nice that we have a lot of empty vectors, but we need padding to avoid false sharing
     std::vector<T*>       retiredList[HP_MAX_THREADS*CLPAD];
 
 public:
     HazardPointers(int maxHPs=HP_MAX_HPS, int maxThreads=HP_MAX_THREADS) : maxHPs{maxHPs}, maxThreads{maxThreads} {
         for (int ithread = 0; ithread < HP_MAX_THREADS; ithread++) {
+            hp[ithread] = new std::atomic<T*>[CLPAD*2]; // We allocate four cache lines to allow for many hps and without false sharing
             for (int ihp = 0; ihp < HP_MAX_HPS; ihp++) {
-                hp[ithread*CLPAD][ihp].store(nullptr, std::memory_order_relaxed);
+                hp[ithread][ihp].store(nullptr, std::memory_order_relaxed);
             }
         }
     }
 
     ~HazardPointers() {
         for (int ithread = 0; ithread < HP_MAX_THREADS; ithread++) {
+            delete[] hp[ithread];
             // Clear the current retired nodes
             for (unsigned iret = 0; iret < retiredList[ithread*CLPAD].size(); iret++) {
                 delete retiredList[ithread*CLPAD][iret];
@@ -74,7 +78,7 @@ public:
      */
     void clear(const int tid) {
         for (int ihp = 0; ihp < maxHPs; ihp++) {
-            hp[tid*CLPAD][ihp].store(nullptr, std::memory_order_release);
+            hp[tid][ihp].store(nullptr, std::memory_order_release);
         }
     }
 
@@ -83,7 +87,7 @@ public:
      * Progress Condition: wait-free population oblivious
      */
     void clearOne(int ihp, const int tid) {
-        hp[tid*CLPAD][ihp].store(nullptr, std::memory_order_release);
+        hp[tid][ihp].store(nullptr, std::memory_order_release);
     }
 
 
@@ -94,7 +98,7 @@ public:
         T* n = nullptr;
         T* ret;
 		while ((ret = atom.load()) != n) {
-			hp[tid*CLPAD][index].store(ret);
+			hp[tid][index].store(ret);
 			n = ret;
 		}
 		return ret;
@@ -106,7 +110,7 @@ public:
      * Progress Condition: wait-free population oblivious
      */
     T* protectPtr(int index, T* ptr, const int tid) {
-        hp[tid*CLPAD][index].store(ptr);
+        hp[tid][index].store(ptr);
         return ptr;
     }
 
@@ -117,7 +121,7 @@ public:
      * Progress Condition: wait-free population oblivious
      */
     T* protectRelease(int index, T* ptr, const int tid) {
-        hp[tid*CLPAD][index].store(ptr, std::memory_order_release);
+        hp[tid][index].store(ptr, std::memory_order_release);
         return ptr;
     }
 
@@ -133,7 +137,7 @@ public:
             bool canDelete = true;
             for (int tid = 0; tid < maxThreads && canDelete; tid++) {
                 for (int ihp = maxHPs-1; ihp >= 0; ihp--) {
-                    if (hp[tid*CLPAD][ihp].load() == obj) {
+                    if (hp[tid][ihp].load() == obj) {
                         canDelete = false;
                         break;
                     }
@@ -146,36 +150,6 @@ public:
             }
             iret++;
         }
-    }
-};
-
-#else
-
-template<typename T>
-class HazardPointers {
-public:
-    HazardPointers([[maybe_unused]] int maxHPs=0, [[maybe_unused]] int maxThreads=0)  {
-    }
-
-    void clear(const int) {
-    }
-
-    void clearOne(int, const int) {
-    }
-
-    T* protect(int, const std::atomic<T*>& atom, const int) {
-        return atom.load();
-    }
-
-    T* protectPtr(int, T* ptr, const int) {
-        return ptr;
-    }
-
-    T* protectRelease(int, T* ptr, const int) {
-        return ptr;
-    }
-
-    void retire(T*, const int) {
     }
 };
 

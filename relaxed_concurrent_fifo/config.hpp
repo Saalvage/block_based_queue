@@ -25,6 +25,7 @@ using LCRQWrapped = LCRQueue<T>;
 #if !defined(INCLUDE_BBQ) \
 	&& !defined(INCLUDE_MULTIFIFO) \
 	&& !defined(INCLUDE_LCRQ) \
+	&& !defined(INCLUDE_FAAAQUEUE) \
 	&& !defined(INCLUDE_KFIFO) \
 	&& !defined(INCLUDE_DCBO) \
 	&& !defined(INCLUDE_2D)
@@ -99,6 +100,10 @@ static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 
 #if defined (__GNUC__) && (defined(INCLUDE_LCRQ) || defined(INCLUDE_ALL))
 	instances.push_back(std::make_unique<benchmark_provider_generic<adapter<std::uint64_t, LCRQWrapped>, BENCHMARK>>("lcrq"));
+#endif
+
+#if defined (INCLUDE_FAAAQUEUE) || defined(INCLUDE_ALL)
+    instances.push_back(std::make_unique<benchmark_provider_faaaqueue<BENCHMARK>>("faaaqueue"));
 #endif
 
 	for (std::size_t i = 0; i < instances.size(); i++) {
