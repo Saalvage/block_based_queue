@@ -8,7 +8,7 @@
 
 #include "benchmark.h"
 
-#ifdef __GNUC__
+#if defined(__GNUC__) && !(defined(__arm__) || defined(__aarch64__))
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
 
@@ -97,7 +97,7 @@ static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 	}
 #endif
 
-#if defined (__GNUC__) && (defined(INCLUDE_LCRQ) || defined(INCLUDE_ALL))
+#if defined (__GNUC__) && !(defined(__arm__) || defined(__aarch64__)) && (defined(INCLUDE_LCRQ) || defined(INCLUDE_ALL))
 	instances.push_back(std::make_unique<benchmark_provider_generic<adapter<std::uint64_t, LCRQWrapped>, BENCHMARK>>("lcrq"));
 #endif
 
