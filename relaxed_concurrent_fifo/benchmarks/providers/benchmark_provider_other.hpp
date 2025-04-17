@@ -25,10 +25,7 @@ template <typename BENCHMARK>
 using benchmark_provider_bbq = benchmark_provider_generic<block_based_queue<std::uint64_t>, BENCHMARK, double, std::size_t>;
 
 template <typename BENCHMARK>
-using benchmark_provider_ws_kfifo = benchmark_provider_generic<ws_k_fifo<std::uint64_t>, BENCHMARK, std::size_t>;
-
-template <typename BENCHMARK>
-using benchmark_provider_ss_kfifo = benchmark_provider_generic<ss_k_fifo<std::uint64_t>, BENCHMARK, std::size_t>;
+using benchmark_provider_kfifo = benchmark_provider_generic<ws_k_fifo<std::uint64_t>, BENCHMARK, double>;
 
 template <typename BENCHMARK>
 using benchmark_provider_multififo = benchmark_provider_generic<multififo::MultiFifo<std::uint64_t>, BENCHMARK, int, int>;
