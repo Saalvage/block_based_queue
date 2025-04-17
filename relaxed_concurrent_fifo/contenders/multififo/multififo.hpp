@@ -102,7 +102,7 @@ class MultiFifo {
                                     size_per_queue_ * sizeof(Element)));
                 std::allocator_traits<guard_allocator_type>::construct(
                     guard_alloc, reinterpret_cast<guard_type *>(ptr));
-                for (int j = 0; j < size_per_queue_; ++j) {
+                for (std::size_t j = 0; j < size_per_queue_; ++j) {
                     std::allocator_traits<elem_allocator_type>::construct(
                         elem_alloc,
                         reinterpret_cast<Element *>(ptr + sizeof(guard_type) +
@@ -223,7 +223,7 @@ class MultiFifo {
             return size_per_queue_;
         }
 
-        [[nodiscard]] int num_queues() const noexcept { return num_queues_; }
+        [[nodiscard]] size_type num_queues() const noexcept { return num_queues_; }
 
         [[nodiscard]] int stickiness() const noexcept { return stickiness_; }
 
