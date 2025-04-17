@@ -7,8 +7,11 @@ set(sources
   contenders/multififo/timestamp.cpp)
 
 if(NOT MSVC)
-   set(sources ${sources} "contenders/2D/2Dd-queue_optimized.c" "contenders/2D/ssalloc.c" "contenders/2D/test.c"
-   "contenders/2D/d-balanced-queue.c" "contenders/2D/lcrq.c" "contenders/multififo/util/graph.unix.cpp")
+  if(NOT ${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm")
+    set(sources ${sources} "contenders/2D/2Dd-queue_optimized.c" "contenders/2D/ssalloc.c" "contenders/2D/test.c"
+      "contenders/2D/d-balanced-queue.c" "contenders/2D/lcrq.c")
+  endif()
+  set(sources ${sources} "contenders/multififo/util/graph.unix.cpp")
 else()
   set(sources ${sources} "contenders/multififo/util/graph.portable.cpp")
 endif()

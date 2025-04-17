@@ -10,7 +10,7 @@
 #include "contenders/multififo/stick_swap.hpp"
 #include "contenders/multififo/stick_random_symmetric.hpp"
 
-#ifdef __GNUC__
+#if defined(__GNUC__) && !(defined(__arm__) || defined(__aarch64__))
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wvariadic-macros"
 #pragma GCC diagnostic ignored "-Wunused-parameter"
@@ -41,7 +41,7 @@ using benchmark_provider_multififo_swap = benchmark_provider_generic<multififo::
 template <typename BENCHMARK, int POP_CANDIDATES = 2>
 using benchmark_provider_multififo_symmetric = benchmark_provider_generic<multififo::MultiFifo<std::uint64_t, multififo::mode::StickRandomSymmetric<POP_CANDIDATES>>, BENCHMARK, int, int>;
 
-#ifdef __GNUC__
+#if defined(__GNUC__) && !(defined(__arm__) || defined(__aarch64__))
 template <typename BENCHMARK>
 using benchmark_provider_2Dd = benchmark_provider_generic<wrapper_2Dd_queue, BENCHMARK, width_t, std::uint64_t>;
 
