@@ -5,16 +5,14 @@
 #elif !(defined(__arm__) || defined(__aarch64__))
 #include <x86intrin.h>
 #else
-#include <ctime>
+#include <chrono>
 #endif
 
 namespace multififo {
 
 std::uint64_t get_timestamp() {
 #if defined(__arm__) || defined(__aarch64__)
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return static_cast<std::uint64_t>(ts.tv_sec) * 1'000'000'000 + ts.tv_nsec;
+    return std::chrono::steady_clock::now().time_since_epoch().count();
 #else
     return __rdtsc();
 #endif
