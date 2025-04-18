@@ -4,15 +4,15 @@
 #include <intrin.h>
 #elif !(defined(__arm__) || defined(__aarch64__))
 #include <x86intrin.h>
-#else
-#include <chrono>
 #endif
 
 namespace multififo {
 
 std::uint64_t get_timestamp() {
 #if defined(__arm__) || defined(__aarch64__)
-    return std::chrono::steady_clock::now().time_since_epoch().count();
+    std::uint64_t val;
+    asm volatile("mrs %0, cntvct_el0" : "=r" (val));
+    return val;
 #else
     return __rdtsc();
 #endif
