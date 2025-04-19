@@ -2,7 +2,7 @@
 
 #include <atomic>
 #include "x86AtomicOps.hpp"
-#include "HazardPointers.hpp"
+#include "../common/HazardPointers.hpp"
 #include "Metrics.hpp"
 
 

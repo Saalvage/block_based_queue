@@ -25,6 +25,7 @@ using LCRQWrapped = LCRQueue<T>;
 #if !defined(INCLUDE_BBQ) \
 	&& !defined(INCLUDE_MULTIFIFO) \
 	&& !defined(INCLUDE_LCRQ) \
+	&& !defined(INCLUDE_FAAAQUEUE) \
 	&& !defined(INCLUDE_KFIFO) \
 	&& !defined(INCLUDE_DCBO) \
 	&& !defined(INCLUDE_2D)
@@ -47,9 +48,9 @@ static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 		}
 	} else {
 		instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("bbq-{}-{}", 1, 7));
+		instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("bbq-{}-{}", 0.5, 31));
 		instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("bbq-{}-{}", 1, 63));
-		instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("bbq-{}-{}", 1, 127));
-		instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("bbq-{}-{}", 4, 127));
+		instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("bbq-{}-{}", 1, 511));
 	}
 #endif
 
@@ -61,21 +62,20 @@ static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 			}
 		}
 	} else {
-		instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("multififo-{}-{}", 2, 2));
+		instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("multififo-{}-{}", 2, 1));
+		instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("multififo-{}-{}", 4, 4));
 		instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("multififo-{}-{}", 4, 16));
-		instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("multififo-{}-{}", 4, 32));
-		instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("multififo-{}-{}", 4, 128));
+		instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("multififo-{}-{}", 4, 256));
 	}
 #endif
 
 #if defined(INCLUDE_KFIFO) || defined(INCLUDE_ALL)
 	if (parameter_tuning) {
-		for (int k = 1; k <= 8192; k *= 2) {
-			instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("{},kfifo", k));
+		for (double k = 0.125; k <= 64; k *= 2) {
+			instances.push_back(std::make_unique<benchmark_provider_kfifo<BENCHMARK>>("{},kfifo", k));
 		}
 	} else {
-		instances.push_back(std::make_unique<benchmark_provider_ws_kfifo<BENCHMARK>>("kfifo-ws-{}", 1));
-		instances.push_back(std::make_unique<benchmark_provider_ss_kfifo<BENCHMARK>>("kfifo-ss-{}", 512));
+		instances.push_back(std::make_unique<benchmark_provider_kfifo<BENCHMARK>>("kfifo-{}", 1));
 	}
 #endif
 
@@ -85,8 +85,10 @@ static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 			instances.push_back(std::make_unique<benchmark_provider_dcbo<BENCHMARK>>("{},dcbo", w));
 		}
 	} else {
+		instances.push_back(std::make_unique<benchmark_provider_dcbo<BENCHMARK>>("dcbo-{}", 0.5));
 		instances.push_back(std::make_unique<benchmark_provider_dcbo<BENCHMARK>>("dcbo-{}", 1));
-	}
+		instances.push_back(std::make_unique<benchmark_provider_dcbo<BENCHMARK>>("dcbo-{}", 2));
+    }
 #endif
 
 #if defined (__GNUC__) && !(defined(__arm__) || defined(__aarch64__)) && (defined(INCLUDE_2D)/* || defined(INCLUDE_ALL)*/)
@@ -99,6 +101,10 @@ static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 
 #if defined (__GNUC__) && !(defined(__arm__) || defined(__aarch64__)) && (defined(INCLUDE_LCRQ) || defined(INCLUDE_ALL))
 	instances.push_back(std::make_unique<benchmark_provider_generic<adapter<std::uint64_t, LCRQWrapped>, BENCHMARK>>("lcrq"));
+#endif
+
+#if defined (INCLUDE_FAAAQUEUE) || defined(INCLUDE_ALL)
+    instances.push_back(std::make_unique<benchmark_provider_faaaqueue<BENCHMARK>>("faaaqueue"));
 #endif
 
 	for (std::size_t i = 0; i < instances.size(); i++) {

@@ -9,6 +9,7 @@
 #include "contenders/multififo/stick_random.hpp"
 #include "contenders/multififo/stick_swap.hpp"
 #include "contenders/multififo/stick_random_symmetric.hpp"
+#include "contenders/FAAArrayQueue/wrapper.hpp"
 
 #if defined(__GNUC__) && !(defined(__arm__) || defined(__aarch64__))
 #pragma GCC diagnostic push
@@ -27,10 +28,7 @@ template <typename BENCHMARK>
 using benchmark_provider_bbq = benchmark_provider_generic<block_based_queue<std::uint64_t>, BENCHMARK, double, std::size_t>;
 
 template <typename BENCHMARK>
-using benchmark_provider_ws_kfifo = benchmark_provider_generic<ws_k_fifo<std::uint64_t>, BENCHMARK, std::size_t>;
-
-template <typename BENCHMARK>
-using benchmark_provider_ss_kfifo = benchmark_provider_generic<ss_k_fifo<std::uint64_t>, BENCHMARK, std::size_t>;
+using benchmark_provider_kfifo = benchmark_provider_generic<ws_k_fifo<std::uint64_t>, BENCHMARK, double>;
 
 template <typename BENCHMARK, int POP_CANDIDATES = 2>
 using benchmark_provider_multififo = benchmark_provider_generic<multififo::MultiFifo<std::uint64_t, multififo::mode::StickRandom<POP_CANDIDATES>>, BENCHMARK, int, int>;
@@ -40,6 +38,9 @@ using benchmark_provider_multififo_swap = benchmark_provider_generic<multififo::
 
 template <typename BENCHMARK, int POP_CANDIDATES = 2>
 using benchmark_provider_multififo_symmetric = benchmark_provider_generic<multififo::MultiFifo<std::uint64_t, multififo::mode::StickRandomSymmetric<POP_CANDIDATES>>, BENCHMARK, int, int>;
+
+template <typename BENCHMARK>
+using benchmark_provider_faaaqueue = benchmark_provider_generic<wrapper_faaaqueue<std::uint64_t>, BENCHMARK>;
 
 #if defined(__GNUC__) && !(defined(__arm__) || defined(__aarch64__))
 template <typename BENCHMARK>
