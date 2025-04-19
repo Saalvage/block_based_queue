@@ -75,7 +75,9 @@ static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 			instances.push_back(std::make_unique<benchmark_provider_kfifo<BENCHMARK>>("{},kfifo", k));
 		}
 	} else {
+		instances.push_back(std::make_unique<benchmark_provider_kfifo<BENCHMARK>>("kfifo-{}", 0.5));
 		instances.push_back(std::make_unique<benchmark_provider_kfifo<BENCHMARK>>("kfifo-{}", 1));
+		instances.push_back(std::make_unique<benchmark_provider_kfifo<BENCHMARK>>("kfifo-{}", 4));
 	}
 #endif
 
