@@ -3,17 +3,30 @@
 #
 
 set(sources
-  main.cpp)
+  main.cpp
+  contenders/multififo/timestamp.cpp)
 
 if(NOT MSVC)
-   set(sources ${sources} "contenders/2D/2Dd-queue_optimized.c" "contenders/2D/ssalloc.c" "contenders/2D/test.c"
-   "contenders/2D/d-balanced-queue.c" "contenders/2D/lcrq.c" "contenders/multififo/util/graph.unix.cpp")
+  if(NOT BBQ_IS_ARM)
+    set(sources ${sources} "contenders/2D/2Dd-queue_optimized.c" "contenders/2D/ssalloc.c" "contenders/2D/test.c"
+      "contenders/2D/d-balanced-queue.c" "contenders/2D/lcrq.c")
+  endif()
+  set(sources ${sources} "contenders/multififo/util/graph.unix.cpp")
 else()
   set(sources ${sources} "contenders/multififo/util/graph.portable.cpp")
 endif()
-
+#find_package(Threads REQUIRED)
+#find_package(TBB REQUIRED)
 # Add source to this project's executable.
 add_executable (relaxed_concurrent_fifo ${sources})
+set_target_properties(relaxed_concurrent_fifo PROPERTIES
+  CXX_STANDARD 23
+)
+#target_link_libraries(relaxed_concurrent_fifo PRIVATE Threads::Threads TBB::tbb)
+target_include_directories(relaxed_concurrent_fifo PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}/contenders/multififo
+)
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET relaxed_concurrent_fifo PROPERTY CXX_STANDARD 20)
