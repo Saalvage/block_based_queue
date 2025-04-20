@@ -4,6 +4,7 @@
 #include "benchmark_base.hpp"
 
 #include <optional>
+#include <iostream>
 
 #include "../utility.h"
 #include "../contenders/multififo/ring_buffer.hpp"
