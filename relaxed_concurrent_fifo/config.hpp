@@ -42,7 +42,7 @@ static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 #if defined(INCLUDE_BBQ) || defined(INCLUDE_ALL)
 	if (parameter_tuning) {
 		for (double b = 0.5; b <= 16; b *= 2) {
-			for (int c = 2; c <= 4096; c *= 2) {
+			for (int c = 2; c <= 2048; c *= 2) {
 				instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("{},{},bbq", b, c - 1));
 			}
 		}
