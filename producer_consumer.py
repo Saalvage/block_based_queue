@@ -1,12 +1,16 @@
-import os;
 import csv;
+import sys;
+import os;
 
-step = int(os.cpu_count() / 16)
+threads_raw = sys.argv[1] if len(sys.argv) >= 2 else input(f"Please enter the thread count file ({os.cpu_count()}): ")
+threads = os.cpu_count() if threads_raw == "" else int(threads_raw)
+
+step = int(threads / 16)
 
 with open("producer-consumer.csv", "w") as out:
     i = step
-    while i < os.cpu_count():
-        files = [f for f in os.listdir(".") if os.path.isfile(f) and "fifo-prodcon-" + str(i) + "-" in f]
+    while i < threads:
+        files = [f for f in os.listdir(".") if os.path.isfile(f) and "fifo-prodcon-" + str(i) + "-" + str(threads-i) + "-" in f]
         files.sort(reverse=True)
         print(files[0])
         with open(files[0]) as input:
