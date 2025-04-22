@@ -171,7 +171,7 @@ int main(int argc, const char** argv) {
 			"[-r | --run_count <count> (default " << TEST_ITERATIONS_DEFAULT << ")]"
 			"[-f | --prefill <factor>]"
 			"[-p | --parameter-tuning]"
-            "[-n | --no-header]"
+			"[-n | --no-header]"
 			" ([-i | --include <fifo>]* | [-e | --exclude <fifo>]*)\n";
 		return 0;
 	}
@@ -185,7 +185,7 @@ int main(int argc, const char** argv) {
 		for (int i = 1; i < static_cast<int>(std::thread::hardware_concurrency()); i *= 2) {
 			processor_counts.emplace_back(i);
 		}
-        processor_counts.emplace_back(std::thread::hardware_concurrency());
+		processor_counts.emplace_back(std::thread::hardware_concurrency());
 	}
 
 	std::optional<double> prefill_override;
@@ -304,7 +304,11 @@ int main(int argc, const char** argv) {
 			std::vector<std::uint32_t> distances;
 			for (int i = 0; i < test_its; i++) {
 				auto [time, dist, d] = sequential_bfs(graph);
-				std::cout << "sequential," << time << "," << dist << std::endl;
+				std::cout << "sequential,";
+				if (processor_counts.size() == 1) {
+					std::cout << processor_counts[0] << ",";
+				}
+				std::cout << time << "," << dist << std::endl;
 				distances = std::move(d);
 			}
 
