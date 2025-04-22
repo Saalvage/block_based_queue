@@ -1,6 +1,7 @@
 import sys;
 import subprocess;
 import os;
+import os.path;
 
 exe = sys.argv[1] if len(sys.argv) >= 2 else input("Please enter the path of the executable file: ")
 graph = sys.argv[2] if len(sys.argv) >= 3 else input("Please enter the path of the executable file: ")
@@ -12,14 +13,21 @@ while i < os.cpu_count():
     threads.append(i)
     i *= 2
 threads.append(os.cpu_count())
+max_thread = sys.maxsize
 
 for i in threads:
-    subprocess.run([exe, "7", graph + str(i) + ".gr", "-n", "-t", str(i)] + sys.argv[3:], check=True)
+    full_graph_file = f"{graph}{i}.gr"
+    if not os.path.isfile(full_graph_file):
+        max_thread = i
+        break
+    subprocess.run([exe, "7", full_graph_file, "-n", "-t", str(i)] + sys.argv[3:], check=True)
 
 outfile = "weakscaling-" + graph_file + ".csv"
 with open(outfile, "w") as out:
     for i in threads:
-        files = [f for f in os.listdir(".") if os.path.isfile(f) and graph_file + str(i) + ".gr" in f]
+        if i >= max_thread:
+            break
+        files = [f for f in os.listdir(".") if os.path.isfile(f) and f"{graph_file}{i}.gr" in f]
         files.sort(reverse=True)
         print(files[0])
         with open(files[0]) as input:

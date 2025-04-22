@@ -7,7 +7,7 @@ threads = os.cpu_count() if threads_raw == "" else int(threads_raw)
 
 step = int(threads / 16)
 
-with open("producer-consumer.csv", "w") as out:
+with open(f"producer-consumer-{threads}.csv", "w") as out:
     i = step
     while i < threads:
         files = [f for f in os.listdir(".") if os.path.isfile(f) and "fifo-prodcon-" + str(i) + "-" + str(threads-i) + "-" in f]
