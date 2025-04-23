@@ -36,14 +36,15 @@ class RingBuffer {
    private:
     std::uint64_t head_{0};
     std::uint64_t tail_{0};
+    std::uint64_t mask_{0};
 
    public:
-    explicit RingBuffer(size_type capacity) noexcept(noexcept(Container(capacity))) : c(capacity) {
+    explicit RingBuffer(size_type capacity) noexcept(noexcept(Container(capacity))) : c(capacity), mask_(capacity - 1) {
         assert(capacity > 0 && (capacity & (capacity - 1)) == 0);
     }
 
     template <typename Alloc, typename = std::enable_if_t<std::uses_allocator_v<Container, Alloc>>>
-    explicit RingBuffer(size_type capacity, Alloc const &alloc) noexcept : c(capacity, alloc) {
+    explicit RingBuffer(size_type capacity, Alloc const &alloc) noexcept : c(capacity, alloc), mask_(capacity - 1) {
         assert(capacity > 0 && (capacity & (capacity - 1)) == 0);
     }
 
@@ -64,7 +65,7 @@ class RingBuffer {
     }
 
     constexpr const_reference top() const {
-        return c[tail_ & (c.size() - 1)];
+        return c[tail_ & mask_];
     }
 
     void pop() {
@@ -73,12 +74,12 @@ class RingBuffer {
     }
 
     void push(const_reference value) {
-        c[head_ & (c.size() - 1)] = value;
+        c[head_ & mask_] = value;
         ++head_;
     }
 
     void push(value_type &&value) {
-        c[head_ & (c.size() - 1)] = std::move(value);
+        c[head_ & mask_] = std::move(value);
         ++head_;
     }
 

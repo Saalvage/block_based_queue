@@ -41,7 +41,10 @@ public:
 template <typename T>
 struct ws_k_fifo : scal_wrapper_base<T, scal::BoundedSizeKFifo> {
 public:
-	ws_k_fifo(int thread_count, size_t size, size_t k) : scal_wrapper_base<T, scal::BoundedSizeKFifo>{thread_count * k, std::max<size_t>(4, size / k / thread_count)} { }
+	ws_k_fifo(int thread_count, size_t size, double k_per_thread) : scal_wrapper_base<T, scal::BoundedSizeKFifo>{
+	    std::bit_ceil(static_cast<std::size_t>(std::lround(thread_count * k_per_thread))),
+	    std::max<size_t>(4, std::lround(size / k_per_thread / thread_count))
+	} { }
 };
 
 template <typename T>

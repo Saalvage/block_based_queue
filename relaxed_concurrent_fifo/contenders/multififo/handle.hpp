@@ -1,56 +1,60 @@
 #pragma once
 
-#include "stick_random.hpp"
+#include "timestamp.hpp"
 
 #include <optional>
 
 namespace multififo {
 
+std::uint64_t get_timestamp();
+
 template <typename Context>
-class Handle : public multififo::mode::StickRandom<2> {
-    using mode_type = multififo::mode::StickRandom<2>;
+class Handle : public Context::mode_type {
+    using mode_type = typename Context::mode_type;
     Context *context_;
     using value_type = typename Context::value_type;
 
     bool scan_push(value_type const &v) {
-        for (auto *it = context_->queue_guards(); it != context_->queue_guards() + context_->num_queues(); ++it) {
-            if (!it->try_lock()) {
+        for (std::size_t i = 0; i < context_->num_queues(); ++i) {
+            auto ptr = context_->queue_storage(i);
+            if (!context_->try_lock(ptr)) {
                 continue;
             }
-            if (it->get_queue().full()) {
-                it->unlock();
+            if (context_->unsafe_size(ptr) == context_->size_per_queue()) {
+                context_->unlock(ptr);
                 continue;
             }
-            auto tick = __rdtsc();
-            it->get_queue().push({tick, v});
-            it->pushed();
-            it->unlock();
+            auto tick = get_timestamp();
+            context_->push(ptr, {tick, v});
+            mode_type::pushed(*context_, ptr);
+            context_->unlock(ptr);
             return true;
         }
         return false;
     }
 
     std::optional<value_type> scan_pop() {
-        for (auto *it = context_->queue_guards(); it != context_->queue_guards() + context_->num_queues(); ++it) {
-            if (!it->try_lock()) {
+        for (std::size_t i = 0; i < context_->num_queues(); ++i) {
+            auto ptr = context_->queue_storage(i);
+            if (!context_->try_lock(ptr)) {
                 continue;
             }
-            if (it->get_queue().empty()) {
-                it->unlock();
+            if (context_->unsafe_empty(ptr)) {
+                context_->unlock(ptr);
                 continue;
             }
-            auto v = it->get_queue().top().value;
-            it->get_queue().pop();
-            it->popped();
-            it->unlock();
+            auto v = context_->top(ptr);
+            context_->pop(ptr);
+            mode_type::popped(*context_, ptr);
+            context_->unlock(ptr);
             return v;
         }
         return std::nullopt;
     }
 
    public:
-    explicit Handle(Context &ctx) noexcept : mode_type{ctx.seed(), ctx.new_id()}, context_{&ctx} {
-    }
+    explicit Handle(Context &ctx) noexcept
+        : mode_type{ctx.seed(), ctx.new_id()}, context_{&ctx} {}
 
     Handle(Handle const &) = delete;
     Handle(Handle &&) noexcept = default;

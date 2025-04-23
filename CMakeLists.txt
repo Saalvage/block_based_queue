@@ -3,6 +3,9 @@
 #
 cmake_minimum_required (VERSION 3.8)
 
+# Set the C++ standard to C++20.
+set_property (GLOBAL PROPERTY CMAKE_CXX_STANDARD 23)
+
 # Enable Hot Reload for MSVC compilers if supported.
 if (POLICY CMP0141)
   cmake_policy(SET CMP0141 NEW)
