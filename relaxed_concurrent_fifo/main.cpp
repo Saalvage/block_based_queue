@@ -211,6 +211,8 @@ int main(int argc, const char** argv) {
 		return false;
 	}
     std::cout << "SUCCESS: PAPI library initialized\n";
+#else
+	std::cout << "NOT DEFINED :(" << std::endl;
 #endif // WITH_PAPI
 
 	for (int i = input == 7 ? 3 : 2; i < argc; i++) {
