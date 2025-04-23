@@ -42,6 +42,7 @@ endif()
 target_include_directories(relaxed_concurrent_fifo PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/contenders/multififo
+  ${PAPI_INCLUDE_DIRS}
 )
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
