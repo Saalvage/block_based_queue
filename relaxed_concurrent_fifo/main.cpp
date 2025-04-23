@@ -2,7 +2,6 @@
 
 #include "block_based_queue.h"
 
-
 #include <ranges>
 #include <chrono>
 #include <thread>
@@ -10,6 +9,10 @@
 #include <fstream>
 #include <unordered_set>
 #include <iostream>
+
+#ifdef WITH_PAPI
+#include <papi.h>
+#endif // WITH_PAPI
 
 template <std::size_t THREAD_COUNT, std::size_t BLOCK_MULTIPLIER>
 void test_consistency(std::size_t fifo_size, std::size_t elements_per_thread, double prefill) {
@@ -197,6 +200,18 @@ int main(int argc, const char** argv) {
 	bool parameter_tuning = false;
 	bool is_exclude = true;
 	bool quiet = false;
+
+#ifdef WITH_PAPI
+	if (int ret = PAPI_library_init(PAPI_VER_CURRENT); ret != PAPI_VER_CURRENT) {
+		std::cout << "Error: Failed to initialize PAPI library" << std::endl;
+		return false;
+	}
+	if (int ret = PAPI_thread_init(pthread_self); ret != PAPI_OK) {
+		std::cout << "Error: Failed to initialize PAPI thread support" << std::endl;
+		return false;
+	}
+    std::cout << "SUCCESS: PAPI library initialized\n";
+#endif // WITH_PAPI
 
 	for (int i = input == 7 ? 3 : 2; i < argc; i++) {
 		if (strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--thread_count") == 0) {
