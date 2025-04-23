@@ -12,17 +12,31 @@ if(NOT MSVC)
       "contenders/2D/d-balanced-queue.c" "contenders/2D/lcrq.c")
   endif()
   set(sources ${sources} "contenders/multififo/util/graph.unix.cpp")
+  find_package(Threads REQUIRED)
+  find_package(TBB REQUIRED)
+
+  if(NOT PAPI_FOUND)
+    message(STATUS "PAPI library not found, performance counters not available")
+  endif()
 else()
   set(sources ${sources} "contenders/multififo/util/graph.portable.cpp")
 endif()
-#find_package(Threads REQUIRED)
-#find_package(TBB REQUIRED)
+
 # Add source to this project's executable.
 add_executable (relaxed_concurrent_fifo ${sources})
 set_target_properties(relaxed_concurrent_fifo PROPERTIES
   CXX_STANDARD 23
 )
-#target_link_libraries(relaxed_concurrent_fifo PRIVATE Threads::Threads TBB::tbb)
+
+if(PAPI_FOUND)
+  target_link_libraries(relaxed_concurrent_fifo INTERFACE PAPI::PAPI)
+  target_compile_definitions(relaxed_concurrent_fifo INTERFACE WITH_PAPI)
+endif()
+
+if(NOT MSVC)
+  target_link_libraries(relaxed_concurrent_fifo PRIVATE Threads::Threads TBB::tbb)
+endif()
+
 target_include_directories(relaxed_concurrent_fifo PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/contenders/multififo
