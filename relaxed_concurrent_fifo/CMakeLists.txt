@@ -31,6 +31,7 @@ set_target_properties(relaxed_concurrent_fifo PROPERTIES
 if(PAPI_FOUND)
   target_link_libraries(relaxed_concurrent_fifo INTERFACE PAPI::PAPI)
   target_compile_definitions(relaxed_concurrent_fifo INTERFACE WITH_PAPI)
+  message(STATUS "HALLO???")
 endif()
 
 if(NOT MSVC)
