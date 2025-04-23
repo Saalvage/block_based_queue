@@ -14,6 +14,10 @@
 #include <pthread.h>
 #endif // _POSIX_VERSION
 
+#include <papi.h>
+#include <iostream>
+
+
 #include "../benchmark_base.hpp"
 #include "../../fifo.h"
 
@@ -57,10 +61,20 @@ protected:
                     }
                 }
 
+                auto retval = PAPI_hl_region_begin(get_name());
+                if (retval != PAPI_OK) {
+                    std::cout << "Error initializing PAPI\n";
+                }
+
                 if constexpr (BENCHMARK::HAS_TIMEOUT) {
                     b.template per_thread<FIFO>(i, handle, a, over);
                 } else {
                     b.template per_thread<FIFO>(i, handle, a);
+                }
+
+                retval = PAPI_hl_region_end("inc_v");
+                if (retval != PAPI_OK) {
+                    std::cout << "Error ending PAPI\n";
                 }
             });
         }
