@@ -25,7 +25,7 @@ template <typename BENCHMARK>
 class benchmark_provider {
 public:
     virtual ~benchmark_provider() = default;
-    virtual BENCHMARK test(const benchmark_info& info, double prefill_amount) const = 0;
+    virtual BENCHMARK test(const benchmark_info& info, double prefill_amount) = 0;
     virtual const std::string& get_name() const = 0;
 
 protected:
