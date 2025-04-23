@@ -30,7 +30,7 @@ public:
 
 protected:
     template <fifo FIFO>
-    static void test_single(FIFO& fifo, BENCHMARK& b, const benchmark_info& info, double prefill_amount) {
+    void test_single(FIFO& fifo, BENCHMARK& b, const benchmark_info& info, double prefill_amount) {
         std::barrier a{info.num_threads + 1};
         std::atomic_bool over = false;
         std::vector<std::jthread> threads(info.num_threads);
