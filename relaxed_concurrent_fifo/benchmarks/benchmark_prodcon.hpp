@@ -3,8 +3,6 @@
 
 #include "benchmark_base.hpp"
 
-#include <iostream>
-
 struct benchmark_info_prodcon : public benchmark_info {
     int producers;
     int consumers;
@@ -16,7 +14,6 @@ struct benchmark_prodcon : benchmark_default {
     benchmark_prodcon(const benchmark_info& info) : benchmark_default(info) {
         const benchmark_info_prodcon& info_prodcon = reinterpret_cast<const benchmark_info_prodcon&>(info);
         thread_switch = info.num_threads * info_prodcon.producers / (info_prodcon.consumers + info_prodcon.producers);
-        std::cout << thread_switch << std::endl;
     }
 
     template <typename T>

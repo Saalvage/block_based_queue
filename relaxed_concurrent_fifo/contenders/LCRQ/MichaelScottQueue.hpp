@@ -32,7 +32,7 @@
 #include <atomic>
 #include <stdexcept>
 #include "Metrics.hpp"
-#include "HazardPointers.hpp"
+#include "../common/HazardPointers.hpp"
 
 
 /**

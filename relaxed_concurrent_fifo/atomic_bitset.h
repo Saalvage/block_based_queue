@@ -2,18 +2,12 @@
 #define ATOMIC_BITSET_H_INCLUDED
 
 #include <cstdint>
-#include <array>
 #include <atomic>
 #include <cassert>
 #include <limits>
 #include <random>
 
 #include "utility.h"
-
-#ifdef __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Winterference-size"
-#endif // __GNUC__
 
 #ifndef BITSET_DEFAULT_MEMORY_ORDER
 #define BITSET_DEFAULT_MEMORY_ORDER std::memory_order_relaxed
@@ -160,9 +154,5 @@ public:
         return { std::numeric_limits<std::size_t>::max(), true };
     }
 };
-
-#ifdef __GNUC__
-#pragma GCC diagnostic pop
-#endif // __GNUC__
 
 #endif // ATOMIC_BITSET_H_INCLUDED
