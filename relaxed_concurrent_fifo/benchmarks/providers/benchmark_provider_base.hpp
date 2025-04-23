@@ -61,25 +61,19 @@ public:
                     }
                 }
 
-                auto retval = PAPI_hl_region_begin(get_name().c_str());
-                if (retval != PAPI_OK) {
-                    std::cout << "Error initializing PAPI\n";
-                }
-
                 if constexpr (BENCHMARK::HAS_TIMEOUT) {
                     b.template per_thread<FIFO>(i, handle, a, over);
                 } else {
                     b.template per_thread<FIFO>(i, handle, a);
                 }
-
-                retval = PAPI_hl_region_end(get_name().c_str());
-                if (retval != PAPI_OK) {
-                    std::cout << "Error ending PAPI\n";
-                }
             });
         }
 
         // We signal, then start taking the time because some threads might not have arrived at the signal.
+        auto retval = PAPI_hl_region_begin(get_name().c_str());
+        if (retval != PAPI_OK) {
+            std::cout << "Error initializing PAPI\n";
+        }
         a.arrive_and_wait();
         auto start = std::chrono::steady_clock::now();
         auto joined = std::async([&]() {
@@ -106,6 +100,10 @@ public:
         }
         if constexpr (BENCHMARK::RECORD_TIME) {
             b.time_nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start).count();
+        }
+        retval = PAPI_hl_region_end(get_name().c_str());
+        if (retval != PAPI_OK) {
+            std::cout << "Error ending PAPI\n";
         }
     }
 };
