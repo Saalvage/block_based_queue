@@ -28,7 +28,7 @@ public:
     virtual BENCHMARK test(const benchmark_info& info, double prefill_amount) = 0;
     virtual const std::string& get_name() const = 0;
 
-protected:
+public:
     template <fifo FIFO>
     void test_single(FIFO& fifo, BENCHMARK& b, const benchmark_info& info, double prefill_amount) {
         std::barrier a{info.num_threads + 1};
