@@ -16,7 +16,7 @@
 
 #include <papi.h>
 #include <iostream>
-
+#include <format>
 
 #include "../benchmark_base.hpp"
 #include "../../fifo.h"
