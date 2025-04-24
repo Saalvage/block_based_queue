@@ -21,6 +21,7 @@
 #include "../benchmark_base.hpp"
 #include "../../fifo.h"
 
+static inline std::atomic<long unsigned int> global_papi_id;
 static thread_local inline long unsigned int my_papi_id;
 
 static long unsigned int get_my_papi_id() {
@@ -67,7 +68,7 @@ public:
                     }
                 }
 
-                my_papi_id = i;
+                my_papi_id = global_papi_id++;
 
                 auto name = std::format("{}_thread_{}", get_name(), i);
 
