@@ -21,6 +21,12 @@
 #include "../benchmark_base.hpp"
 #include "../../fifo.h"
 
+static thread_local inline int my_papi_id;
+
+static int get_my_papi_id() {
+    return my_papi_id;
+}
+
 template <typename BENCHMARK>
 class benchmark_provider {
 public:
@@ -60,6 +66,8 @@ public:
                         break;
                     }
                 }
+
+                my_papi_id = i;
 
                 auto name = std::format("{}_thread_{}", get_name(), i);
 

@@ -206,7 +206,7 @@ int main(int argc, const char** argv) {
 		std::cout << "Error: Failed to initialize PAPI library" << std::endl;
 		return false;
 	}
-	if (int ret = PAPI_thread_init(pthread_self); ret != PAPI_OK) {
+	if (int ret = PAPI_thread_init(get_my_papi_id); ret != PAPI_OK) {
 		std::cout << "Error: Failed to initialize PAPI thread support" << std::endl;
 		return false;
 	}
