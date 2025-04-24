@@ -61,7 +61,9 @@ public:
                     }
                 }
 
-                auto retval = PAPI_hl_region_begin(get_name().c_str());
+                auto name = std::format("{}_thread_{}", get_name(), i);
+
+                auto retval = PAPI_hl_region_begin(name.c_str());
                 if (retval != PAPI_OK) {
                     std::cout << "Error initializing PAPI\n";
                 }
@@ -72,7 +74,7 @@ public:
                     b.template per_thread<FIFO>(i, handle, a);
                 }
 
-                retval = PAPI_hl_region_end(get_name().c_str());
+                retval = PAPI_hl_region_end(name.c_str());
                 if (retval != PAPI_OK) {
                     std::cout << "Error ending PAPI\n";
                 }
