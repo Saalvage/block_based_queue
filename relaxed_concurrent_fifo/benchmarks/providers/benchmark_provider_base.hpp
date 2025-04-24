@@ -22,7 +22,7 @@
 #include "../../fifo.h"
 
 static inline std::atomic<long unsigned int> global_papi_id;
-static thread_local inline long unsigned int my_papi_id;
+static thread_local inline long unsigned int my_papi_id = 1;
 
 static long unsigned int get_my_papi_id() {
     return my_papi_id;
