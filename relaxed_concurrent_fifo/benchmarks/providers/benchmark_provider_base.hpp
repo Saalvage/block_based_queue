@@ -21,9 +21,9 @@
 #include "../benchmark_base.hpp"
 #include "../../fifo.h"
 
-static thread_local inline int my_papi_id;
+static thread_local inline long unsigned int my_papi_id;
 
-static int get_my_papi_id() {
+static long unsigned int get_my_papi_id() {
     return my_papi_id;
 }
 
