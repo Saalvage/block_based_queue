@@ -301,9 +301,13 @@ int main(int argc, const char** argv) {
 			}
 			Graph graph{ graph_file };
 
-			std::cout << "Please enter the start count: ";
 			int start_count;
-			std::cin >> start_count;
+			if (argc > 3) {
+				start_count = std::strtol(argv[3], nullptr, 10);
+			} else {
+				std::cout << "Please enter the start count: ";
+				std::cin >> start_count;
+			}
 
 			std::vector<std::uint32_t> distances;
 			for (int i = 0; i < test_its; i++) {
