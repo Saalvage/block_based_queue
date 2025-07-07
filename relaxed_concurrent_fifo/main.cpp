@@ -198,7 +198,7 @@ int main(int argc, const char** argv) {
 	bool is_exclude = true;
 	bool quiet = false;
 
-	for (int i = input == 7 ? 3 : 2; i < argc; i++) {
+	for (int i = input == 7 ? 4 : 2; i < argc; i++) {
 		if (strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--thread_count") == 0) {
 			i++;
 			const char* arg = argv[i];
