@@ -301,6 +301,10 @@ int main(int argc, const char** argv) {
 			}
 			Graph graph{ graph_file };
 
+			std::cout << "Please enter the start count: ";
+			int start_count;
+			std::cin >> start_count;
+
 			std::vector<std::uint32_t> distances;
 			for (int i = 0; i < test_its; i++) {
 				auto [time, dist, d] = sequential_bfs(graph);
@@ -312,11 +316,11 @@ int main(int argc, const char** argv) {
 				distances = std::move(d);
 			}
 
-			std::vector<std::unique_ptr<benchmark_provider<benchmark_bfs>>> instances;
+			std::vector<std::unique_ptr<benchmark_provider<benchmark_bfs_multistart>>> instances;
 			add_instances(instances, parameter_tuning, fifo_set, is_exclude);
-			run_benchmark<benchmark_bfs, benchmark_info_graph, const Graph&, const std::vector<std::uint32_t>&>(
+			run_benchmark<benchmark_bfs_multistart, benchmark_info_graph_multistart, const Graph&, const std::vector<std::uint32_t>&>(
 				std::format("bfs-{}", graph_file.filename().string()), instances, 0, processor_counts,
-				test_its, 0, include_header, quiet, graph, distances);
+				test_its, 0, include_header, quiet, graph, distances, start_count);
 	} break;
 	}
 
