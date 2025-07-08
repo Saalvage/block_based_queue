@@ -27,11 +27,11 @@ public:
 protected:
     template <fifo FIFO>
     static void test_single(FIFO& fifo, BENCHMARK& b, const benchmark_info& info, double prefill_amount) {
-        std::barrier a{info.num_threads + 1};
+        std::barrier a{1 + 1};
         std::atomic_bool over = false;
-        std::vector<std::jthread> threads(info.num_threads);
+        std::vector<std::jthread> threads(1);
 
-        for (int i = 0; i < info.num_threads; i++) {
+        for (int i = 0; i < 1; i++) {
             threads[i] = std::jthread([&, i]() {
 #ifdef _POSIX_VERSION
                 cpu_set_t cpu_set;
