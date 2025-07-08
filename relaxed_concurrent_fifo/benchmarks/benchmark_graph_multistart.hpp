@@ -54,8 +54,9 @@ struct benchmark_bfs_multistart : benchmark_timed<> {
     template <typename FIFO>
     void process_node(std::uint64_t node, typename FIFO::handle& handle, Counter& counter) {
         std::uint64_t node_id = node & 0xffff'ffff;
-        std::uint32_t node_dist = node >> 32 & 0xff'ffff;
-        auto& vec = distances[node >> 48];
+        std::uint32_t node_dist = (node >> 32) & 0xff'ffff;
+        std::uint64_t idx = node >> 56;
+        auto& vec = distances[idx];
         auto current_distance = vec[node_id].value.load(std::memory_order_relaxed);
         if (node_dist > current_distance) {
             ++counter.ignored_nodes;
@@ -67,7 +68,7 @@ struct benchmark_bfs_multistart : benchmark_timed<> {
             auto old_d = vec[target].value.load(std::memory_order_relaxed);
             while (d < old_d) {
                 if (vec[target].value.compare_exchange_weak(old_d, d, std::memory_order_relaxed)) {
-                    if (!handle.push((static_cast<std::uint64_t>(d) << 32) | target)) {
+                    if (!handle.push((static_cast<std::uint64_t>(d) << 32) | target | (idx << 56))) {
                         counter.err = true;
                     }
                     ++counter.pushed_nodes;
@@ -87,7 +88,7 @@ struct benchmark_bfs_multistart : benchmark_timed<> {
                 auto& vec = distances[i];
                 vec = std::vector<AtomicDistance>(graph.num_nodes());
                 vec[0].value = 1;
-                handle.push((1ull << 32) | (i << 48));
+                handle.push((1ull << 32) | (i << 56));
                 ++counter.pushed_nodes;
             }
         }
