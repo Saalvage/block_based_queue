@@ -6,49 +6,30 @@
 #include <optional>
 #include <iostream>
 
+#include "benchmark_graph.hpp"
+
 #include "../utility.h"
 #include "../contenders/multififo/ring_buffer.hpp"
 #include "../contenders/multififo/util/graph.hpp"
 #include "../contenders/multififo/util/termination_detection.hpp"
 
-struct benchmark_info_graph_multistart : public benchmark_info {
-    const Graph& graph;
-    const std::vector<std::uint32_t>& distances;
-    const int start_count;
-};
-
 struct benchmark_bfs_multistart : benchmark_timed<> {
-    struct Counter {
-        long long pushed_nodes{ 0 };
-        long long ignored_nodes{ 0 };
-        long long processed_nodes{ 0 };
-        bool err{ false };
-    };
-
-#ifdef __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Winterference-size"
-#endif // __GNUC__
-    struct alignas(std::hardware_destructive_interference_size) AtomicDistance {
-        std::atomic<std::uint32_t> value{ std::numeric_limits<std::uint32_t>::max() };
-    };
-#ifdef __GNUC__
-#pragma GCC diagnostic pop
-#endif // __GNUC__
-
-    const benchmark_info_graph_multistart& info;
+    const benchmark_info_graph& info;
     const Graph& graph;
     std::vector<std::vector<AtomicDistance>> distances;
     termination_detection::TerminationDetection termination_detection;
     std::vector<Counter> counters;
 
     benchmark_bfs_multistart(const benchmark_info& info_base) :
-            info(reinterpret_cast<const benchmark_info_graph_multistart&>(info_base)),
+            info(reinterpret_cast<const benchmark_info_graph&>(info_base)),
             graph(info.graph),
-            distances(info.start_count),
+            distances(info.num_threads),
             termination_detection(info.num_threads),
             counters(info.num_threads) {
         fifo_size = std::bit_ceil(graph.nodes.size());
+        if (info.num_threads > 255) {
+            throw std::runtime_error("More bits must be allocated to the arr index to allow for more than 255 threads!");
+        }
     }
 
     template <typename FIFO>
@@ -103,7 +84,7 @@ struct benchmark_bfs_multistart : benchmark_timed<> {
         counters[thread_index] = counter;
     }
 
-    static constexpr const char* header = "time_nanoseconds,longest_distance,pushed_nodes,processed_nodes,ignored_nodes";
+    static constexpr const char* header = "time_nanoseconds,pushed_nodes,processed_nodes,ignored_nodes";
 
     template <typename T>
     void output(T& stream) {
@@ -129,28 +110,17 @@ struct benchmark_bfs_multistart : benchmark_timed<> {
             return;
         }
 
-        /*for (std::size_t i = 0; i < info.distances.size(); i++) {
-            if (distances[i].value != info.distances[i]) {
-                std::cout << "Node " << i << " has distance " << distances[i].value << ", should be " << info.distances[i] << std::endl;
-                stream << "ERR_DIST_WRONG";
-                return;
+        for (const auto& dist : distances) {
+            for (std::size_t i = 0; i < info.distances.size(); i++) {
+                if (dist[i].value != info.distances[i]) {
+                    std::cout << "Node " << i << " has distance " << dist[i].value << ", should be " << info.distances[i] << std::endl;
+                    stream << "ERR_DIST_WRONG";
+                    return;
+                }
             }
-        }*/
+        }
 
-        auto longest_distance = 0;
-        /*std::max_element(distances.begin(), distances.end(), [](auto const& a, auto const& b) {
-            auto a_val = a.value.load(std::memory_order_relaxed);
-            auto b_val = b.value.load(std::memory_order_relaxed);
-            if (b_val == std::numeric_limits<long long>::max()) {
-                return false;
-            }
-            if (a_val == std::numeric_limits<long long>::max()) {
-                return true;
-            }
-            return a_val < b_val;
-        })->value.load();*/
-
-        stream << time_nanos << ',' << longest_distance << ',' << total_counts.pushed_nodes << ',' << total_counts.processed_nodes << ',' << total_counts.ignored_nodes;
+        stream << time_nanos << ',' << total_counts.pushed_nodes << ',' << total_counts.processed_nodes << ',' << total_counts.ignored_nodes;
     }
 };
 

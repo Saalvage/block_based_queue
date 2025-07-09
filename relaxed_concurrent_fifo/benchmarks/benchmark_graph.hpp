@@ -40,25 +40,25 @@ struct benchmark_info_graph : public benchmark_info {
     const std::vector<std::uint32_t>& distances;
 };
 
-struct benchmark_bfs : benchmark_timed<> {
-    struct Counter {
-        long long pushed_nodes{ 0 };
-        long long ignored_nodes{ 0 };
-        long long processed_nodes{ 0 };
-        bool err{ false };
-    };
+struct Counter {
+    long long pushed_nodes{ 0 };
+    long long ignored_nodes{ 0 };
+    long long processed_nodes{ 0 };
+    bool err{ false };
+};
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Winterference-size"
 #endif // __GNUC__
-    struct alignas(std::hardware_destructive_interference_size) AtomicDistance {
-        std::atomic<std::uint32_t> value{ std::numeric_limits<std::uint32_t>::max() };
-    };
+struct alignas(std::hardware_destructive_interference_size) AtomicDistance {
+    std::atomic<std::uint32_t> value{ std::numeric_limits<std::uint32_t>::max() };
+};
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
 #endif // __GNUC__
 
+struct benchmark_bfs : benchmark_timed<> {
     const benchmark_info_graph& info;
     const Graph& graph;
     std::vector<AtomicDistance> distances;

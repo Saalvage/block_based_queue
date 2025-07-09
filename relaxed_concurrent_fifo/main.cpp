@@ -126,6 +126,30 @@ void run_benchmark(const std::string& test_name, const std::vector<std::unique_p
 	std::cout << "Results written to " << filename << std::endl;
 }
 
+static std::tuple<std::filesystem::path, Graph, std::vector<std::uint32_t>> read_and_test_graph(int argc, const char** argv,
+	    int test_its, const std::vector<int>& processor_counts) {
+	std::filesystem::path graph_file;
+	if (argc > 2) {
+		graph_file = argv[2];
+	} else {
+		std::cout << "Please enter your graph file: ";
+		std::cin >> graph_file;
+	}
+	Graph graph{ graph_file };
+
+	std::vector<std::uint32_t> distances;
+	for (int i = 0; i < test_its; i++) {
+		auto [time, dist, d] = sequential_bfs(graph);
+		std::cout << "sequential,";
+		if (processor_counts.size() == 1) {
+			std::cout << processor_counts[0] << ",";
+		}
+		std::cout << time << "," << dist << std::endl;
+		distances = std::move(d);
+	}
+	return { graph_file, std::move(graph), std::move(distances) };
+}
+
 int main(int argc, const char** argv) {
 #ifndef NDEBUG
 	std::cout << "Running in debug mode!" << std::endl;
@@ -148,6 +172,7 @@ int main(int argc, const char** argv) {
 			"[5] Empty\n"
 			"[6] Producer-Consumer\n"
 			"[7] BFS\n"
+			"[8] BFS multistart (weak scaling)\n"
 			"Input: ";
 		std::string input_str;
 		getline(std::cin, input_str);
@@ -198,7 +223,7 @@ int main(int argc, const char** argv) {
 	bool is_exclude = true;
 	bool quiet = false;
 
-	for (int i = input == 7 ? 4 : 2; i < argc; i++) {
+	for (int i = input == 7 || input == 8 ? 3 : 2; i < argc; i++) {
 		if (strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--thread_count") == 0) {
 			i++;
 			const char* arg = argv[i];
@@ -292,39 +317,20 @@ int main(int argc, const char** argv) {
 		}
 	} break;
 	case 7: {
-			std::filesystem::path graph_file;
-			if (argc > 2) {
-				graph_file = argv[2];
-			} else {
-				std::cout << "Please enter your graph file: ";
-				std::cin >> graph_file;
-			}
-			Graph graph{ graph_file };
-
-			int start_count;
-			if (argc > 3) {
-				start_count = std::strtol(argv[3], nullptr, 10);
-			} else {
-				std::cout << "Please enter the start count: ";
-				std::cin >> start_count;
-			}
-
-			std::vector<std::uint32_t> distances;
-			for (int i = 0; i < test_its; i++) {
-				auto [time, dist, d] = sequential_bfs(graph);
-				std::cout << "sequential,";
-				if (processor_counts.size() == 1) {
-					std::cout << processor_counts[0] << ",";
-				}
-				std::cout << time << "," << dist << std::endl;
-				distances = std::move(d);
-			}
-
+		auto [graph_file, graph, distances] = read_and_test_graph(argc, argv, test_its, processor_counts);
+		std::vector<std::unique_ptr<benchmark_provider<benchmark_bfs>>> instances;
+		add_instances(instances, parameter_tuning, fifo_set, is_exclude);
+		run_benchmark<benchmark_bfs, benchmark_info_graph, const Graph&, const std::vector<std::uint32_t>&>(
+			std::format("bfs-{}", graph_file.filename().string()), instances, 0, processor_counts,
+			test_its, 0, include_header, quiet, graph, distances);
+	} break;
+	case 8: {
+            auto [graph_file, graph, distances] = read_and_test_graph(argc, argv, test_its, processor_counts);
 			std::vector<std::unique_ptr<benchmark_provider<benchmark_bfs_multistart>>> instances;
 			add_instances(instances, parameter_tuning, fifo_set, is_exclude);
-			run_benchmark<benchmark_bfs_multistart, benchmark_info_graph_multistart, const Graph&, const std::vector<std::uint32_t>&>(
-				std::format("bfs-{}", graph_file.filename().string()), instances, 0, processor_counts,
-				test_its, 0, include_header, quiet, graph, distances, start_count);
+			run_benchmark<benchmark_bfs_multistart, benchmark_info_graph, const Graph&, const std::vector<std::uint32_t>&>(
+				std::format("bfs-multistart-{}", graph_file.filename().string()), instances, 0, processor_counts,
+				test_its, 0, include_header, quiet, graph, distances);
 	} break;
 	}
 
