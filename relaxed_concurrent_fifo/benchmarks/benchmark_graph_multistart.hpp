@@ -26,7 +26,7 @@ struct benchmark_bfs_multistart : benchmark_timed<> {
     std::vector<Counter> counters;
 
     static std::size_t get_start_node(std::uint64_t thread_index, std::size_t num_threads, std::size_t num_nodes) {
-        return thread_index * (num_nodes - 1) / (num_threads - 1);
+        return thread_index * (num_nodes - 1) / std::max(static_cast<std::size_t>(1), num_threads - 1);
     }
 
     benchmark_bfs_multistart(const benchmark_info& info_base) :
