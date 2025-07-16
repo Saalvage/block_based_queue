@@ -11,6 +11,12 @@
 #include <unordered_set>
 #include <iostream>
 
+#ifdef WIN32
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
+
 template <std::size_t THREAD_COUNT, std::size_t BLOCK_MULTIPLIER>
 void test_consistency(std::size_t fifo_size, std::size_t elements_per_thread, double prefill) {
 	block_based_queue<std::uint64_t> fifo{ THREAD_COUNT, fifo_size, BLOCK_MULTIPLIER, 7 };
@@ -148,6 +154,19 @@ static std::tuple<std::filesystem::path, Graph, std::vector<std::uint32_t>> read
 		distances = std::move(d);
 	}
 	return { graph_file, std::move(graph), std::move(distances) };
+}
+
+std::size_t get_total_system_memory_bytes() {
+#ifdef WIN32
+	MEMORYSTATUSEX status;
+	status.dwLength = sizeof(status);
+	GlobalMemoryStatusEx(&status);
+	return status.ullTotalPhys;
+#else
+	auto page_count = sysconf(_SC_PHYS_PAGES);
+	auto page_size = sysconf(_SC_PAGE_SIZE);
+	return page_count * page_size;
+#endif
 }
 
 int main(int argc, const char** argv) {
@@ -328,6 +347,10 @@ int main(int argc, const char** argv) {
             auto [graph_file, graph, distances] = read_and_test_graph(argc, argv, test_its, processor_counts);
 			std::vector<std::unique_ptr<benchmark_provider<benchmark_bfs_multistart>>> instances;
 			add_instances(instances, parameter_tuning, fifo_set, is_exclude);
+			auto avail_bytes = get_total_system_memory_bytes();
+			std::erase_if(processor_counts, [&](int p) {
+			    return p * graph.num_nodes() * std::hardware_destructive_interference_size >= avail_bytes;
+			});
 			run_benchmark<benchmark_bfs_multistart, benchmark_info_graph, const Graph&, const std::vector<std::uint32_t>&>(
 				std::format("bfs-multistart-{}", graph_file.filename().string()), instances, 0, processor_counts,
 				test_its, 0, include_header, quiet, graph, distances);
