@@ -16,7 +16,7 @@ std::tuple<std::uint64_t, std::uint32_t, std::vector<std::uint32_t>> sequential_
     std::vector<std::uint32_t> distances(graph.num_nodes(), std::numeric_limits<std::uint32_t>::max());
     distances[start_node] = 1;
 
-    nodes.push(static_cast<std::uint32_t>(graph.nodes[start_node]));
+    nodes.push(static_cast<std::uint32_t>(start_node));
 
     auto now = std::chrono::steady_clock::now().time_since_epoch().count();
     while (!nodes.empty()) {

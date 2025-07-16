@@ -355,7 +355,6 @@ int main(int argc, const char** argv) {
 				for (int it = 0; it < test_its; it++) {
 					std::uint64_t time = 0;
 					for (int p = 0; p < processor_counts[i]; p++) {
-						std::cout << benchmark_bfs_multistart::get_start_node(p, processor_counts[i], graph.num_nodes()) << " " << graph.num_nodes() << std::endl;
 						auto [from_start_time, dist, d]
 							= sequential_bfs(graph, benchmark_bfs_multistart::get_start_node(p, processor_counts[i], graph.num_nodes()));
 						//distances[i] = std::move(d);
