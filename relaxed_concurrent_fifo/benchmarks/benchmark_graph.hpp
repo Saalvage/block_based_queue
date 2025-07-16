@@ -11,12 +11,12 @@
 #include "../contenders/multififo/util/graph.hpp"
 #include "../contenders/multififo/util/termination_detection.hpp"
 
-std::tuple<std::uint64_t, std::uint32_t, std::vector<std::uint32_t>> sequential_bfs(const Graph& graph) {
+std::tuple<std::uint64_t, std::uint32_t, std::vector<std::uint32_t>> sequential_bfs(const Graph& graph, std::size_t start_node = 0) {
     multififo::RingBuffer<std::uint32_t> nodes(std::bit_ceil(graph.num_nodes()));
     std::vector<std::uint32_t> distances(graph.num_nodes(), std::numeric_limits<std::uint32_t>::max());
-    distances[0] = 1;
+    distances[start_node] = 1;
 
-    nodes.push(static_cast<std::uint32_t>(graph.nodes[0]));
+    nodes.push(static_cast<std::uint32_t>(graph.nodes[start_node]));
 
     auto now = std::chrono::steady_clock::now().time_since_epoch().count();
     while (!nodes.empty()) {

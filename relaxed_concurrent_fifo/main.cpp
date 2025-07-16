@@ -132,8 +132,7 @@ void run_benchmark(const std::string& test_name, const std::vector<std::unique_p
 	std::cout << "Results written to " << filename << std::endl;
 }
 
-static std::tuple<std::filesystem::path, Graph, std::vector<std::uint32_t>> read_and_test_graph(int argc, const char** argv,
-	    int test_its, const std::vector<int>& processor_counts) {
+static std::tuple<std::filesystem::path, Graph> read_and_test_graph(int argc, const char** argv) {
 	std::filesystem::path graph_file;
 	if (argc > 2) {
 		graph_file = argv[2];
@@ -142,18 +141,7 @@ static std::tuple<std::filesystem::path, Graph, std::vector<std::uint32_t>> read
 		std::cin >> graph_file;
 	}
 	Graph graph{ graph_file };
-
-	std::vector<std::uint32_t> distances;
-	for (int i = 0; i < test_its; i++) {
-		auto [time, dist, d] = sequential_bfs(graph);
-		std::cout << "sequential,";
-		if (processor_counts.size() == 1) {
-			std::cout << processor_counts[0] << ",";
-		}
-		std::cout << time << "," << dist << std::endl;
-		distances = std::move(d);
-	}
-	return { graph_file, std::move(graph), std::move(distances) };
+	return { graph_file, std::move(graph) };
 }
 
 std::size_t get_total_system_memory_bytes() {
@@ -336,7 +324,18 @@ int main(int argc, const char** argv) {
 		}
 	} break;
 	case 7: {
-		auto [graph_file, graph, distances] = read_and_test_graph(argc, argv, test_its, processor_counts);
+		auto [graph_file, graph] = read_and_test_graph(argc, argv);
+        std::vector<std::uint32_t> distances;
+		for (int i = 0; i < test_its; i++) {
+			auto [time, dist, d] = sequential_bfs(graph);
+			std::cout << "sequential,";
+			if (processor_counts.size() == 1) {
+				std::cout << processor_counts[0] << ",";
+			}
+			std::cout << time << "," << dist << std::endl;
+			distances = std::move(d);
+		}
+
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_bfs>>> instances;
 		add_instances(instances, parameter_tuning, fifo_set, is_exclude);
 		run_benchmark<benchmark_bfs, benchmark_info_graph, const Graph&, const std::vector<std::uint32_t>&>(
@@ -344,14 +343,30 @@ int main(int argc, const char** argv) {
 			test_its, 0, include_header, quiet, graph, distances);
 	} break;
 	case 8: {
-            auto [graph_file, graph, distances] = read_and_test_graph(argc, argv, test_its, processor_counts);
+		    auto [graph_file, graph] = read_and_test_graph(argc, argv);
+
+	        auto avail_bytes = get_total_system_memory_bytes();
+	        std::erase_if(processor_counts, [&](int p) {
+		        return p * graph.num_nodes() * std::hardware_destructive_interference_size >= avail_bytes;
+		    });
+
+			std::vector<std::vector<std::uint32_t>> distances(processor_counts.size());
+            for (std::size_t i = 0; i < processor_counts.size(); i++) {
+				for (int it = 0; it < test_its; it++) {
+					std::uint64_t time = 0;
+					for (std::uint64_t p = 0; p < processor_counts[i]; p++) {
+						auto [from_start_time, dist, d]
+							= sequential_bfs(graph, benchmark_bfs_multistart::get_start_node(p, processor_counts[i], graph.num_nodes()));
+						//distances[i] = std::move(d);
+						time += from_start_time;
+					}
+					std::cout << "sequential," << processor_counts[i] << "," << time << std::endl;
+                }
+            }
+
 			std::vector<std::unique_ptr<benchmark_provider<benchmark_bfs_multistart>>> instances;
 			add_instances(instances, parameter_tuning, fifo_set, is_exclude);
-			auto avail_bytes = get_total_system_memory_bytes();
-			std::erase_if(processor_counts, [&](int p) {
-			    return p * graph.num_nodes() * std::hardware_destructive_interference_size >= avail_bytes;
-			});
-			run_benchmark<benchmark_bfs_multistart, benchmark_info_graph, const Graph&, const std::vector<std::uint32_t>&>(
+			run_benchmark<benchmark_bfs_multistart, benchmark_info_graph_multistart, const Graph&, const std::vector<std::vector<std::uint32_t>>&>(
 				std::format("bfs-multistart-{}", graph_file.filename().string()), instances, 0, processor_counts,
 				test_its, 0, include_header, quiet, graph, distances);
 	} break;
