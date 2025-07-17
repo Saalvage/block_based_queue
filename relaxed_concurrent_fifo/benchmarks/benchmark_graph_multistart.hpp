@@ -35,7 +35,7 @@ struct benchmark_bfs_multistart : benchmark_timed<> {
             distances(info.num_threads),
             termination_detection(info.num_threads),
             counters(info.num_threads) {
-        fifo_size = std::bit_ceil(graph.nodes.size() * std::bit_width(static_cast<std::uint64_t>(info.num_threads)));
+        fifo_size = std::bit_ceil(graph.nodes.size() * info.num_threads);
         if (info.num_threads > 255) {
             throw std::runtime_error("More bits must be allocated to the arr index to allow for more than 255 threads!");
         }

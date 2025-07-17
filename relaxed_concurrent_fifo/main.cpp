@@ -347,7 +347,7 @@ int main(int argc, const char** argv) {
 
 	        auto avail_bytes = get_total_system_memory_bytes();
 	        std::erase_if(processor_counts, [&](int p) {
-		        return p * graph.num_nodes() * std::hardware_destructive_interference_size >= avail_bytes;
+		        return p * graph.num_nodes() * std::hardware_destructive_interference_size * 2 >= avail_bytes;
 		    });
 
 			std::vector<std::vector<std::uint32_t>> distances(processor_counts.size());
