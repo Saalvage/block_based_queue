@@ -16,6 +16,7 @@
 struct benchmark_info_graph_multistart : public benchmark_info {
     const Graph& graph;
     const std::vector<std::vector<std::uint32_t>>& distances;
+    int fixed_multistart;
 };
 
 struct benchmark_bfs_multistart : benchmark_timed<> {
@@ -32,7 +33,7 @@ struct benchmark_bfs_multistart : benchmark_timed<> {
     benchmark_bfs_multistart(const benchmark_info& info_base) :
             info(reinterpret_cast<const benchmark_info_graph_multistart&>(info_base)),
             graph(info.graph),
-            distances(info.num_threads),
+            distances(info.fixed_multistart == -1 ? info.num_threads : info.fixed_multistart),
             termination_detection(info.num_threads),
             counters(info.num_threads) {
         fifo_size = std::bit_ceil(graph.nodes.size() * info.num_threads);

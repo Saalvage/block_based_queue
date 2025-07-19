@@ -201,6 +201,7 @@ int main(int argc, const char** argv) {
 			"[-t | --thread_count <count>] "
 			"[-s | --test_time_seconds <count> (default " << TEST_TIME_SECONDS_DEFAULT << ")] "
 			"[-r | --run_count <count> (default " << TEST_ITERATIONS_DEFAULT << ")]"
+			"[--bfs-multistart-fixed <count>]"
 			"[-f | --prefill <factor>]"
 			"[-p | --parameter-tuning]"
 			"[-n | --no-header]"
@@ -229,6 +230,7 @@ int main(int argc, const char** argv) {
 	bool parameter_tuning = false;
 	bool is_exclude = true;
 	bool quiet = false;
+	int bfs_multistart_fixed = -1;
 
 	for (int i = input == 7 || input == 8 ? 3 : 2; i < argc; i++) {
 		if (strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--thread_count") == 0) {
@@ -268,6 +270,9 @@ int main(int argc, const char** argv) {
 				return 1;
 			}
 			fifo_set.emplace(argv[i]);
+		} else if (strcmp(argv[i], "--bfs-multistart-fixed <count>") == 0) {
+			i++;
+			bfs_multistart_fixed = std::strtol(argv[i], nullptr, 10);
 		} else if (strcmp(argv[i], "-n") == 0 || strcmp(argv[i], "--no-header") == 0) {
 			include_header = false;
 		} else if (strcmp(argv[i], "-q") == 0 || strcmp(argv[i], "--quiet") == 0) {
@@ -325,7 +330,7 @@ int main(int argc, const char** argv) {
 	} break;
 	case 7: {
 		auto [graph_file, graph] = read_and_test_graph(argc, argv);
-        std::vector<std::uint32_t> distances;
+		std::vector<std::uint32_t> distances;
 		for (int i = 0; i < test_its; i++) {
 			auto [time, dist, d] = sequential_bfs(graph);
 			std::cout << "sequential,";
@@ -343,15 +348,15 @@ int main(int argc, const char** argv) {
 			test_its, 0, include_header, quiet, graph, distances);
 	} break;
 	case 8: {
-		    auto [graph_file, graph] = read_and_test_graph(argc, argv);
+			auto [graph_file, graph] = read_and_test_graph(argc, argv);
 
-	        auto avail_bytes = get_total_system_memory_bytes();
-	        std::erase_if(processor_counts, [&](int p) {
-		        return p * graph.num_nodes() * std::hardware_destructive_interference_size * 2 >= avail_bytes;
-		    });
+			auto avail_bytes = get_total_system_memory_bytes();
+			std::erase_if(processor_counts, [&](int p) {
+				return p * graph.num_nodes() * std::hardware_destructive_interference_size * 2 >= avail_bytes;
+			});
 
 			std::vector<std::vector<std::uint32_t>> distances(processor_counts.size());
-            for (std::size_t i = 0; i < processor_counts.size(); i++) {
+			for (std::size_t i = 0; i < processor_counts.size(); i++) {
 				for (int it = 0; it < test_its; it++) {
 					std::uint64_t time = 0;
 					for (int p = 0; p < processor_counts[i]; p++) {
@@ -361,14 +366,14 @@ int main(int argc, const char** argv) {
 						time += from_start_time;
 					}
 					std::cout << "sequential," << processor_counts[i] << "," << time << std::endl;
-                }
-            }
+				}
+			}
 
 			std::vector<std::unique_ptr<benchmark_provider<benchmark_bfs_multistart>>> instances;
 			add_instances(instances, parameter_tuning, fifo_set, is_exclude);
 			run_benchmark<benchmark_bfs_multistart, benchmark_info_graph_multistart, const Graph&, const std::vector<std::vector<std::uint32_t>>&>(
 				std::format("bfs-multistart-{}", graph_file.filename().string()), instances, 0, processor_counts,
-				test_its, 0, include_header, quiet, graph, distances);
+				test_its, 0, include_header, quiet, graph, distances, bfs_multistart_fixed);
 	} break;
 	}
 
