@@ -24,7 +24,7 @@ for i in threads:
     arr = [exe, "7" if work_multiplier == 1 else "8", full_graph_file, "-n", "-t", str(i)]
     if work_multiplier != 1:
         arr.insert(3, str(work_multiplier))
-    subprocess.run(arr + sys.argv[3:], check=True)
+    subprocess.run(arr + sys.argv[3 if work_multiplier == 1 else 4:], check=True)
 
 outfile = "weakscaling-" + graph_file + ".csv"
 with open(outfile, "w") as out:
