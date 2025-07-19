@@ -270,7 +270,7 @@ int main(int argc, const char** argv) {
 				return 1;
 			}
 			fifo_set.emplace(argv[i]);
-		} else if (strcmp(argv[i], "--bfs-multistart-fixed <count>") == 0) {
+		} else if (strcmp(argv[i], "--bfs-multistart-fixed") == 0) {
 			i++;
 			bfs_multistart_fixed = std::strtol(argv[i], nullptr, 10);
 		} else if (strcmp(argv[i], "-n") == 0 || strcmp(argv[i], "--no-header") == 0) {
