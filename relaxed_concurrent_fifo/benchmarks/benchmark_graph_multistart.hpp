@@ -78,7 +78,7 @@ struct benchmark_bfs_multistart : benchmark_timed<> {
             for (std::uint64_t i = 0; i < distances.size(); i++) {
                 auto& vec = distances[i];
                 vec = std::vector<AtomicDistance>(graph.num_nodes());
-                auto node = get_start_node(i, info.num_threads, graph.num_nodes());
+                auto node = get_start_node(i, distances.size(), graph.num_nodes());
                 vec[node].value = 1;
                 handle.push((1ull << 32) | (i << 56) | node);
                 ++counter.pushed_nodes;
