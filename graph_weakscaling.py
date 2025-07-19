@@ -4,7 +4,8 @@ import os;
 import os.path;
 
 exe = sys.argv[1] if len(sys.argv) >= 2 else input("Please enter the path of the executable file: ")
-graph = sys.argv[2] if len(sys.argv) >= 3 else input("Please enter the path of the executable file: ")
+graph = sys.argv[2] if len(sys.argv) >= 3 else input("Please enter the path of the graph: ")
+work_multiplier = sys.argv[3] if len(sys.argv) >= 4 else 1
 graph_file = os.path.basename(graph)
 
 threads = []
@@ -20,7 +21,10 @@ for i in threads:
     if not os.path.isfile(full_graph_file):
         max_thread = i
         break
-    subprocess.run([exe, "7", full_graph_file, "-n", "-t", str(i)] + sys.argv[3:], check=True)
+    arr = [exe, "7" if work_multiplier == 1 else "8", full_graph_file, "-n", "-t", str(i)]
+    if work_multiplier != 1:
+        arr.insert(3, str(work_multiplier))
+    subprocess.run(arr + sys.argv[3:], check=True)
 
 outfile = "weakscaling-" + graph_file + ".csv"
 with open(outfile, "w") as out:
