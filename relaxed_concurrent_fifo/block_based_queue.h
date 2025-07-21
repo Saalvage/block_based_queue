@@ -30,10 +30,10 @@
 #include <iostream>
 #endif
 
-#ifdef __GNUC__
+#if defined(__GNUC__) && defined(unix)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Winterference-size"
-#endif // __GNUC__
+#endif
 
 template <typename T>
 struct block {
@@ -427,8 +427,8 @@ public:
 };
 static_assert(fifo<block_based_queue<std::uint64_t>, std::uint64_t>);
 
-#ifdef __GNUC__
+#if defined(__GNUC__) && defined(unix)
 #pragma GCC diagnostic pop
-#endif // __GNUC__
+#endif
 
 #endif // RELAXED_FIFO_H_INCLUDED

@@ -1,14 +1,14 @@
 #pragma once
 
 #include <atomic>
-#ifdef _WIN32
+#ifdef _MSC_VER
 #pragma warning(push)
 #pragma warning(disable : 4146)
-#endif  // _WIN32
+#endif  // _MSC_VER
 #include "pcg_random.hpp"
-#ifdef _WIN32
+#ifdef _MSC_VER
 #pragma warning(pop)
-#endif  // _WIN32
+#endif  // _MSC_VER
 
 #include "timestamp.hpp"
 

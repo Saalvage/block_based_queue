@@ -18,11 +18,11 @@
 #ifdef DEBUG
 #define _always_inline inline
 #else
-#ifdef _WIN32
+#ifdef _MSC_VER
 #define _always_inline inline __forceinline
 #else
 #define _always_inline inline __attribute__((always_inline))
-#endif // _WIN32
+#endif // _MSC_VER
 #endif  // DEBUG
 #endif  // _always_inline
 
