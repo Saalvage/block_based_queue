@@ -78,11 +78,32 @@ void test_consistency(std::size_t fifo_size, std::size_t elements_per_thread, do
 	}
 }
 
+std::ofstream setup_file(const std::string& test_name, double prefill, bool print_header, const std::string& header) {
+	constexpr const char* format = "fifo-{}-{}-{:%FT%H-%M-%S}.csv";
+
+	std::string filename = std::format(format, test_name, prefill, std::chrono::round<std::chrono::seconds>(std::chrono::file_clock::now()));
+	std::ofstream file{ filename };
+	if (print_header) {
+		// TODO: Doesn't take into account parameter tuning.
+		file << "queue,thread_count," << header << '\n';
+	}
+
+	std::cout << "Writing results to:" << std::endl;
+	std::cerr << filename << std::endl;
+	return file;
+}
+
 template <typename BENCHMARK, typename BENCHMARK_DATA_TYPE = benchmark_info, typename... Args>
 void run_benchmark(const std::string& test_name, const std::vector<std::unique_ptr<benchmark_provider<BENCHMARK>>>& instances, double prefill,
 	const std::vector<int>& processor_counts, int test_iterations, int test_time_seconds, bool print_header, bool quiet, const Args&... args) {
-	constexpr const char* format = "fifo-{}-{}-{:%FT%H-%M-%S}.csv";
+    std::ofstream file = setup_file(test_name, prefill, print_header, BENCHMARK::header);
+	run_benchmark_raw<BENCHMARK, BENCHMARK_DATA_TYPE, Args...>(file, instances, prefill, processor_counts, test_iterations, test_time_seconds,
+		quiet, args...);
+}
 
+template <typename BENCHMARK, typename BENCHMARK_DATA_TYPE, typename... Args>
+void run_benchmark_raw(std::ofstream& file, const std::vector<std::unique_ptr<benchmark_provider<BENCHMARK>>>& instances, double prefill,
+	const std::vector<int>& processor_counts, int test_iterations, int test_time_seconds, bool quiet, const Args&... args) {
 	if (BENCHMARK::HAS_TIMEOUT) {
 		std::cout << "Expected running time: ";
 		auto running_time_seconds = test_iterations * test_time_seconds * processor_counts.size() * instances.size();
@@ -104,12 +125,6 @@ void run_benchmark(const std::string& test_name, const std::vector<std::unique_p
 		std::cout << running_time_seconds << " seconds" << std::endl;
 	}
 
-	std::string filename = std::format(format, test_name, prefill, std::chrono::round<std::chrono::seconds>(std::chrono::file_clock::now()));
-	std::ofstream file{ filename };
-	if (print_header) {
-		// TODO: Doesn't take into account parameter tuning.
-		file << "queue,thread_count," << BENCHMARK::header << '\n';
-	}
 	for (auto i : std::views::iota(0, test_iterations)) {
 		if (!quiet) {
 			std::cout << "Test run " << (i + 1) << " of " << test_iterations << std::endl;
@@ -129,7 +144,6 @@ void run_benchmark(const std::string& test_name, const std::vector<std::unique_p
 			}
 		}
 	}
-	std::cout << "Results written to " << filename << std::endl;
 }
 
 static std::tuple<std::filesystem::path, Graph> read_and_test_graph(int argc, const char** argv) {
@@ -330,22 +344,20 @@ int main(int argc, const char** argv) {
 	} break;
 	case 7: {
 		auto [graph_file, graph] = read_and_test_graph(argc, argv);
+
+		auto result_file = setup_file(std::format("bfs-{}", graph_file.filename().string()), 0, include_header, benchmark_bfs::header);
+
 		std::vector<std::uint32_t> distances;
 		for (int i = 0; i < test_its; i++) {
 			auto [time, dist, d] = sequential_bfs(graph);
-			std::cout << "sequential,";
-			if (processor_counts.size() == 1) {
-				std::cout << processor_counts[0] << ",";
-			}
-			std::cout << time << "," << dist << std::endl;
+			result_file << "sequential," << (processor_counts.size() == 1 ? processor_counts[0] : 1) << "," << time << "," << dist << std::endl;
 			distances = std::move(d);
 		}
 
 		std::vector<std::unique_ptr<benchmark_provider<benchmark_bfs>>> instances;
 		add_instances(instances, parameter_tuning, fifo_set, is_exclude);
-		run_benchmark<benchmark_bfs, benchmark_info_graph, const Graph&, const std::vector<std::uint32_t>&>(
-			std::format("bfs-{}", graph_file.filename().string()), instances, 0, processor_counts,
-			test_its, 0, include_header, quiet, graph, distances);
+		run_benchmark_raw<benchmark_bfs, benchmark_info_graph, const Graph&, const std::vector<std::uint32_t>&>(
+			result_file, instances, 0, processor_counts, test_its, 0, quiet, graph, distances);
 	} break;
 	case 8: {
 			auto [graph_file, graph] = read_and_test_graph(argc, argv);
@@ -354,6 +366,8 @@ int main(int argc, const char** argv) {
 			std::erase_if(processor_counts, [&](int p) {
 				return p * graph.num_nodes() * std::hardware_destructive_interference_size * 2 >= avail_bytes;
 			});
+
+			auto result_file = setup_file(std::format("bfs-multistart-{}", graph_file.filename().string()), 0, include_header, benchmark_bfs_multistart::header);
 
 			std::vector<std::vector<std::uint32_t>> distances(processor_counts.size());
 			for (std::size_t i = 0; i < processor_counts.size(); i++) {
@@ -365,15 +379,14 @@ int main(int argc, const char** argv) {
 						//distances[i] = std::move(d);
 						time += from_start_time;
 					}
-					std::cout << "sequential," << processor_counts[i] << "," << time << std::endl;
+					result_file << "sequential," << processor_counts[i] << "," << time << std::endl;
 				}
 			}
 
 			std::vector<std::unique_ptr<benchmark_provider<benchmark_bfs_multistart>>> instances;
 			add_instances(instances, parameter_tuning, fifo_set, is_exclude);
-			run_benchmark<benchmark_bfs_multistart, benchmark_info_graph_multistart, const Graph&, const std::vector<std::vector<std::uint32_t>>&>(
-				std::format("bfs-multistart-{}", graph_file.filename().string()), instances, 0, processor_counts,
-				test_its, 0, include_header, quiet, graph, distances, bfs_multistart_fixed);
+			run_benchmark_raw<benchmark_bfs_multistart, benchmark_info_graph_multistart, const Graph&, const std::vector<std::vector<std::uint32_t>>&>(
+				result_file, instances, 0, processor_counts, test_its, 0, quiet, graph, distances, bfs_multistart_fixed);
 	} break;
 	}
 

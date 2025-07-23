@@ -41,9 +41,8 @@ for k, parameters in values.items():
     ystd = np.array(list(map(lambda x: statistics.stdev(x.performance), parameters.values())))
     y = np.array(list(map(lambda x: statistics.mean(x.performance), parameters.values())))
 
-    print(k)
+    with open("tuning_" + k + ".dat", "w") as out:
+        out.write("quality performance q_std p_std " + " ".join(["p" + str(i) for i in range(0, len(next(iter(parameters.keys()))))]) + "\n")
 
-    for parameter, x, xstd, y, ystd in zip(parameters.keys(), x, xstd, y, ystd):
-        print(str(x) + " " + str(y) + " " + str(xstd) + " " + str(ystd) + " " + " ".join(parameter))
-
-    print()
+        for parameter, x, xstd, y, ystd in zip(parameters.keys(), x, xstd, y, ystd):
+            out.write(str(x) + " " + str(y) + " " + str(xstd) + " " + str(ystd) + " " + " ".join(parameter) + "\n")
