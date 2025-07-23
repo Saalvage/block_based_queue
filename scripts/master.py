@@ -7,8 +7,6 @@ from graph_weakscaling import *
 
 include = sys.argv[1:] if len(sys.argv) > 1 else [".*bbq.*", ".*multififo.*", ".*kfifo.*", ".*dcbo.*", ".*lcrq", ".*faaaqueue.*"]
 repeats = 2
-include = [".*bbq.*"]
-#include = ["bbq-1-7"]
 used_threads = os.cpu_count() # How many threads to use for fixed-thread benchmarks (parameter tuning and prodcon)
 
 cwd = os.path.dirname(os.path.realpath(__file__))
