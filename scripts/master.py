@@ -12,7 +12,7 @@ used_threads = os.cpu_count() # How many threads to use for fixed-thread benchma
 cwd = os.path.dirname(os.path.realpath(__file__))
 
 subprocess.run(f"cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -G Ninja", cwd=os.path.join(cwd, ".."), check=True)
-subprocess.run(f"cmake --build build", cwd=os.path.join(cwd, ".."), check=True)
+subprocess.run(f"cmake --build build", cwd=os.path.join(cwd, '..'), check=True)
 
 root_path = os.path.join(cwd, "..")
 exe_path = os.path.join(root_path, "build", "relaxed_concurrent_fifo", "relaxed_concurrent_fifo.exe")
@@ -41,7 +41,7 @@ def run_thing(fifo, name, i, extra=""):
 
 def converter(cwd, path, name):
     os.makedirs(cwd, exist_ok=True)
-    subprocess.run(f"python {os.path.join(root_path, "converter.py")} {path} {name}", cwd=cwd, universal_newlines=True)
+    subprocess.run(f"python {os.path.join(root_path, 'converter.py')} {path} {name}", cwd=cwd, universal_newlines=True)
 
 def parameter_tuning(fifo):
     extra = f"--parameter-tuning -t {used_threads}"
@@ -49,7 +49,7 @@ def parameter_tuning(fifo):
     quality = run_thing(fifo, "quality-pt", 2, extra)
 
     if performance != "" and quality != "":
-        subprocess.run(f"python {os.path.join(root_path, "parameter_tuning.py")} {os.path.join(raw_path, performance)} {os.path.join(raw_path, quality)}", cwd=data_path, universal_newlines=True)
+        subprocess.run(f"python {os.path.join(root_path, 'parameter_tuning.py')} {os.path.join(raw_path, performance)} {os.path.join(raw_path, quality)}", cwd=data_path, universal_newlines=True)
 
 def bfs(fifo):
     for graph in [g for g in os.listdir(ss_graphs_path) if os.path.isfile(os.path.join(ss_graphs_path, g))]:
@@ -79,8 +79,8 @@ def bfs(fifo):
             print(err)
 
 def prodcon_postprocess():
-    subprocess.run(f"python {os.path.join(root_path, "producer_consumer.py")} {used_threads}", cwd=raw_path, universal_newlines=True)
-    subprocess.run(f"python {os.path.join(root_path, "converter.py")} {cwd}/raw/producer-consumer-{used_threads}.csv prodcon", cwd=data_path, universal_newlines=True)
+    subprocess.run(f"python {os.path.join(root_path, 'producer_consumer.py')} {used_threads}", cwd=raw_path, universal_newlines=True)
+    subprocess.run(f"python {os.path.join(root_path, 'converter.py')} {cwd}/raw/producer-consumer-{used_threads}.csv prodcon", cwd=data_path, universal_newlines=True)
 
 for fifo in include:
     try:
