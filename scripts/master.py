@@ -15,7 +15,7 @@ subprocess.run(f"cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -G Ninja".split(
 subprocess.run(f"cmake --build build".split(), cwd=os.path.join(cwd, '..'), check=True)
 
 root_path = os.path.join(cwd, "..")
-exe_path = os.path.join(root_path, "build", "relaxed_concurrent_fifo", "relaxed_concurrent_fifo.exe")
+exe_path = os.path.join(root_path, "build", "relaxed_concurrent_fifo", "relaxed_concurrent_fifo" + ("exe" if sys.platform == "win32" else ""))
 graphs_path = os.path.join(cwd, "graphs")
 ss_graphs_path = os.path.join(graphs_path, "ss")
 ws_graphs_path = os.path.join(graphs_path, "ws")
