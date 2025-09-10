@@ -11,11 +11,12 @@ used_threads = os.cpu_count() # How many threads to use for fixed-thread benchma
 
 cwd = os.path.dirname(os.path.realpath(__file__))
 
-subprocess.run(f"cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -G Ninja".split(), cwd=os.path.join(cwd, ".."), check=True)
-subprocess.run(f"cmake --build build".split(), cwd=os.path.join(cwd, '..'), check=True)
+def build():
+    subprocess.run(f"cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -G Ninja".split(), cwd=os.path.join(cwd, ".."), check=True)
+    subprocess.run(f"cmake --build build".split(), cwd=os.path.join(cwd, '..'), check=True)
 
 root_path = os.path.join(cwd, "..")
-exe_path = os.path.join(root_path, "build", "relaxed_concurrent_fifo", "relaxed_concurrent_fifo" + ("exe" if sys.platform == "win32" else ""))
+exe_path = os.path.join(root_path, "build", "relaxed_concurrent_fifo", "relaxed_concurrent_fifo" + (".exe" if sys.platform == "win32" else ""))
 graphs_path = os.path.join(cwd, "graphs")
 ss_graphs_path = os.path.join(graphs_path, "ss")
 ws_graphs_path = os.path.join(graphs_path, "ws")
@@ -51,8 +52,11 @@ def parameter_tuning(fifo):
     if performance != "" and quality != "":
         subprocess.run(f"python {os.path.join(root_path, 'parameter_tuning.py')} {os.path.join(raw_path, performance)} {os.path.join(raw_path, quality)}".split(), cwd=data_path, universal_newlines=True)
 
+def list_files(path):
+    return [g for g in os.listdir(path) if os.path.isfile(os.path.join(path, g))]
+
 def bfs(fifo):
-    for graph in [g for g in os.listdir(ss_graphs_path) if os.path.isfile(os.path.join(ss_graphs_path, g))]:
+    for graph in list_files(ss_graphs_path):
         try:
             print_indented("Running BFS for " + graph)
 
@@ -64,7 +68,7 @@ def bfs(fifo):
             print_error("BFS failed on graph " + graph)
             print(err)
 
-    for graph in [g for g in os.listdir(ws_graphs_path) if os.path.isfile(os.path.join(ws_graphs_path, g))]:
+    for graph in list_files(ws_graphs_path):
         try:
             if (not graph.endswith("_t_1.gr")):
                 continue
@@ -82,24 +86,60 @@ def prodcon_postprocess():
     subprocess.run(f"python {os.path.join(root_path, 'producer_consumer.py')} {used_threads}".split(), cwd=raw_path, universal_newlines=True)
     subprocess.run(f"python {os.path.join(root_path, 'converter.py')} {cwd}/raw/producer-consumer-{used_threads}.csv prodcon".split(), cwd=data_path, universal_newlines=True)
 
-for fifo in include:
-    try:
-        parameter_tuning(fifo)
-    except Exception as err:
-        print_error("Parameter tuning failed!")
-        print(err)
-
-    bfs(fifo)
-
-    for (i, name, on_success) in [
-            (1, "performance", lambda x: converter(data_path, os.path.join(raw_path, x), "performance")),
-            (2, "quality", lambda x: converter(data_path, os.path.join(raw_path, x), "quality")),
-            (6, "prodcon", lambda x: prodcon_postprocess())]:
+def run_generate():
+    for fifo in include:
         try:
-            res = run_thing(fifo, name, i)
-
-            if res != "":
-                on_success(res)
+            parameter_tuning(fifo)
         except Exception as err:
-            print_error(name + " failed!")
+            print_error("Parameter tuning failed!")
             print(err)
+
+        bfs(fifo)
+
+        for (i, name, on_success) in [
+                (1, "performance", lambda x: converter(data_path, os.path.join(raw_path, x), "performance")),
+                (2, "quality", lambda x: converter(data_path, os.path.join(raw_path, x), "quality")),
+                (6, "prodcon", lambda x: prodcon_postprocess())]:
+            try:
+                res = run_thing(fifo, name, i)
+
+                if res != "":
+                    on_success(res)
+            except Exception as err:
+                print_error(name + " failed!")
+                print(err)
+
+def generate_plots():
+    latex : str
+    with open("template.tex") as f:
+        latex = f.read()
+
+    def write_doc(title, x_axis, y_axis, file_prefix, data_path):
+        print(f"Generating plot for {title}")
+        my_latex = latex
+        my_latex = my_latex.replace("{TITLE}", title.replace("_", "\\_"))
+        my_latex = my_latex.replace("{X_LABEL}", x_axis)
+        my_latex = my_latex.replace("{Y_LABEL}", y_axis)
+        my_latex = my_latex.replace("{TABLES}", "\n".join([f"\\addplot table {{{os.path.relpath(os.path.join(data_path, f), "plots").replace("\\", "/")}}};\n\\addlegendentry{{{f.replace(file_prefix, "").replace(".dat", "")}}};"
+                                                        for f in list_files(data_path) if f.startswith(file_prefix)]))
+        file = title + ".tex"
+        os.mkdirs("plots", exist_ok=True)
+        with open("plots/" + file, "w") as f:
+            f.write(my_latex)
+        subprocess.run(["pdflatex", file, "-interaction=batchmode"], cwd="plots", universal_newlines=True)
+
+    write_doc("Performance", "Threads", "Iterations", "performance-", data_path)
+    write_doc("Quality", "Threads", "Avg. Rank Error", "quality-", data_path)
+    write_doc("Producer-Consumer", "Consumers", "Iterations", "prodcon-", data_path)
+
+    ss_path = os.path.join(data_path, "ss")
+    for graph in os.listdir(ss_path):
+        write_doc(graph, "Threads", "Time (ns)", "bfs-ss-", os.path.join(ss_path, graph))
+
+    ws_path = os.path.join(data_path, "ws")
+    for graph in os.listdir(ws_path):
+        write_doc(graph, "Threads", "Time (ns)", "bfs-ws-", os.path.join(ws_path, graph))
+
+build()
+run_generate()
+generate_plots()
