@@ -120,7 +120,8 @@ def generate_plots():
         my_latex = my_latex.replace("{TITLE}", title.replace("_", "\\_"))
         my_latex = my_latex.replace("{X_LABEL}", x_axis)
         my_latex = my_latex.replace("{Y_LABEL}", y_axis)
-        my_latex = my_latex.replace("{TABLES}", "\n".join([f"\\addplot table {{{os.path.relpath(os.path.join(data_path, f), 'plots').replace('\\', '/')}}};\n\\addlegendentry{{{f.replace(file_prefix, '').replace('.dat', '')}}};"
+        path = os.path.relpath(os.path.join(data_path, f), 'plots').replace('\\', '/')
+        my_latex = my_latex.replace("{TABLES}", "\n".join([f"\\addplot table {{{path}}};\n\\addlegendentry{{{f.replace(file_prefix, '').replace('.dat', '')}}};"
                                                         for f in list_files(data_path) if f.startswith(file_prefix)]))
         file = title + ".tex"
         os.mkdirs("plots", exist_ok=True)
