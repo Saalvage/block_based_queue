@@ -114,14 +114,16 @@ def generate_plots():
     with open("template.tex") as f:
         latex = f.read()
 
+    def sanitize_separators(str):
+        return str.replace("\\", "/")
+
     def write_doc(title, x_axis, y_axis, file_prefix, data_path):
         print(f"Generating plot for {title}")
         my_latex = latex
         my_latex = my_latex.replace("{TITLE}", title.replace("_", "\\_"))
         my_latex = my_latex.replace("{X_LABEL}", x_axis)
         my_latex = my_latex.replace("{Y_LABEL}", y_axis)
-        path = os.path.relpath(os.path.join(data_path, f), 'plots').replace('\\', '/')
-        my_latex = my_latex.replace("{TABLES}", "\n".join([f"\\addplot table {{{path}}};\n\\addlegendentry{{{f.replace(file_prefix, '').replace('.dat', '')}}};"
+        my_latex = my_latex.replace("{TABLES}", "\n".join([f"\\addplot table {{{sanitize_separators(os.path.relpath(os.path.join(data_path, f), 'plots'))}}};\n\\addlegendentry{{{f.replace(file_prefix, '').replace('.dat', '')}}};"
                                                         for f in list_files(data_path) if f.startswith(file_prefix)]))
         file = title + ".tex"
         os.mkdirs("plots", exist_ok=True)
