@@ -126,7 +126,7 @@ def generate_plots():
         my_latex = my_latex.replace("{TABLES}", "\n".join([f"\\addplot table {{{sanitize_separators(os.path.relpath(os.path.join(data_path, f), 'plots'))}}};\n\\addlegendentry{{{f.replace(file_prefix, '').replace('.dat', '')}}};"
                                                         for f in list_files(data_path) if f.startswith(file_prefix)]))
         file = title + ".tex"
-        os.mkdirs("plots", exist_ok=True)
+        os.makedirs("plots", exist_ok=True)
         with open("plots/" + file, "w") as f:
             f.write(my_latex)
         subprocess.run(["pdflatex", file, "-interaction=batchmode"], cwd="plots", universal_newlines=True)
