@@ -26,6 +26,21 @@ It additionally requires:
 - Python
 - Ninja
 - numpy
+- pdflatex
+
+#### Arguments
+
+The script can be invoked as following:
+```
+python scripts/master.py <thread_count> <experiments> <contenders...>
+```
+
+- `experiments` is a comma-separated list of experiments to run, possible experiments include `tuning`, `performance`, `quality`, `prodcon`, `bfs`.
+- `contenders` is a list of concrete FIFO-queue implementation to use in the experiments, supporting regex. They are all arguments following `experiments`.
+
+An example invocation could look like `python scripts/master.py 128 performance,quality .*bbq.* .*multififo.*` to run the performance and quality experiments on all BlockFIFO and MultiFIFO instances.
+
+By default all experiments and instances are used.
 
 #### Graphs
 

@@ -151,20 +151,28 @@ def generate_plots():
         os.makedirs("plots", exist_ok=True)
         with open("plots/" + file, "w") as f:
             f.write(my_latex)
-        subprocess.run(["pdflatex", file, "-interaction=batchmode"], cwd="plots", universal_newlines=True)
+        subprocess.run(["pdflatex", file, "-interaction=batchmode"], cwd=os.path.join(cwd, "plots"), universal_newlines=True)
 
-    write_doc("Parameter Tuning", "Avg. Rank Error", "Iterations", "tuning_", data_path, "only marks,")
-    write_doc("Performance", "Threads", "Iterations", "performance-", data_path)
-    write_doc("Quality", "Threads", "Avg. Rank Error", "quality-", data_path)
-    write_doc("Producer-Consumer", "Consumers", "Iterations", "prodcon-", data_path)
+    if has_tuning:
+        write_doc("Parameter Tuning", "Avg. Rank Error", "Iterations", "tuning_", data_path, "only marks,")
+    
+    if has_perf:
+        write_doc("Performance", "Threads", "Iterations", "performance-", data_path)
+    
+    if has_qual:
+        write_doc("Quality", "Threads", "Avg. Rank Error", "quality-", data_path)
+    
+    if has_prodcon:
+        write_doc("Producer-Consumer", "Consumers", "Iterations", "prodcon-", data_path)
 
-    ss_path = os.path.join(data_path, "ss")
-    for graph in os.listdir(ss_path):
-        write_doc(graph, "Threads", "Time (ns)", "bfs-ss-", os.path.join(ss_path, graph))
+    if has_bfs:
+        ss_path = os.path.join(data_path, "ss")
+        for graph in os.listdir(ss_path):
+            write_doc(graph, "Threads", "Time (ns)", "bfs-ss-", os.path.join(ss_path, graph))
 
-    ws_path = os.path.join(data_path, "ws")
-    for graph in os.listdir(ws_path):
-        write_doc(graph, "Threads", "Time (ns)", "bfs-ws-", os.path.join(ws_path, graph))
+        ws_path = os.path.join(data_path, "ws")
+        for graph in os.listdir(ws_path):
+            write_doc(graph, "Threads", "Time (ns)", "bfs-ws-", os.path.join(ws_path, graph))
 
 build()
 run_generate()
