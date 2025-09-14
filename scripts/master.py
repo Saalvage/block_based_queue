@@ -5,9 +5,16 @@ import sys
 
 from graph_weakscaling import *
 
-include = sys.argv[1:] if len(sys.argv) > 1 else [".*bbq.*", ".*multififo.*", ".*kfifo.*", ".*dcbo.*", ".*lcrq", ".*faaaqueue.*"]
+include = sys.argv[3:] if len(sys.argv) > 3 else [".*bbq.*", ".*multififo.*", ".*kfifo.*", ".*dcbo.*", ".*lcrq", ".*faaaqueue.*"]
 repeats = 2
-used_threads = os.cpu_count() # How many threads to use for fixed-thread benchmarks (parameter tuning and prodcon)
+used_threads = int(sys.argv[1]) if len(sys.argv) > 1 else os.cpu_count() # How many threads to use for fixed-thread benchmarks (parameter tuning and prodcon)
+
+experiments = sys.argv[2].split(",") if len(sys.argv) > 2 else None
+has_tuning = "tuning" in experiments or experiments is None
+has_perf = "performance" in experiments or experiments is None
+has_qual = "quality" in experiments or experiments is None
+has_prodcon = "prodcon" in experiments or experiments is None
+has_bfs = "bfs" in experiments or experiments is None
 
 cwd = os.path.dirname(os.path.realpath(__file__))
 
@@ -91,28 +98,37 @@ def prodcon_postprocess():
     subprocess.run(f"python {os.path.join(root_path, 'producer_consumer.py')} {used_threads}".split(), cwd=raw_path, universal_newlines=True)
     subprocess.run(f"python {os.path.join(root_path, 'converter.py')} {cwd}/raw/producer-consumer-{used_threads}.csv prodcon".split(), cwd=data_path, universal_newlines=True)
 
+def run_benchmark(fifo, i, name, on_success):
+    try:
+        res = run_thing(fifo, name, i)
+
+        if res != "":
+            on_success(res)
+    except Exception as err:
+        print_error(name + " failed!")
+        print(err)
+        return None
+
 def run_generate():
     for fifo in include:
-        try:
-            parameter_tuning(fifo)
-        except Exception as err:
-            print_error("Parameter tuning failed!")
-            print(err)
-
-        bfs(fifo)
-
-        for (i, name, on_success) in [
-                (1, "performance", lambda x: converter(data_path, os.path.join(raw_path, x), "performance")),
-                (2, "quality", lambda x: converter(data_path, os.path.join(raw_path, x), "quality")),
-                (6, "prodcon", lambda x: prodcon_postprocess())]:
+        if has_tuning:
             try:
-                res = run_thing(fifo, name, i)
-
-                if res != "":
-                    on_success(res)
+                parameter_tuning(fifo)
             except Exception as err:
-                print_error(name + " failed!")
+                print_error("Parameter tuning failed!")
                 print(err)
+
+        if has_bfs:
+            bfs(fifo)
+
+        if has_perf:
+            run_benchmark(fifo, 1, "performance", lambda x: converter(data_path, os.path.join(raw_path, x), "performance"))
+
+        if has_qual:
+            run_benchmark(fifo, 2, "quality", lambda x: converter(data_path, os.path.join(raw_path, x), "quality"))
+
+        if has_prodcon:
+            run_benchmark(fifo, 6, "prodcon", lambda x: prodcon_postprocess())
 
 def generate_plots():
     latex : str
