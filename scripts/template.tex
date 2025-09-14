@@ -4,17 +4,34 @@
 \pgfplotsset{width=7cm,compat=1.18}
 \pgfplotsset{compat=1.5}
 
+\pgfplotscreateplotcyclelist{cycle-list}{
+	red,mark=|\\
+	green,mark=Mercedes star\\
+	blue,mark=+\\
+	yellow,mark=x\\
+	purple,mark=star\\
+	orange,mark=asterisk\\
+	lime,mark=10-pointed star\\
+	cyan,mark=triangle*\\
+	olive,mark=diamond*\\
+	magenta,mark=square*\\
+	pink,mark=pentagon*\\
+	teal,mark=*\\
+	violet,mark=ball\\
+}
+
 \begin{document}
 	
 	\begin{tikzpicture}
-		\begin{axis}[
+		\begin{loglogaxis}[
 			title={{TITLE}},
 			xlabel={{X_LABEL}},
 			ylabel={{Y_LABEL}},
 			legend pos=outer north east,
+			cycle list name = cycle-list,{AXIS_OPTIONS}
 		]
 			{TABLES}
-		\end{axis}
+		\end{loglogaxis}
 	\end{tikzpicture}
 	
 \end{document}

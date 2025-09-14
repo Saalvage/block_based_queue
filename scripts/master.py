@@ -117,12 +117,13 @@ def generate_plots():
     def sanitize_separators(str):
         return str.replace("\\", "/")
 
-    def write_doc(title, x_axis, y_axis, file_prefix, data_path):
+    def write_doc(title, x_axis, y_axis, file_prefix, data_path, axis_options=""):
         print(f"Generating plot for {title}")
         my_latex = latex
         my_latex = my_latex.replace("{TITLE}", title.replace("_", "\\_"))
         my_latex = my_latex.replace("{X_LABEL}", x_axis)
         my_latex = my_latex.replace("{Y_LABEL}", y_axis)
+        my_latex = my_latex.replace("{AXIS_OPTIONS}", axis_options)
         my_latex = my_latex.replace("{TABLES}", "\n".join([f"\\addplot table {{{sanitize_separators(os.path.relpath(os.path.join(data_path, f), 'plots'))}}};\n\\addlegendentry{{{f.replace(file_prefix, '').replace('.dat', '')}}};"
                                                         for f in list_files(data_path) if f.startswith(file_prefix)]))
         file = title + ".tex"
@@ -131,6 +132,7 @@ def generate_plots():
             f.write(my_latex)
         subprocess.run(["pdflatex", file, "-interaction=batchmode"], cwd="plots", universal_newlines=True)
 
+    write_doc("Parameter Tuning", "Avg. Rank Error", "Iterations", "tuning_", data_path, "only marks,")
     write_doc("Performance", "Threads", "Iterations", "performance-", data_path)
     write_doc("Quality", "Threads", "Avg. Rank Error", "quality-", data_path)
     write_doc("Producer-Consumer", "Consumers", "Iterations", "prodcon-", data_path)
