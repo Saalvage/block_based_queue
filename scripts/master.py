@@ -1,6 +1,6 @@
 import subprocess
 import os
-import os.path
+import platform
 import sys
 
 from graph_weakscaling import *
@@ -11,12 +11,17 @@ used_threads = os.cpu_count() # How many threads to use for fixed-thread benchma
 
 cwd = os.path.dirname(os.path.realpath(__file__))
 
+arch = platform.machine().lower()
+is_arm = "arm" in arch or "aarch" in arch
+build_dir = "build_arm" if is_arm else "build"
+extra_params = " -DBBQ_IS_ARM=ON" if is_arm else ""
+
 def build():
-    subprocess.run(f"cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -G Ninja".split(), cwd=os.path.join(cwd, ".."), check=True)
-    subprocess.run(f"cmake --build build".split(), cwd=os.path.join(cwd, '..'), check=True)
+    subprocess.run(f"cmake -B {build_dir} -S . -DCMAKE_BUILD_TYPE=Release -G Ninja{extra_params}".split(), cwd=os.path.join(cwd, ".."), check=True)
+    subprocess.run(f"cmake --build {build_dir}".split(), cwd=os.path.join(cwd, '..'), check=True)
 
 root_path = os.path.join(cwd, "..")
-exe_path = os.path.join(root_path, "build", "relaxed_concurrent_fifo", "relaxed_concurrent_fifo" + (".exe" if sys.platform == "win32" else ""))
+exe_path = os.path.join(root_path, build_dir, "relaxed_concurrent_fifo", "relaxed_concurrent_fifo" + (".exe" if sys.platform == "win32" else ""))
 graphs_path = os.path.join(cwd, "graphs")
 ss_graphs_path = os.path.join(graphs_path, "ss")
 ws_graphs_path = os.path.join(graphs_path, "ws")
