@@ -58,7 +58,7 @@ def converter(cwd, path, name):
 
 def parameter_tuning(fifo):
     extra = f"--parameter-tuning -t {used_threads}"
-    performance = run_thing(fifo, "performance-pt", 1, extra + " -s 1")
+    performance = run_thing(fifo, "performance-pt", 1, extra)
     quality = run_thing(fifo, "quality-pt", 2, extra)
 
     if performance != "" and quality != "":
