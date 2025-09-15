@@ -1,4 +1,4 @@
-FROM ubuntu:latest AS final
+FROM ubuntu:22.04 AS final
 
 WORKDIR /block_multi_fifo
 
