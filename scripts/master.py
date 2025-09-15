@@ -10,11 +10,11 @@ repeats = 2
 used_threads = int(sys.argv[1]) if len(sys.argv) > 1 else os.cpu_count() # How many threads to use for fixed-thread benchmarks (parameter tuning and prodcon)
 
 experiments = sys.argv[2].split(",") if len(sys.argv) > 2 else None
-has_tuning = "tuning" in experiments or experiments is None
-has_perf = "performance" in experiments or experiments is None
-has_qual = "quality" in experiments or experiments is None
-has_prodcon = "prodcon" in experiments or experiments is None
-has_bfs = "bfs" in experiments or experiments is None
+has_tuning = experiments is None or "tuning" in experiments
+has_perf = experiments is None or "performance" in experiments
+has_qual = experiments is None or "quality" in experiments
+has_prodcon = experiments is None or "prodcon" in experiments
+has_bfs = experiments is None or "bfs" in experiments
 
 cwd = os.path.dirname(os.path.realpath(__file__))
 
