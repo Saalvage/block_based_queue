@@ -9,7 +9,7 @@ include = sys.argv[3:] if len(sys.argv) > 3 else [".*bbq.*", ".*multififo.*", ".
 repeats = 2
 used_threads = int(sys.argv[1]) if len(sys.argv) > 1 else os.cpu_count() # How many threads to use for fixed-thread benchmarks (parameter tuning and prodcon)
 
-experiments = sys.argv[2].split(",") if len(sys.argv) > 2 else None
+experiments = sys.argv[2].split(",") if len(sys.argv) > 2 else ["tuning", "performance", "quality", "prodcon", "bfs"]
 has_tuning = "tuning" in experiments or experiments is None
 has_perf = "performance" in experiments or experiments is None
 has_qual = "quality" in experiments or experiments is None
