@@ -68,15 +68,12 @@ If no arguments are given, all experiments and instances are used with the maxim
 #### Graphs
 
 Since the graphs used in the paper are multiple TB in size, they are not provided here.
-We can grant you access to the servers used in the evaluation by providing us with public SSH keys.
-On the servers, all graphs are already present.
-
-Alternatively, you can obtain the graphs yourself as described below.
+You can obtain the graphs yourself as described below.
 Place all graph instances you wish to benchmark in the respective subfolder in the `graphs` directory (`graphs/ss` for strong scaling, `graphs/ws` for weak scaling).
 Weak scaling graphs must be named in the following format, where {x} is the thread number: `{graph_name}_t_{x}.gr`, e.g., `my_graph_t_1.gr`, `my_graph_t_2.gr`, `my_graph_t_4.gr`, ...
 All power of two thread counts are tested up to and including the maximum available thread count of the machine (even if it itself is not a power of two).
 
-The strong scaling graphs are available [here](https://i11www.iti.kit.edu/resources/roadgraphs.php) and [here](https://law.di.unimi.it/datasets.php).
+The strong scaling graphs used in the paper are available [here](https://i11www.iti.kit.edu/resources/roadgraphs.php) and [here](https://law.di.unimi.it/datasets.php).
 The weak scaling graphs can be generated with [KaGen](https://github.com/KarlsruheGraphGeneration/KaGen).
 Please refer to the KaGen documentation for installation instructions.
 The commands to generate the graphs are as follows, where `t` is the number of threads you want to scale to (e.g. for 64 threads use `t=64`).
