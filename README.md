@@ -1,4 +1,5 @@
-# [BlockFIFO](/relaxed_concurrent_fifo/block_based_queue.h) & [MultiFIFO](/relaxed_concurrent_fifo/contenders/multififo/)
+# [BlockFIFO](/relaxed_concurrent_fifo/block_based_queue.h) & [MultiFIFO](/relaxed_concurrent_fifo/contenders/multififo/): Scalable Relaxed Queues
+Stefan Koch, Peter Sanders, and Marvin Williams
 
 ## Quick Start
 The easiest way to run the benchmarks is to use Docker.
