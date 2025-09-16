@@ -12,9 +12,9 @@ RUN apt-get update && apt-get install -y \
     cmake \
     ninja-build \
     texlive-latex-base \
+    texlive-latex-extra \
     python3 \
     python3-numpy
+COPY . .
 
-COPY Makefile CMakeLists.txt CMakePresets.txt relaxed_concurrent_fifo/ scripts/ .
-
-CMD ["bash"]
+CMD ["python3", "scripts/run_all.py"]

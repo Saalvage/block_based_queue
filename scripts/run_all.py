@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 import subprocess
 import os
 import platform
@@ -9,12 +11,12 @@ include = sys.argv[3:] if len(sys.argv) > 3 else [".*bbq.*", ".*multififo.*", ".
 repeats = 2
 used_threads = int(sys.argv[1]) if len(sys.argv) > 1 else os.cpu_count() # How many threads to use for fixed-thread benchmarks (parameter tuning and prodcon)
 
-experiments = sys.argv[2].split(",") if len(sys.argv) > 2 else ["tuning", "performance", "quality", "prodcon", "bfs"]
-has_tuning = "tuning" in experiments or experiments is None
-has_perf = "performance" in experiments or experiments is None
-has_qual = "quality" in experiments or experiments is None
-has_prodcon = "prodcon" in experiments or experiments is None
-has_bfs = "bfs" in experiments or experiments is None
+experiments = sys.argv[2].split(",") if len(sys.argv) > 2 else None
+has_tuning = experiments is None or "tuning" in experiments
+has_perf = experiments is None or "performance" in experiments
+has_qual = experiments is None or "quality" in experiments
+has_prodcon = experiments is None or "prodcon" in experiments
+has_bfs = experiments is None or "bfs" in experiments
 
 cwd = os.path.dirname(os.path.realpath(__file__))
 
@@ -29,12 +31,13 @@ def build():
 
 root_path = os.path.join(cwd, "..")
 exe_path = os.path.join(root_path, build_dir, "relaxed_concurrent_fifo", "relaxed_concurrent_fifo" + (".exe" if sys.platform == "win32" else ""))
-graphs_path = os.path.join(cwd, "graphs")
+graphs_path = os.path.join(root_path, "graphs")
 ss_graphs_path = os.path.join(graphs_path, "ss")
 ws_graphs_path = os.path.join(graphs_path, "ws")
-raw_path = os.path.join(cwd, "raw")
+raw_path = os.path.join(root_path, "results", "raw")
 os.makedirs(raw_path, exist_ok=True)
-data_path = os.path.join(cwd, "data")
+data_path = os.path.join(root_path, "results", "data")
+plot_path = os.path.join(root_path, "results", "plots")
 os.makedirs(data_path, exist_ok=True)
 
 def print_indented(str):
@@ -54,15 +57,15 @@ def run_thing(fifo, name, i, extra=""):
 
 def converter(cwd, path, name):
     os.makedirs(cwd, exist_ok=True)
-    subprocess.run(f"python {os.path.join(root_path, 'converter.py')} {path} {name}".split(), cwd=cwd, universal_newlines=True)
+    subprocess.run(f"python3 {os.path.join(root_path, 'scripts', 'converter.py')} {path} {name}".split(), cwd=cwd, universal_newlines=True)
 
 def parameter_tuning(fifo):
     extra = f"--parameter-tuning -t {used_threads}"
-    performance = run_thing(fifo, "performance-pt", 1, extra + " -s 1")
+    performance = run_thing(fifo, "performance-pt", 1, extra)
     quality = run_thing(fifo, "quality-pt", 2, extra)
 
     if performance != "" and quality != "":
-        subprocess.run(f"python {os.path.join(root_path, 'parameter_tuning.py')} {os.path.join(raw_path, performance)} {os.path.join(raw_path, quality)}".split(), cwd=data_path, universal_newlines=True)
+        subprocess.run(f"python3 {os.path.join(root_path, 'scripts', 'parameter_tuning.py')} {os.path.join(raw_path, performance)} {os.path.join(raw_path, quality)}".split(), cwd=data_path, universal_newlines=True)
 
 def list_files(path):
     return [g for g in os.listdir(path) if os.path.isfile(os.path.join(path, g))]
@@ -95,8 +98,8 @@ def bfs(fifo):
             print(err)
 
 def prodcon_postprocess():
-    subprocess.run(f"python {os.path.join(root_path, 'producer_consumer.py')} {used_threads}".split(), cwd=raw_path, universal_newlines=True)
-    subprocess.run(f"python {os.path.join(root_path, 'converter.py')} {cwd}/raw/producer-consumer-{used_threads}.csv prodcon".split(), cwd=data_path, universal_newlines=True)
+    subprocess.run(f"python3 {os.path.join(root_path, 'scripts', 'producer_consumer.py')} {used_threads}".split(), cwd=raw_path, universal_newlines=True)
+    subprocess.run(f"python3 {os.path.join(root_path, 'scripts', 'converter.py')} {cwd}/raw/producer-consumer-{used_threads}.csv prodcon".split(), cwd=data_path, universal_newlines=True)
 
 def run_benchmark(fifo, i, name, on_success):
     try:
@@ -132,7 +135,7 @@ def run_generate():
 
 def generate_plots():
     latex : str
-    with open("template.tex") as f:
+    with open(os.path.join(cwd, "template.tex")) as f:
         latex = f.read()
 
     def sanitize_separators(str):
@@ -145,13 +148,13 @@ def generate_plots():
         my_latex = my_latex.replace("{X_LABEL}", x_axis)
         my_latex = my_latex.replace("{Y_LABEL}", y_axis)
         my_latex = my_latex.replace("{AXIS_OPTIONS}", axis_options)
-        my_latex = my_latex.replace("{TABLES}", "\n".join([f"\\addplot table {{{sanitize_separators(os.path.relpath(os.path.join(data_path, f), 'plots'))}}};\n\\addlegendentry{{{f.replace(file_prefix, '').replace('.dat', '')}}};"
+        my_latex = my_latex.replace("{TABLES}", "\n".join([f"\\addplot table {{{sanitize_separators(os.path.relpath(os.path.join(data_path, f), plot_path))}}};\n\\addlegendentry{{{f.replace(file_prefix, '').replace('.dat', '')}}}"
                                                         for f in list_files(data_path) if f.startswith(file_prefix)]))
         file = title + ".tex"
-        os.makedirs("plots", exist_ok=True)
-        with open("plots/" + file, "w") as f:
+        os.makedirs(plot_path, exist_ok=True)
+        with open(os.path.join(plot_path, file), "w") as f:
             f.write(my_latex)
-        subprocess.run(["pdflatex", file, "-interaction=batchmode"], cwd=os.path.join(cwd, "plots"), universal_newlines=True)
+        subprocess.run(["pdflatex", file], cwd=plot_path, universal_newlines=True)
 
     if has_tuning:
         write_doc("Parameter Tuning", "Avg. Rank Error", "Iterations", "tuning_", data_path, "only marks,")
