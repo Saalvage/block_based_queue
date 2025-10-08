@@ -43,14 +43,14 @@ static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 	if (parameter_tuning) {
 		for (double b = 0.5; b <= 16; b *= 2) {
 			for (int c = 2; c <= 2048; c *= 2) {
-				instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("{},{},bbq", b, c - 1));
+				instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("{},{},blockfifo", b, c - 1));
 			}
 		}
 	} else {
-		instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("bbq-{}-{}", 1, 7));
-		instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("bbq-{}-{}", 0.5, 31));
-		instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("bbq-{}-{}", 1, 63));
-		instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("bbq-{}-{}", 1, 511));
+		instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("blockfifo-{}-{}", 1, 7));
+		instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("blockfifo-{}-{}", 0.5, 31));
+		instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("blockfifo-{}-{}", 1, 63));
+		instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("blockfifo-{}-{}", 1, 511));
 	}
 #endif
 

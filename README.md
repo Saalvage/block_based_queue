@@ -32,7 +32,7 @@ cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ```
 
-To build for ARM, add `-DBBQ_IS_ARM` to the first command.
+To build for ARM, add `-DFIFO_IS_ARM` to the first command.
 
 ## Requirements
 
@@ -61,7 +61,7 @@ python3 scripts/run_all.py <thread_count> <experiments> <contenders...>
 - `experiments` is a comma-separated list of experiments to run, possible experiments include `tuning`, `performance`, `quality`, `prodcon`, `bfs`.
 - `contenders` is a list of concrete FIFO-queue implementation to use in the experiments, supporting regex. They are all arguments following `experiments`.
 
-An example invocation could look like `python3 scripts/run_all.py 128 performance,quality .*bbq.* .*multififo.*` to run the performance and quality experiments on all BlockFIFO and MultiFIFO instances.
+An example invocation could look like `python3 scripts/run_all.py 128 performance,quality .*blockfifo.* .*multififo.*` to run the performance and quality experiments on all BlockFIFO and MultiFIFO instances.
 
 If no arguments are given, all experiments and instances are used with the maximum available thread count.
 

@@ -7,7 +7,7 @@ import sys
 
 from graph_weakscaling import *
 
-include = sys.argv[3:] if len(sys.argv) > 3 else [".*bbq.*", ".*multififo.*", ".*kfifo.*", ".*dcbo.*", ".*lcrq", ".*faaaqueue.*"]
+include = sys.argv[3:] if len(sys.argv) > 3 else [".*blockfifo.*", ".*multififo.*", ".*kfifo.*", ".*dcbo.*", ".*lcrq", ".*faaaqueue.*"]
 repeats = 2
 used_threads = int(sys.argv[1]) if len(sys.argv) > 1 else os.cpu_count() # How many threads to use for fixed-thread benchmarks (parameter tuning and prodcon)
 
@@ -23,7 +23,7 @@ cwd = os.path.dirname(os.path.realpath(__file__))
 arch = platform.machine().lower()
 is_arm = "arm" in arch or "aarch" in arch
 build_dir = "build_arm" if is_arm else "build"
-extra_params = " -DBBQ_IS_ARM=ON" if is_arm else ""
+extra_params = " -DFIFO_IS_ARM=ON" if is_arm else ""
 
 def build():
     subprocess.run(f"cmake -B {build_dir} -S . -DCMAKE_BUILD_TYPE=Release -G Ninja{extra_params}".split(), cwd=os.path.join(cwd, ".."), check=True)

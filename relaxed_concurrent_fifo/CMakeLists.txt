@@ -7,7 +7,7 @@ set(sources
   contenders/multififo/timestamp.cpp)
 
 if(UNIX)
-  if(NOT BBQ_IS_ARM)
+  if(NOT FIFO_IS_ARM)
     set(sources ${sources} "contenders/2D/2Dd-queue_optimized.c" "contenders/2D/ssalloc.c" "contenders/2D/test.c"
       "contenders/2D/d-balanced-queue.c" "contenders/2D/lcrq.c")
   endif()

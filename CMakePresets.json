@@ -4,7 +4,7 @@
         {
           "name": "arm",
           "cacheVariables": {
-            "BBQ_IS_ARM": true
+            "FIFO_IS_ARM": true
           }
         },
         {
