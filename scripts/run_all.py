@@ -157,16 +157,16 @@ def generate_plots():
         subprocess.run(["pdflatex", file], cwd=plot_path, universal_newlines=True)
 
     if has_tuning:
-        write_doc("Parameter Tuning", "Avg. Rank Error", "Iterations", "tuning_", data_path, "only marks,")
+        write_doc("Parameter Tuning", "Avg. Rank Error", "Throughput/(OPs/s)", "tuning_", data_path, "only marks,")
     
     if has_perf:
-        write_doc("Performance", "Threads", "Iterations", "performance-", data_path)
+        write_doc("Performance", "Threads", "Throughput/(OPs/s)", "performance-", data_path)
     
     if has_qual:
         write_doc("Quality", "Threads", "Avg. Rank Error", "quality-", data_path)
     
     if has_prodcon:
-        write_doc("Producer-Consumer", "Consumers", "Iterations", "prodcon-", data_path)
+        write_doc("Producer-Consumer", "Consumers", "Throughput/(OPs/s)", "prodcon-", data_path)
 
     if has_bfs:
         ss_path = os.path.join(data_path, "ss")
