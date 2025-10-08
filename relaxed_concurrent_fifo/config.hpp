@@ -48,7 +48,6 @@ static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 		}
 	} else {
 		instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("blockfifo-{}-{}", 1, 7));
-		instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("blockfifo-{}-{}", 0.5, 31));
 		instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("blockfifo-{}-{}", 1, 63));
 		instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("blockfifo-{}-{}", 1, 511));
 	}
@@ -63,7 +62,6 @@ static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 		}
 	} else {
 		instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("multififo-{}-{}", 2, 1));
-		instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("multififo-{}-{}", 4, 4));
 		instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("multififo-{}-{}", 4, 16));
 		instances.push_back(std::make_unique<benchmark_provider_multififo<BENCHMARK>>("multififo-{}-{}", 4, 256));
 	}
