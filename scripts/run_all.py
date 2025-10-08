@@ -101,9 +101,9 @@ def prodcon_postprocess():
     subprocess.run(f"python3 {os.path.join(root_path, 'scripts', 'producer_consumer.py')} {used_threads}".split(), cwd=raw_path, universal_newlines=True)
     subprocess.run(f"python3 {os.path.join(root_path, 'scripts', 'converter.py')} {raw_path}/producer-consumer-{used_threads}.csv prodcon".split(), cwd=data_path, universal_newlines=True)
 
-def run_benchmark(fifo, i, name, on_success):
+def run_benchmark(fifo, i, name, on_success, extra=""):
     try:
-        res = run_thing(fifo, name, i)
+        res = run_thing(fifo, name, i, extra)
 
         if res != "":
             on_success(res)
@@ -131,7 +131,7 @@ def run_generate():
             run_benchmark(fifo, 2, "quality", lambda x: converter(data_path, os.path.join(raw_path, x), "quality"))
 
         if has_prodcon:
-            run_benchmark(fifo, 6, "prodcon", lambda x: prodcon_postprocess())
+            run_benchmark(fifo, 6, "prodcon", lambda x: prodcon_postprocess(), f"-t {used_threads}")
 
 def generate_plots():
     latex : str
