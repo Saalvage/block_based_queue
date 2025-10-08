@@ -167,7 +167,7 @@ def generate_plots():
         write_doc("E.1 Quality", "Threads", "Avg. Rank Error", "quality-", data_path)
     
     if has_prodcon:
-        write_doc("6.3 Producer-Consumer", "Consumers", "Throughput/(OPs/s)", "prodcon-", data_path, axis="logsemiyscale")
+        write_doc("6.3 Producer-Consumer", "Consumers", "Throughput/(OPs/s)", "prodcon-", data_path, axis="semilogyaxis")
 
     if has_bfs:
         ss_path = os.path.join(data_path, "ss")
