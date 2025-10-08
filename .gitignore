@@ -12,6 +12,7 @@ _deps
 .vs/
 out/
 build/
+results/
 *.csv
 *.dat
 __pycache__
