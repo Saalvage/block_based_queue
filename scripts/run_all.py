@@ -99,7 +99,7 @@ def bfs(fifo):
 
 def prodcon_postprocess():
     subprocess.run(f"python3 {os.path.join(root_path, 'scripts', 'producer_consumer.py')} {used_threads}".split(), cwd=raw_path, universal_newlines=True)
-    subprocess.run(f"python3 {os.path.join(root_path, 'scripts', 'converter.py')} {cwd}/raw/producer-consumer-{used_threads}.csv prodcon".split(), cwd=data_path, universal_newlines=True)
+    subprocess.run(f"python3 {os.path.join(root_path, 'scripts', 'converter.py')} {raw_path}/producer-consumer-{used_threads}.csv prodcon".split(), cwd=data_path, universal_newlines=True)
 
 def run_benchmark(fifo, i, name, on_success):
     try:
