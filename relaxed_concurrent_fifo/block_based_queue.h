@@ -232,18 +232,18 @@ public:
 			write_header = min_header;
 			write_block_index = min_index;
 			write_epoch = fifo.block_to_epoch(min_index);
-			write_block = fifo.get_block(min_queue, fifo.block_to_index(min_queue));
+			write_block = fifo.get_block(min_queue, fifo.block_to_index(min_index));
 			return true;
 		}
 
 		bool claim_new_block_read() {
 			auto min_queue = random_queue();
 			auto min_header = &fifo.headers[min_queue];
-			auto min_index = min_header->write_index.load(std::memory_order_relaxed);
+			auto min_index = min_header->read_index.load(std::memory_order_relaxed);
 			for (std::size_t i = 1; i < SAMPLE_COUNT; i++) {
 				auto new_queue = random_queue();
 				auto new_header = &fifo.headers[new_queue];
-				auto new_index = new_header->write_index.load(std::memory_order_relaxed);
+				auto new_index = new_header->read_index.load(std::memory_order_relaxed);
 				if (new_index < min_index) {
 					min_queue = new_queue;
 					min_header = new_header;
