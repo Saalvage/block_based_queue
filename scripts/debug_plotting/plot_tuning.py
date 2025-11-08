@@ -20,11 +20,14 @@ def aggregate(file):
         for row in lines:
             if len(row) < 3:
                 continue
-            name = row[2]
+            index_offset = 1 if row[1].isdigit() else 0
+            name = row[1 + index_offset]
             if name not in impls:
                 impls[name] = impl()
-            x = row[0] + ',' + row[1]
-            y = float(row[4])
+            x = row[0]
+            if index_offset != 0:
+                x += ',' + row[1]
+            y = float(row[3 + index_offset])
             if (x not in impls[name].values):
                 impls[name].values[x] = [y]
             else:
