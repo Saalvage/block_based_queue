@@ -67,7 +67,7 @@ private:
     template <claim_value VALUE, claim_mode MODE>
     static constexpr std::size_t claim_bit_singular(std::atomic<std::uint64_t>& epoch_and_bits, int initial_rot, std::uint64_t epoch, std::memory_order order) {
         std::uint64_t eb = epoch_and_bits.load(order);
-        if (get_epoch(eb) != epoch) {
+        if (get_epoch(eb) != epoch) { // TODO Do we properly mask the epoch we pass here???
             return std::numeric_limits<std::size_t>::max();
         }
         while (true) {

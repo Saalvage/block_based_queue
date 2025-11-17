@@ -11,6 +11,7 @@
 #include "fifo.h"
 #include "atomic_bitset.h"
 #include "atomic_bitset_no_epoch.h"
+#include "atomic_bit_tree.h"
 
 #ifndef BBQ_LOG_WINDOW_MOVE
 #define BBQ_LOG_WINDOW_MOVE 0
@@ -88,7 +89,7 @@ private:
 	static inline block_t dummy_block{ reinterpret_cast<std::byte*>(&dummy_block_value) };
 
 	atomic_bitset_no_epoch<BITSET_T> touched_set;
-	atomic_bitset<BITSET_T> filled_set;
+	atomic_bit_tree<BITSET_T> filled_set;
 	std::unique_ptr<std::byte[]> buffer;
 
 	std::uint64_t window_to_epoch(std::uint64_t window) const {
@@ -150,8 +151,7 @@ private:
 
 public:
 	block_based_queue(int thread_count, std::size_t min_size, double blocks_per_window_per_thread, std::size_t cells_per_block) :
-			blocks_per_window(std::bit_ceil(std::max<std::size_t>(sizeof(BITSET_T) * 8,
-				std::lround(thread_count * blocks_per_window_per_thread)))),
+			blocks_per_window(512),
 			window_block_distribution(0, static_cast<int>(blocks_per_window - 1)),
 			window_count(std::max<std::size_t>(4, std::bit_ceil(min_size / blocks_per_window / cells_per_block))),
 			window_count_mod_mask(window_count - 1),
@@ -316,9 +316,9 @@ public:
 					if (write_window == window_index + 1) {
 						std::uint64_t write_epoch = fifo.window_to_epoch(write_window);
 						std::uint64_t write_window_index = fifo.window_to_index(write_window);
-						if (!fifo.filled_set.any(write_window_index, write_epoch, std::memory_order_relaxed)) {
+						//if (!fifo.filled_set.any(write_window_index, write_epoch, std::memory_order_relaxed)) {
 							return false;
-						}
+						//}
 
 						// Before we force-move the write window, there might be unclaimed blocks in the current one.
 						// We need to make sure we clean those up BEFORE we move the write window in order to prevent

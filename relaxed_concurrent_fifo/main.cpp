@@ -2,7 +2,6 @@
 
 #include "block_based_queue.h"
 
-
 #include <ranges>
 #include <chrono>
 #include <thread>
@@ -171,39 +170,7 @@ std::size_t get_total_system_memory_bytes() {
 #endif
 }
 
-#include "atomic_binary_tree.h"
-
 int main(int argc, const char** argv) {
-#ifndef NDEBUG
-	std::cout << "Running in debug mode!" << std::endl;
-#endif // NDEBUG
-
-	while (true) {
-		atomic_binary_tree a;
-		bool claimed[4] = { false, false, false, false };
-		for (int i = 0; i < 4; i++) {
-			auto c = a.claim_bit();
-			if (claimed[c]) {
-				throw std::exception("ALREADY CLAIMED");
-			}
-			claimed[c] = true;
-			for (int i = 0; i < 7; i++) {
-			//	std::cout << !!(a.data & (1 << i));
-			}
-			//std::cout << std::endl;
-			if (!a.check_invariants()) {
-				throw std::exception("AAA");
-			}
-		}
-		if (a.claim_bit() != -1) {
-			throw std::exception("AAA");
-		}
-		if (!a.check_invariants()) {
-			throw std::exception("AAA");
-		}
-	}
-
-
 	//test_consistency<8, 16>(20000, 200000, 0);
 
 	constexpr int TEST_ITERATIONS_DEFAULT = 2;
