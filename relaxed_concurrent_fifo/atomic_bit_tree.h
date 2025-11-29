@@ -3,6 +3,8 @@
 
 #include <atomic>
 
+#include <immintrin.h>
+
 template <typename ARR_TYPE = std::uint8_t>
 struct atomic_bit_tree {
 private:
@@ -59,6 +61,7 @@ private:
 		return VALUE == claim_value::ONE ? get_bits(value) : ~get_bits(value);
 	}
 
+	static inline thread_local std::minstd_rand rng{std::random_device()()};
 
 	template <claim_value VALUE>
 	static int select_random_bit_index(ARR_TYPE value) {
@@ -70,9 +73,12 @@ private:
 			value = ~value;
 		}
 
-		static thread_local std::minstd_rand rng{std::random_device()()};
+		if (value == 0) {
+			return 32;
+		}
+
 		auto valid_bits = std::popcount(value);
-		auto nth_bit = valid_bits <= 1 ? 0 : std::uniform_int_distribution<>{0, valid_bits - 1}(rng);
+		auto nth_bit = std::uniform_int_distribution<>{0, valid_bits - 1}(rng);
 		return std::countr_zero(_pdep_u32(1 << nth_bit, value));
 	}
 
@@ -80,7 +86,7 @@ private:
 	std::size_t claim_bit_singular(cache_aligned_t<std::atomic<std::uint64_t>>* root, int starting_bit, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
 		int off = starting_bit / bit_count;
 		// TODO: Rotate.
-		int initial_rot = starting_bit % bit_count;
+		//int initial_rot = starting_bit % bit_count;
 		auto idx = leaves_start_index + off;
 		auto* leaf = &root[idx];
 		auto leaf_val = leaf->value.load(order);
@@ -89,6 +95,7 @@ private:
 		std::size_t ret = 0;
 		do {
 			// TODO: Potentially directly use countl_xxx here to avoid it later?
+			// TODO: Epoch check more explicit (+1).
 			while (idx > 0 && (get_epoch(leaf_val) != epoch || !has_valid_bit<VALUE>(leaf_val))) {
 				idx = get_parent(idx);
 				leaf = &root[idx];
@@ -103,8 +110,9 @@ private:
 
 			bool advanced_epoch = false;
 			while (idx < leaves_start_index) {
-				idx = get_child<VALUE>(static_cast<ARR_TYPE>(leaf_val), idx);
+				idx = get_random_child<VALUE>(static_cast<ARR_TYPE>(leaf_val), idx);
 				if (idx == -1) {
+					// TODO
 					advanced_epoch = true;
 					break;
 				}
@@ -144,6 +152,7 @@ private:
 				leaf_val = leaf->value.load(order);
 				auto bit_change_ret = try_change_bit<VALUE>(epoch, *leaf, leaf_val, child_idx, order);
 				advanced_epoch = bit_change_ret.second;
+				// TODO: Set idx to restart?
 			}
 		} while (!success);
 		return ret;
@@ -154,7 +163,7 @@ private:
 	}
 
 	template <claim_value VALUE>
-	int get_child(ARR_TYPE node, int index) {
+	int get_random_child(ARR_TYPE node, int index) {
 		auto offset = select_random_bit_index<VALUE>(node);
 		if (offset == 32) {
 			return -1;

@@ -166,6 +166,9 @@ public:
 		std::cout << "Block count: " << blocks_per_window << std::endl;
 #endif // BBQ_LOG_CREATION_SIZE
 
+		(void)thread_count;
+		(void)blocks_per_window_per_thread;
+
 		// At least as big as the bitset's type.
 		assert(blocks_per_window >= sizeof(BITSET_T) * 8);
 		assert(std::bit_ceil(blocks_per_window) == blocks_per_window);
