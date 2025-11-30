@@ -44,8 +44,8 @@ private:
 		// TODO: These conditions are not always needed.
 		while (modified != EPOCH::get_bits(leaf_val) && EPOCH::compare_epochs(leaf_val, epoch)) {
 			bool advanced_epoch = modified == static_cast<ARR_TYPE>(VALUE == claim_value::ONE ? 0 : ~0);
-			if (leaf.compare_exchange_strong(leaf_val, advanced_epoch
-				? (EPOCH::make_unit(epoch + 1) | (VALUE == claim_value::ZERO ? modified : 0))
+			if (leaf.compare_exchange_strong(leaf_val, advanced_epoch && VALUE == claim_value::ONE
+				? (EPOCH::make_unit(epoch + 1))
 				: (EPOCH::make_unit(epoch) | modified), order)) {
 				return {true, advanced_epoch};
 			}
@@ -117,6 +117,7 @@ private:
 				idx = new_idx;
 				leaf = &root[idx];
 				leaf_val = leaf->value.load(order);
+				// TODO: Check for has_valid_bit here (avoids random call)?
 				if (!EPOCH::compare_epochs(leaf_val, epoch)) {
 					advanced_epoch = true;
 					break;
@@ -203,7 +204,6 @@ public:
 	template <claim_value VALUE, claim_mode MODE>
 	std::size_t claim_bit(std::size_t window_index, int starting_bit, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
 		// We use modified epochs.
-		epoch = epoch * 2 + (VALUE == claim_value::ONE ? 1 : 0);
 		auto ret = claim_bit_singular<VALUE, MODE>(&data[window_index * fragments_per_window], starting_bit, epoch, order);
 
 		/*std::cout << window_index << "  " << (int)VALUE << " " << (int)MODE << " ";
@@ -216,8 +216,7 @@ public:
 	}
 
 	void set_epoch_if_empty(std::size_t window_index, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
-		epoch *= 2;
-		std::uint64_t next_eb = EPOCH::make_unit(epoch + 2);
+		std::uint64_t next_eb = EPOCH::make_unit(epoch + 1);
 		for (std::size_t i = 0; i < fragments_per_window; i++) {
 			std::uint64_t eb = EPOCH::make_unit(epoch);
 			data[window_index * fragments_per_window + i]->compare_exchange_strong(eb, next_eb, order);
@@ -225,11 +224,11 @@ public:
 	}
 
 	void set(std::size_t window_index, std::size_t index, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
-		return change_bit<claim_value::ZERO>(window_index, index, epoch * 2, order);
+		return change_bit<claim_value::ZERO>(window_index, index, epoch, order);
 	}
 
 	void reset(std::size_t window_index, std::size_t index, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
-		return change_bit<claim_value::ONE>(window_index, index, epoch * 2 + 1, order);
+		return change_bit<claim_value::ONE>(window_index, index, epoch, order);
 	}
 };
 
