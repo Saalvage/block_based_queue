@@ -108,12 +108,13 @@ private:
 
 			bool advanced_epoch = false;
 			while (idx < leaves_start_index) {
-				idx = get_random_child<VALUE>(static_cast<ARR_TYPE>(leaf_val), idx);
-				if (idx == -1) {
-					// TODO
+				auto new_idx = get_random_child<VALUE>(static_cast<ARR_TYPE>(leaf_val), idx);
+				if (new_idx == -1) {
+					// We walked into an out-of-date node. Let's propagate this information up.
 					advanced_epoch = true;
 					break;
 				}
+				idx = new_idx;
 				leaf = &root[idx];
 				leaf_val = leaf->value.load(order);
 				if (!EPOCH::compare_epochs(leaf_val, epoch)) {
@@ -122,7 +123,7 @@ private:
 				}
 			}
 
-			// Skip if we didn't find a leaf but stepped into an invalid 
+			// Skip if we didn't find a leaf but stepped into an invalid node.
 			if (!advanced_epoch) {
 				do {
 					auto bit_idx = select_random_bit_index<VALUE>(static_cast<ARR_TYPE>(leaf_val));
