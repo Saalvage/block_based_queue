@@ -9,8 +9,6 @@
 #include <optional>
 
 #include "fifo.h"
-#include "atomic_bitset.h"
-#include "atomic_bitset_no_epoch.h"
 #include "atomic_bit_tree.h"
 
 #ifndef BBQ_LOG_WINDOW_MOVE
@@ -88,7 +86,7 @@ private:
 	static inline std::atomic_uint64_t dummy_block_value{ epoch_to_header(0x1000'0000ull) };
 	static inline block_t dummy_block{ reinterpret_cast<std::byte*>(&dummy_block_value) };
 
-	atomic_bitset_no_epoch<BITSET_T> touched_set;
+	atomic_bit_tree<BITSET_T, no_epoch_handling> touched_set;
 	atomic_bit_tree<BITSET_T> filled_set;
 	std::unique_ptr<std::byte[]> buffer;
 
@@ -116,13 +114,13 @@ private:
 		}
 		// The touched set update can be missed, which might trigger a reader to attempt to move,
 		// but the filled set will prevent the move from occuring.
-		touched_set.set(index, free_bit, std::memory_order_relaxed);
+		touched_set.set(index, free_bit, 0, std::memory_order_relaxed);
 		return get_block(index, free_bit);
 	}
 
 	block_t try_get_free_read_block(std::uint64_t window_index, int starting_bit) {
 		auto index = window_to_index(window_index);
-		std::size_t free_bit = touched_set.template claim_bit<claim_value::ONE, claim_mode::READ_WRITE>(index, starting_bit, std::memory_order_relaxed);
+		std::size_t free_bit = touched_set.template claim_bit<claim_value::ONE, claim_mode::READ_WRITE>(index, starting_bit, 0, std::memory_order_relaxed);
 		if (free_bit == std::numeric_limits<std::size_t>::max()) {
 			return nullptr;
 		}
