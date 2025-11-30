@@ -56,7 +56,7 @@ private:
 
 	template <claim_value VALUE>
 	bool has_valid_bit(std::uint64_t value) {
-		return VALUE == claim_value::ONE ? EPOCH::get_bits(value) : ~EPOCH::get_bits(value);
+		return VALUE == claim_value::ONE ? EPOCH::get_bits(value) : static_cast<ARR_TYPE>(~value);
 	}
 
 	static inline thread_local std::minstd_rand rng{std::random_device()()};
