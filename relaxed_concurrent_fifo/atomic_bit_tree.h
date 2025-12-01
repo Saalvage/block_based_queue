@@ -42,7 +42,7 @@ private:
 	std::pair<bool, bool> try_change_bit(std::uint64_t epoch, std::atomic_uint64_t& leaf, std::uint64_t& leaf_val, int bit_idx, std::memory_order order) {
 		ARR_TYPE modified = modify<VALUE>(leaf_val, bit_idx);
 		// TODO: These conditions are not always needed.
-		while (modified != EPOCH::get_bits(leaf_val) && EPOCH::compare_epochs(leaf_val, epoch)) {
+		while (modified != EPOCH::get_bits(leaf_val) && compare_epoch<VALUE>(leaf_val, epoch)) {
 			bool advanced_epoch = modified == static_cast<ARR_TYPE>(VALUE == claim_value::ONE ? 0 : ~0);
 			if (leaf.compare_exchange_strong(leaf_val, advanced_epoch
 				? (EPOCH::make_unit(epoch + 1) | (VALUE == claim_value::ZERO ? modified : 0))
@@ -52,11 +52,6 @@ private:
 			modified = modify<VALUE>(leaf_val, bit_idx);
 		}
 		return {false, false};
-	}
-
-	template <claim_value VALUE>
-	bool has_valid_bit(std::uint64_t value) {
-		return VALUE == claim_value::ONE ? EPOCH::get_bits(value) : static_cast<ARR_TYPE>(~value);
 	}
 
 	static inline thread_local std::minstd_rand rng{std::random_device()()};
@@ -94,14 +89,14 @@ private:
 		do {
 			// TODO: Potentially directly use countl_xxx here to avoid it later?
 			// TODO: Epoch check more explicit (+1).
-			while (idx > 0 && (!EPOCH::compare_epochs(leaf_val, epoch) || !has_valid_bit<VALUE>(leaf_val))) {
+			while (idx > 0 && !compare_epoch<VALUE>(leaf_val, epoch)) {
 				idx = get_parent(idx);
 				leaf = &root[idx];
 				leaf_val = leaf->value.load(order);
 				// TODO: Automatically fix parent here if child is erroneously marked?
 			}
 
-			if (!EPOCH::compare_epochs(leaf_val, epoch) || !has_valid_bit<VALUE>(leaf_val)) {
+			if (!compare_epoch<VALUE>(leaf_val, epoch)) {
 				// Root is invalid as well.
 				return std::numeric_limits<std::size_t>::max();
 			}
@@ -117,7 +112,7 @@ private:
 				idx = new_idx;
 				leaf = &root[idx];
 				leaf_val = leaf->value.load(order);
-				if (!EPOCH::compare_epochs(leaf_val, epoch)) {
+				if (!compare_epoch<VALUE>(leaf_val, epoch)) {
 					advanced_epoch = true;
 					break;
 				}
@@ -127,7 +122,7 @@ private:
 			if (!advanced_epoch) {
 				do {
 					auto bit_idx = select_random_bit_index<VALUE>(static_cast<ARR_TYPE>(leaf_val));
-					if (bit_idx == 32 || !EPOCH::compare_epochs(leaf_val, epoch)) {
+					if (bit_idx == 32 || !compare_epoch<VALUE>(leaf_val, epoch)) {
 						// Leaf empty, need to move up again.
 						advanced_epoch = true;
 						break;
@@ -168,6 +163,15 @@ private:
 			return -1;
 		}
 		return index * bit_count + offset + 1;
+	}
+
+	template <claim_value VALUE>
+	bool compare_epoch(std::uint64_t eb, std::uint64_t epoch) {
+		if constexpr (EPOCH::uses_epochs) {
+			return EPOCH::compare_epochs(eb, epoch);
+		} else {
+			return VALUE == claim_value::ONE ? EPOCH::get_bits(eb) : static_cast<ARR_TYPE>(~eb);
+		}
 	}
 
 	template <claim_value VALUE>
