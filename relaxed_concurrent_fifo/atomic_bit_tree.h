@@ -66,9 +66,7 @@ private:
 			value = ~value;
 		}
 
-		if (value == 0) {
-			return 32;
-		}
+		assert(value);
 
 		auto valid_bits = std::popcount(value);
 		auto nth_bit = std::uniform_int_distribution<>{0, valid_bits - 1}(rng);
@@ -103,13 +101,7 @@ private:
 
 			bool advanced_epoch = false;
 			while (idx < leaves_start_index) {
-				auto new_idx = get_random_child<VALUE>(static_cast<ARR_TYPE>(leaf_val), idx);
-				if (new_idx == -1) {
-					// We walked into an out-of-date node. Let's propagate this information up.
-					advanced_epoch = true;
-					break;
-				}
-				idx = new_idx;
+				idx = get_random_child<VALUE>(static_cast<ARR_TYPE>(leaf_val), idx);
 				leaf = &root[idx];
 				leaf_val = leaf->value.load(order);
 				if (!compare_epoch<VALUE>(leaf_val, epoch)) {
@@ -122,12 +114,6 @@ private:
 			if (!advanced_epoch) {
 				do {
 					auto bit_idx = select_random_bit_index<VALUE>(static_cast<ARR_TYPE>(leaf_val));
-					if (bit_idx == 32 || !compare_epoch<VALUE>(leaf_val, epoch)) {
-						// Leaf empty, need to move up again.
-						advanced_epoch = true;
-						break;
-					}
-
 					ret = (idx - leaves_start_index) * bit_count + bit_idx;
 					if constexpr (MODE == claim_mode::READ_ONLY) {
 						return ret;
@@ -135,6 +121,12 @@ private:
 					auto bit_change_ret = try_change_bit<VALUE>(epoch, *leaf, leaf_val, bit_idx, order);
 					success = bit_change_ret.first;
 					advanced_epoch = bit_change_ret.second;
+					// TODO: This check is already done in try_change_bit, try merging it.
+					if (!compare_epoch<VALUE>(leaf_val, epoch)) {
+						// Leaf empty, need to move up again.
+						advanced_epoch = true;
+						break;
+					}
 				} while (!success);
 			}
 
@@ -159,9 +151,6 @@ private:
 	template <claim_value VALUE>
 	int get_random_child(ARR_TYPE node, int index) {
 		auto offset = select_random_bit_index<VALUE>(node);
-		if (offset == 32) {
-			return -1;
-		}
 		return index * bit_count + offset + 1;
 	}
 
