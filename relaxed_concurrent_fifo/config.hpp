@@ -82,12 +82,14 @@ static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 #if defined(__GNUC__) && defined(unix) && !(defined(__arm__) || defined(__aarch64__)) && (defined(INCLUDE_DCBO) || defined(INCLUDE_ALL))
 	if (parameter_tuning) {
 		for (double w = 0.125; w <= 8; w *= 2) {
-			instances.push_back(std::make_unique<benchmark_provider_dcbo<BENCHMARK>>("{},dcbo", w));
+			for (std::uint32_t s = 1; s <= 4096; s *= 2) {
+				instances.push_back(std::make_unique<benchmark_provider_dcbo<BENCHMARK>>("{},{},dcbo", w, s));
+			}
 		}
 	} else {
-		instances.push_back(std::make_unique<benchmark_provider_dcbo<BENCHMARK>>("dcbo-{}", 0.5));
-		instances.push_back(std::make_unique<benchmark_provider_dcbo<BENCHMARK>>("dcbo-{}", 1));
-		instances.push_back(std::make_unique<benchmark_provider_dcbo<BENCHMARK>>("dcbo-{}", 2));
+		instances.push_back(std::make_unique<benchmark_provider_dcbo<BENCHMARK>>("dcbo-{}-{}", 0.5, 1));
+		instances.push_back(std::make_unique<benchmark_provider_dcbo<BENCHMARK>>("dcbo-{}-{}", 1, 1));
+		instances.push_back(std::make_unique<benchmark_provider_dcbo<BENCHMARK>>("dcbo-{}-{}", 2, 1));
     }
 #endif
 

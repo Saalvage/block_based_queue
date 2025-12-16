@@ -47,7 +47,7 @@ template <typename BENCHMARK>
 using benchmark_provider_2Dd = benchmark_provider_generic<wrapper_2Dd_queue, BENCHMARK, width_t, std::uint64_t>;
 
 template <typename BENCHMARK>
-using benchmark_provider_dcbo = benchmark_provider_generic<wrapper_dcbo_queue, BENCHMARK, double>;
+using benchmark_provider_dcbo = benchmark_provider_generic<wrapper_dcbo_queue, BENCHMARK, double, std::uint32_t>;
 #endif
 
 #endif // BENCHMARK_PROVIDER_OTHER_HPP_INCLUDED

@@ -21,11 +21,21 @@ int enqueue_dcbo(dbco_queue *set, skey_t key, sval_t val) {
     #define ENQ_HEURISTIC(q) PARTIAL_ENQ_COUNT(q)
     #endif
 
-    uint32_t opt_index = random_index_dcbo(set);
-    uint64_t opt = ENQ_HEURISTIC(&set->queues[opt_index]);
-    for(int i = 1; i < set->d; i++ )
+    if (set->enqueue_stick == 0)
     {
-        uint32_t index = random_index_dcbo(set);
+        set->enqueue_stick = set->max_stick;
+        for (int i = 0; i < DCBO_CANDIDATES; i++)
+        {
+            set->enqueue_candidates[i] = random_index_dcbo(set);
+        }
+    }
+	set->enqueue_stick--;
+
+    uint32_t opt_index = set->enqueue_candidates[0];
+    uint64_t opt = ENQ_HEURISTIC(&set->queues[opt_index]);
+    for(int i = 1; i < DCBO_CANDIDATES; i++ )
+    {
+        uint32_t index = set->enqueue_candidates[i];
         uint64_t index_val = ENQ_HEURISTIC(&set->queues[index]);
         if(index_val < opt)
         {
@@ -44,11 +54,21 @@ sval_t dequeue_dcbo(dbco_queue *set) {
     #define DEQ_HEURISTIC(q) PARTIAL_DEQ_COUNT(q)
     #endif
 
-    uint32_t opt_index = random_index_dcbo(set);
-    int64_t opt = DEQ_HEURISTIC(&set->queues[opt_index]);
-    for(int i = 1; i < set->d; i++ )
+    if (set->dequeue_stick == 0)
     {
-        uint32_t index = random_index_dcbo(set);
+        set->dequeue_stick = set->max_stick;
+        for (int i = 0; i < DCBO_CANDIDATES; i++)
+        {
+            set->dequeue_candidates[i] = random_index_dcbo(set);
+        }
+    }
+    set->dequeue_stick--;
+
+    uint32_t opt_index = set->dequeue_candidates[0];
+    int64_t opt = DEQ_HEURISTIC(&set->queues[opt_index]);
+    for(int i = 1; i < DCBO_CANDIDATES; i++ )
+    {
+        uint32_t index = set->dequeue_candidates[i];
         int64_t index_val = DEQ_HEURISTIC(&set->queues[index]);
         if(index_val < opt)
         {
@@ -89,7 +109,7 @@ sval_t double_collect(dbco_queue *set, uint32_t start_index){
     return EMPTY;
 }
 
-dbco_queue* create_queue_dcbo(uint32_t n_partial, uint32_t d, int nbr_threads)
+dbco_queue* create_queue_dcbo(uint32_t n_partial, uint32_t s, int nbr_threads)
 {
     //Allocate n_partial MS
     dbco_queue *set;
@@ -112,7 +132,9 @@ dbco_queue* create_queue_dcbo(uint32_t n_partial, uint32_t d, int nbr_threads)
     }
 	set->queues = ssalloc_aligned(CACHE_LINE_SIZE, n_partial*sizeof(PARTIAL_T)); //ssalloc(width);
 	set->width = n_partial;
-    set->d = d;
+    set->max_stick = s;
+    set->enqueue_stick = 0;
+    set->dequeue_stick = 0;
 
 
 	uint32_t i;
