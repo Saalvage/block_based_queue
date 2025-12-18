@@ -107,6 +107,10 @@ __thread unsigned long my_get_cas_fail_count;
 __thread unsigned long my_null_count;
 __thread unsigned long my_hop_count;
 __thread unsigned long my_slide_count;
+__thread uint32_t my_enqueue_stick;
+__thread uint32_t my_dequeue_stick;
+__thread uint32_t my_enqueue_candidates[DCBO_CANDIDATES];
+__thread uint32_t my_dequeue_candidates[DCBO_CANDIDATES];
 __thread int thread_id;
 
 barrier_t barrier, barrier_global;

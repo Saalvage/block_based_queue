@@ -34,18 +34,12 @@
 #define DS_TYPE             dbco_queue
 #define DS_NODE             sval_t
 
-#define DCBO_CANDIDATES 2
-
 typedef ALIGNED(CACHE_LINE_SIZE) struct
 {
 	PARTIAL_T *queues;
 	uint32_t width;
-	uint32_t enqueue_stick;
-	uint32_t dequeue_stick;
 	uint32_t max_stick;
-	uint32_t enqueue_candidates[DCBO_CANDIDATES];
-	uint32_t dequeue_candidates[DCBO_CANDIDATES];
-	uint8_t padding[CACHE_LINE_SIZE - (sizeof(PARTIAL_T*)) - (4 + 2 * DCBO_CANDIDATES)*sizeof(int32_t)];
+	uint8_t padding[CACHE_LINE_SIZE - (sizeof(PARTIAL_T*)) - 2*sizeof(int32_t)];
 } dbco_queue;
 
 /*Global variables*/
@@ -60,6 +54,10 @@ extern __thread unsigned long my_get_cas_fail_count;
 extern __thread unsigned long my_null_count;
 extern __thread unsigned long my_hop_count;
 extern __thread unsigned long my_slide_count;
+extern __thread uint32_t my_enqueue_stick;
+extern __thread uint32_t my_dequeue_stick;
+extern __thread uint32_t my_enqueue_candidates[DCBO_CANDIDATES];
+extern __thread uint32_t my_dequeue_candidates[DCBO_CANDIDATES];
 
 /* Interfaces */
 int enqueue_dcbo(dbco_queue *set, skey_t key, sval_t val);

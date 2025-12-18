@@ -6,6 +6,8 @@
 	/* #define OPTERON */
 	/* #define OPTERON_OPTIMIZE */
 
+	#define DCBO_CANDIDATES 2
+
 	#include <stdlib.h>
 	#include <stdio.h>
 	#include <errno.h>
