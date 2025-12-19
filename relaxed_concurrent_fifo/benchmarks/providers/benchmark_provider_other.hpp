@@ -24,8 +24,8 @@
 #pragma GCC diagnostic pop
 #endif
 
-template <typename BENCHMARK, std::size_t BLOCKS_PER_WINDOW>
-using benchmark_provider_bbq = benchmark_provider_generic<block_based_queue<std::uint64_t, BLOCKS_PER_WINDOW>, BENCHMARK, double, std::size_t>;
+template <typename BENCHMARK>
+using benchmark_provider_bbq = benchmark_provider_generic<block_based_queue<std::uint64_t>, BENCHMARK, double, std::size_t>;
 
 template <typename BENCHMARK>
 using benchmark_provider_kfifo = benchmark_provider_generic<ws_k_fifo<std::uint64_t>, BENCHMARK, double>;

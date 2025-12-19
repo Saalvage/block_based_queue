@@ -58,7 +58,7 @@ struct block {
 	static_assert(std::is_trivially_destructible_v<std::atomic<T>>);
 };
 
-template <typename T, std::size_t BLOCKS_PER_WINDOW = 512, typename BITSET_T = std::uint8_t>
+template <typename T, typename BITSET_T = std::uint8_t>
 class block_based_queue {
 private:
 	std::size_t blocks_per_window;
@@ -149,7 +149,8 @@ private:
 
 public:
 	block_based_queue(int thread_count, std::size_t min_size, double blocks_per_window_per_thread, std::size_t cells_per_block) :
-			blocks_per_window(BLOCKS_PER_WINDOW),
+			blocks_per_window(std::bit_ceil(std::max<std::size_t>(sizeof(BITSET_T) * 8,
+				std::lround(thread_count* blocks_per_window_per_thread)))),
 			window_block_distribution(0, static_cast<int>(blocks_per_window - 1)),
 			window_count(std::max<std::size_t>(4, std::bit_ceil(min_size / blocks_per_window / cells_per_block))),
 			window_count_mod_mask(window_count - 1),
@@ -169,7 +170,7 @@ public:
 
 		// At least as big as the bitset's type.
 		assert(blocks_per_window >= sizeof(BITSET_T) * 8);
-		assert(std::bit_ceil(blocks_per_window) == blocks_per_window);
+		assert(std::has_single_bit(blocks_per_window));
 
 		for (std::size_t i = 0; i < window_count * blocks_per_window; i++) {
 			auto ptr = buffer.get() + i * block_size;

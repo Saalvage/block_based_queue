@@ -200,7 +200,7 @@ private:
 public:
 	atomic_bit_tree(std::size_t window_count, std::size_t blocks_per_window) :
 		leaves_per_window(blocks_per_window / bit_count) {
-		// TODO: This restriction can be ever so slighty weakened (6 top level bits also work).
+		// TODO: This restriction can be ever so slightly weakened (6 top level bits also work).
 		assert(std::has_single_bit(blocks_per_window));
 		auto bits_per_level = std::bit_width(bit_count) - 1;
 		auto bits = std::bit_width(leaves_per_window) - 1;
