@@ -39,6 +39,10 @@ private:
     static constexpr std::size_t bit_count = sizeof(ARR_TYPE) * 8;
     std::unique_ptr<cache_aligned_t<std::atomic<std::uint64_t>>[]> data;
 
+    std::uint64_t get_bits(std::uint64_t eb) {
+        return eb & ((1 << bit_count) - 1);
+    }
+
     template <bool SET>
     static constexpr void set_bit_atomic(std::atomic<std::uint64_t>& epoch_and_bits, std::size_t index, std::uint64_t epoch, std::memory_order order) {
         if constexpr (EPOCH::uses_epochs) {
@@ -55,7 +59,7 @@ private:
 	                // TODO: Special case handling like this is probably bad.
 	                // We basically want to increment the epoch when the last filled bit has been reset.
 	                test = eb & ~stencil;
-	                if (EPOCH::get_bits(test) == 0) {
+	                if (get_bits(test) == 0) {
 	                    test = EPOCH::make_unit(epoch + 1);
 	                }
 	            }
@@ -156,7 +160,7 @@ public:
     [[nodiscard]] constexpr bool any(std::size_t window_index, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) const {
         for (std::size_t i = 0; i < units_per_window; i++) {
             std::uint64_t eb = data[window_index * units_per_window + i]->load(order);
-            if (EPOCH::compare_epochs(eb, epoch) && EPOCH::get_bits(eb)) {
+            if (EPOCH::compare_epochs(eb, epoch) && get_bits(eb)) {
                 return true;
             }
         }
