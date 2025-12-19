@@ -21,7 +21,18 @@ private:
 	static constexpr std::size_t bit_count = sizeof(ARR_TYPE) * 8;
 	std::unique_ptr<cache_aligned_t<std::atomic<std::uint64_t>>[]> data;
 
-	std::uint64_t get_bits(std::uint64_t eb) {
+	template <claim_value VALUE>
+	constexpr bool has_valid_bit(std::uint64_t eb) {
+		// TODO: Using the double-epochs this can likely be avoided by always assuming 1 = desired and flipping the semantic accordingly when incrementing the epoch.
+		// This is true except for when there is no epoch handling and as such no decider for the semantic.
+		auto bits = get_bits(eb);
+		if constexpr (VALUE == claim_value::ZERO) {
+			bits = ~bits;
+		}
+		return static_cast<ARR_TYPE>(bits & (eb >> bit_count));
+	}
+
+	constexpr std::uint64_t get_bits(std::uint64_t eb) {
 		return eb & ((1 << bit_count) - 1);
 	}
 
@@ -37,13 +48,14 @@ private:
 
 	template <claim_value VALUE>
 	std::pair<bool, bool> try_change_bit(std::uint64_t epoch, std::atomic_uint64_t& leaf, std::uint64_t& leaf_val, int bit_idx, std::memory_order order) {
-		std::uint64_t valid_mask = static_cast<ARR_TYPE>(leaf_val >> bit_count) << bit_count;
+		ARR_TYPE target = static_cast<ARR_TYPE>(leaf_val >> bit_count);
+		std::uint64_t valid_mask = target << bit_count;
 		ARR_TYPE modified = modify<VALUE>(leaf_val, bit_idx);
 		// TODO: These conditions are not always needed.
 		while (modified != get_bits(leaf_val) && compare_epoch<VALUE>(leaf_val, epoch)) {
-			bool advanced_epoch = modified == static_cast<ARR_TYPE>(VALUE == claim_value::ONE ? 0 : ~0);
+			bool advanced_epoch = modified == static_cast<ARR_TYPE>(VALUE == claim_value::ONE ? 0 : target);
 			if (leaf.compare_exchange_strong(leaf_val, advanced_epoch
-				? (EPOCH::make_unit(epoch + 1) | valid_mask | (VALUE == claim_value::ZERO ? modified : 0))
+				? (EPOCH::make_unit(epoch + 1) | valid_mask | (VALUE == claim_value::ONE ? 0 : target))
 				: (EPOCH::make_unit(epoch) | valid_mask | modified), order)) {
 				return {true, advanced_epoch};
 			}
@@ -161,7 +173,7 @@ private:
 		if constexpr (EPOCH::uses_epochs) {
 			return EPOCH::compare_epochs(eb, epoch);
 		} else {
-			return VALUE == claim_value::ONE ? get_bits(eb) : static_cast<ARR_TYPE>(~eb);
+			return has_valid_bit<VALUE>(eb);
 		}
 	}
 
@@ -195,14 +207,13 @@ public:
 		auto rounded_up_bits = bits + bits_per_level - 1;
 		auto bits_required_in_top_level = 2 << (rounded_up_bits % bits_per_level);
 		auto rounded_up_height = rounded_up_bits / bits_per_level;
-		auto lower_level_fragments = ((1ull << (rounded_up_height * bits_per_level)) - 1) / (bit_count - 1);
-		fragments_per_window = 1 + lower_level_fragments * bits_required_in_top_level;
+		// TODO: We could save memory by not allocating the leaves for "dead" top level bits (but ONLY leaves).
+		fragments_per_window = ((1ull << ((rounded_up_height + 1) * bits_per_level)) - 1) / (bit_count - 1);
 		leaves_start_index = static_cast<int>(fragments_per_window - leaves_per_window);
-		// TODO: Don't allocate memory for the "dead" top level bits.
 		data = std::make_unique<cache_aligned_t<std::atomic<std::uint64_t>>[]>(fragments_per_window * window_count);
 		for (std::size_t i = 0; i < fragments_per_window * window_count; i++) {
 			auto bits_in_node = (i % fragments_per_window) == 0 ? bits_required_in_top_level : bit_count;
-			data[i]->fetch_or(((1 << bits_in_node) - 1) << bit_count);
+			data[i]->fetch_or(((1 << bits_in_node) - 1) << (bit_count + bit_count - bits_in_node));
 		}
 	}
 
@@ -215,7 +226,7 @@ public:
 		/*std::cout << window_index << "  " << (int)VALUE << " " << (int)MODE << " ";
 		for (auto i = 0; i < fragments_per_window; i++) {
 			auto val = data[window_index * fragments_per_window + i]->load();
-			std::cout << get_epoch(val) << " " << std::bitset<bit_count>(get_bits(val)) << " | ";
+			std::cout << std::bitset<bit_count>(get_bits(val)) << " | ";
 		}
 		std::cout << std::endl;*/
 		return ret;

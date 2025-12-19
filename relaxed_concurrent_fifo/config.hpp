@@ -43,8 +43,8 @@ static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMA
 	if (parameter_tuning) {
 		//for (double b = 0.5; b <= 16; b *= 2) {
 			for (int c = 2; c <= 2048; c *= 2) {
-				instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK, 64>>("{},{},blockfifo-64", 1, c - 1));
-				instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK, 512>>("{},{},blockfifo-512", 1, c - 1));
+				instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK, 128>>("{},{},blockfifo-128", 1, c - 1));
+				instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK, 256>>("{},{},blockfifo-256", 1, c - 1));
 			}
 		//}
 	} else {
