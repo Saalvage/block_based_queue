@@ -9,8 +9,7 @@
 #include <optional>
 
 #include "fifo.h"
-#include "atomic_bitset.h"
-#include "atomic_bitset_no_epoch.h"
+#include "atomic_bit_tree.h"
 
 #ifndef BBQ_LOG_WINDOW_MOVE
 #define BBQ_LOG_WINDOW_MOVE 0
@@ -87,8 +86,8 @@ private:
 	static inline std::atomic_uint64_t dummy_block_value{ epoch_to_header(0x1000'0000ull) };
 	static inline block_t dummy_block{ reinterpret_cast<std::byte*>(&dummy_block_value) };
 
-	atomic_bitset_no_epoch<BITSET_T> touched_set;
-	atomic_bitset<BITSET_T> filled_set;
+	atomic_bit_tree<BITSET_T, no_epoch_handling> touched_set;
+	atomic_bit_tree<BITSET_T> filled_set;
 	std::unique_ptr<std::byte[]> buffer;
 
 	std::uint64_t window_to_epoch(std::uint64_t window) const {
@@ -115,13 +114,13 @@ private:
 		}
 		// The touched set update can be missed, which might trigger a reader to attempt to move,
 		// but the filled set will prevent the move from occuring.
-		touched_set.set(index, free_bit, std::memory_order_relaxed);
+		touched_set.set(index, free_bit, 0, std::memory_order_relaxed);
 		return get_block(index, free_bit);
 	}
 
 	block_t try_get_free_read_block(std::uint64_t window_index, int starting_bit) {
 		auto index = window_to_index(window_index);
-		std::size_t free_bit = touched_set.template claim_bit<claim_value::ONE, claim_mode::READ_WRITE>(index, starting_bit, std::memory_order_relaxed);
+		std::size_t free_bit = touched_set.template claim_bit<claim_value::ONE, claim_mode::READ_WRITE>(index, starting_bit, 0, std::memory_order_relaxed);
 		if (free_bit == std::numeric_limits<std::size_t>::max()) {
 			return nullptr;
 		}
@@ -151,7 +150,7 @@ private:
 public:
 	block_based_queue(int thread_count, std::size_t min_size, double blocks_per_window_per_thread, std::size_t cells_per_block) :
 			blocks_per_window(std::bit_ceil(std::max<std::size_t>(sizeof(BITSET_T) * 8,
-				std::lround(thread_count * blocks_per_window_per_thread)))),
+				std::lround(thread_count* blocks_per_window_per_thread)))),
 			window_block_distribution(0, static_cast<int>(blocks_per_window - 1)),
 			window_count(std::max<std::size_t>(4, std::bit_ceil(min_size / blocks_per_window / cells_per_block))),
 			window_count_mod_mask(window_count - 1),
@@ -166,9 +165,12 @@ public:
 		std::cout << "Block count: " << blocks_per_window << std::endl;
 #endif // BBQ_LOG_CREATION_SIZE
 
+		(void)thread_count;
+		(void)blocks_per_window_per_thread;
+
 		// At least as big as the bitset's type.
 		assert(blocks_per_window >= sizeof(BITSET_T) * 8);
-		assert(std::bit_ceil(blocks_per_window) == blocks_per_window);
+		assert(std::has_single_bit(blocks_per_window));
 
 		for (std::size_t i = 0; i < window_count * blocks_per_window; i++) {
 			auto ptr = buffer.get() + i * block_size;
@@ -316,9 +318,9 @@ public:
 					if (write_window == window_index + 1) {
 						std::uint64_t write_epoch = fifo.window_to_epoch(write_window);
 						std::uint64_t write_window_index = fifo.window_to_index(write_window);
-						if (!fifo.filled_set.any(write_window_index, write_epoch, std::memory_order_relaxed)) {
+						//if (!fifo.filled_set.any(write_window_index, write_epoch, std::memory_order_relaxed)) {
 							return false;
-						}
+						//}
 
 						// Before we force-move the write window, there might be unclaimed blocks in the current one.
 						// We need to make sure we clean those up BEFORE we move the write window in order to prevent

@@ -7,6 +7,7 @@
 #include <limits>
 #include <random>
 
+#include "epoch_handling.hpp"
 #include "utility.h"
 
 #ifndef BITSET_DEFAULT_MEMORY_ORDER
@@ -23,7 +24,7 @@ enum class claim_mode {
     READ_ONLY,
 };
 
-template <typename ARR_TYPE = std::uint8_t>
+template <typename ARR_TYPE = std::uint8_t, epoch_handling EPOCH = default_epoch_handling>
 class atomic_bitset {
 private:
     static_assert(sizeof(ARR_TYPE) <= 4, "Inner bitset type must be 4 bytes or smaller to allow for storing epoch.");
@@ -38,36 +39,46 @@ private:
     static constexpr std::size_t bit_count = sizeof(ARR_TYPE) * 8;
     std::unique_ptr<cache_aligned_t<std::atomic<std::uint64_t>>[]> data;
 
-    static constexpr std::uint64_t get_epoch(std::uint64_t epoch_and_bits) { return epoch_and_bits >> 32; }
-    static constexpr std::uint64_t get_bits(std::uint64_t epoch_and_bits) { return epoch_and_bits & 0xffff'ffff; }
-    static constexpr std::uint64_t make_unit(std::uint64_t epoch) { return epoch << 32; }
+    std::uint64_t get_bits(std::uint64_t eb) {
+        return eb & ((1 << bit_count) - 1);
+    }
 
     template <bool SET>
     static constexpr void set_bit_atomic(std::atomic<std::uint64_t>& epoch_and_bits, std::size_t index, std::uint64_t epoch, std::memory_order order) {
-        std::uint64_t eb = epoch_and_bits.load(order);
-        std::uint64_t test;
-        std::uint64_t stencil = 1ull << index;
-        do {
-            if (get_epoch(eb) != epoch) {
-                return;
-            }
+        if constexpr (EPOCH::uses_epochs) {
+            std::uint64_t eb = epoch_and_bits.load(order);
+            std::uint64_t test;
+	        std::uint64_t stencil = 1ull << index;
+	        do {
+	            if (!EPOCH::compare_epochs(eb, epoch)) {
+	                return;
+	            }
+	            if constexpr (SET) {
+	                test = eb | stencil;
+	            } else {
+	                // TODO: Special case handling like this is probably bad.
+	                // We basically want to increment the epoch when the last filled bit has been reset.
+	                test = eb & ~stencil;
+	                if (get_bits(test) == 0) {
+	                    test = EPOCH::make_unit(epoch + 1);
+	                }
+	            }
+	        } while (!epoch_and_bits.compare_exchange_weak(eb, test, order));
+        } else {
+            ARR_TYPE mask = static_cast<ARR_TYPE>(1) << index;
             if constexpr (SET) {
-                test = eb | stencil;
+                epoch_and_bits.fetch_or(mask, order);
             } else {
-                // TODO: Special case handling like this is probably bad.
-                // We basically want to increment the epoch when the last filled bit has been reset.
-                test = eb & ~stencil;
-                if (get_bits(test) == 0) {
-                    test = make_unit(epoch + 1);
-                }
+                epoch_and_bits.fetch_and(~mask, order);
             }
-        } while (!epoch_and_bits.compare_exchange_weak(eb, test, order));
+        }
+
     }
 
     template <claim_value VALUE, claim_mode MODE>
     static constexpr std::size_t claim_bit_singular(std::atomic<std::uint64_t>& epoch_and_bits, int initial_rot, std::uint64_t epoch, std::memory_order order) {
         std::uint64_t eb = epoch_and_bits.load(order);
-        if (get_epoch(eb) != epoch) {
+        if (!EPOCH::compare_epochs(eb, epoch)) { // TODO Do we properly mask the epoch we pass here (we only have 32 bits)???
             return std::numeric_limits<std::size_t>::max();
         }
         while (true) {
@@ -89,11 +100,11 @@ private:
                 while (true) {
                     if (epoch_and_bits.compare_exchange_weak(eb,
                         VALUE == claim_value::ONE && test == 0
-                            ? make_unit(epoch + 1)
-                            : (make_unit(epoch) | test), order)) {
+                            ? EPOCH::make_unit(epoch + 1)
+                            : (EPOCH::make_unit(epoch) | test), order)) {
                         return original_index;
                     }
-                    if (get_epoch(eb) != epoch) [[unlikely]] {
+                    if (!EPOCH::compare_epochs(eb, epoch)) [[unlikely]] {
                         return std::numeric_limits<std::size_t>::max();
                     }
                     raw = static_cast<ARR_TYPE>(eb);
@@ -149,7 +160,7 @@ public:
     [[nodiscard]] constexpr bool any(std::size_t window_index, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) const {
         for (std::size_t i = 0; i < units_per_window; i++) {
             std::uint64_t eb = data[window_index * units_per_window + i]->load(order);
-            if (get_epoch(eb) == epoch && get_bits(eb)) {
+            if (EPOCH::compare_epochs(eb, epoch) && get_bits(eb)) {
                 return true;
             }
         }
@@ -157,9 +168,9 @@ public:
     }
 
     void set_epoch_if_empty(std::size_t window_index, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
-        std::uint64_t next_eb = make_unit(epoch + 1);
+        std::uint64_t next_eb = EPOCH::make_unit(epoch + 1);
         for (std::size_t i = 0; i < units_per_window; i++) {
-            std::uint64_t eb = make_unit(epoch);
+            std::uint64_t eb = EPOCH::make_unit(epoch);
             data[window_index * units_per_window + i]->compare_exchange_strong(eb, next_eb, order);
         }
     }

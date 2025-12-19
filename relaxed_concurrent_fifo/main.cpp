@@ -2,7 +2,6 @@
 
 #include "block_based_queue.h"
 
-
 #include <ranges>
 #include <chrono>
 #include <thread>
@@ -172,10 +171,6 @@ std::size_t get_total_system_memory_bytes() {
 }
 
 int main(int argc, const char** argv) {
-#ifndef NDEBUG
-	std::cout << "Running in debug mode!" << std::endl;
-#endif // NDEBUG
-
 	//test_consistency<8, 16>(20000, 200000, 0);
 
 	constexpr int TEST_ITERATIONS_DEFAULT = 2;
