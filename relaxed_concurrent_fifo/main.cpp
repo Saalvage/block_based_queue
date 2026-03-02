@@ -171,7 +171,7 @@ std::size_t get_total_system_memory_bytes() {
 }
 
 int main(int argc, const char** argv) {
-	//test_consistency<8, 16>(20000, 200000, 0);
+	test_consistency<8, 16>(8*8*8*7, 8*8*8*8*7, 0.5);
 
 	constexpr int TEST_ITERATIONS_DEFAULT = 2;
 	constexpr int TEST_TIME_SECONDS_DEFAULT = 5;

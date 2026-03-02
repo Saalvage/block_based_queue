@@ -2,78 +2,87 @@
 #define ATOMIC_BINARY_TREE_H_INCLUDED
 
 #include <atomic>
+#include <mutex>
+#include <bitset>
 
 #include <immintrin.h>
 
 #include "atomic_bitset.h"
-#include "epoch_handling.hpp"
+
+enum class op {
+	READ,
+	WRITE,
+};
 
 template <typename ARR_TYPE = std::uint8_t, epoch_handling EPOCH = default_epoch_handling>
 struct atomic_bit_tree {
 private:
 	static_assert(sizeof(ARR_TYPE) <= 4, "Inner bitset type must be 4 bytes or smaller to allow for storing epoch.");
 
-	std::size_t leaves_per_window;
-	std::size_t fragments_per_window;
-	// TODO: int or std::size_t?
-	int leaves_start_index;
+	std::size_t leaves;
+	std::size_t fragments;
+	std::size_t leaves_start_index;
 
 	static constexpr std::size_t bit_count = sizeof(ARR_TYPE) * 8;
+	// 32 bits epoch, 8 bits unused, 8 bits +1 epoch, 8 bits filled?, 8 bits any elements?
+	// 00 => no elements
+	// 01 => contains elements, still slots free
+	// 11 => completely filled
+	// 10 => impossible configuration
 	std::unique_ptr<cache_aligned_t<std::atomic<std::uint64_t>>[]> data;
 
-	template <claim_value VALUE>
-	constexpr bool has_valid_bit(std::uint64_t eb) {
-		// TODO: Using the double-epochs this can likely be avoided by always assuming 1 = desired and flipping the semantic accordingly when incrementing the epoch.
-		// This is true except for when there is no epoch handling and as such no decider for the semantic.
-		auto bits = get_bits(eb);
-		if constexpr (VALUE == claim_value::ZERO) {
-			bits = ~bits;
-		}
-		return static_cast<ARR_TYPE>(bits & (eb >> bit_count));
-	}
-
-	constexpr std::uint64_t get_bits(std::uint64_t eb) {
-		return eb & ((1 << bit_count) - 1);
-	}
-
-	template <claim_value VALUE>
-	ARR_TYPE modify(std::uint64_t value, int bit_idx) {
-		ARR_TYPE raw = static_cast<ARR_TYPE>(value);
-		if constexpr (VALUE == claim_value::ONE) {
-			return raw & ~(1ull << bit_idx);
-		} else {
-			return raw | (1ull << bit_idx);
-		}
-	}
-
-	template <claim_value VALUE>
-	std::pair<bool, bool> try_change_bit(std::uint64_t epoch, std::atomic_uint64_t& leaf, std::uint64_t& leaf_val, int bit_idx, std::memory_order order) {
-		ARR_TYPE target = static_cast<ARR_TYPE>(leaf_val >> bit_count);
-		std::uint64_t valid_mask = target << bit_count;
-		ARR_TYPE modified = modify<VALUE>(leaf_val, bit_idx);
-		// TODO: These conditions are not always needed.
-		while (modified != get_bits(leaf_val) && compare_epoch<VALUE>(leaf_val, epoch)) {
-			bool advanced_epoch = modified == static_cast<ARR_TYPE>(VALUE == claim_value::ONE ? 0 : target);
-			if (leaf.compare_exchange_strong(leaf_val, advanced_epoch
-				? (EPOCH::make_unit(epoch + 1) | valid_mask | (VALUE == claim_value::ONE ? 0 : target))
-				: (EPOCH::make_unit(epoch) | valid_mask | modified), order)) {
-				return {true, advanced_epoch};
+	template <op OP>
+	bool mark_done(std::size_t node_index, std::size_t leaf_index, std::uint64_t ei, std::uint32_t used_epoch) {
+		std::uint64_t epoch = get_epoch(ei);
+		std::uint64_t epoch_mask = (1 << leaf_index) << 16;
+		bool is_in_next_epoch = used_epoch == epoch + 1;
+		bool succ = false;
+		if constexpr (OP == op::WRITE) {
+			std::uint64_t mask = (1 << leaf_index) << 8;
+			while (!succ && (used_epoch == epoch || is_in_next_epoch) && !(ei & mask) && static_cast<bool>(ei & epoch_mask) == is_in_next_epoch) {
+				succ = data[node_index]->compare_exchange_weak(ei, ei | mask, std::memory_order_relaxed);
+				epoch = get_epoch(ei);
+				is_in_next_epoch = used_epoch == epoch + 1;
 			}
-			modified = modify<VALUE>(leaf_val, bit_idx);
+		} else {
+			std::uint64_t mask = ((1 << leaf_index) << 8) | (1 << leaf_index);
+			while (!succ && (used_epoch == epoch || is_in_next_epoch) && static_cast<bool>(ei & epoch_mask) == is_in_next_epoch) {
+				if (is_in_next_epoch) {
+					// TODO ???
+					throw 2;
+				} else if (get_epoch_mask(ei | epoch_mask) == 0xff) {
+					// All bits in the next epoch, advance the node's epoch.
+					succ = data[node_index]->compare_exchange_weak(ei, (ei & ~(mask | (0xff << 16) | (0xffff'ffffull << 32))) | ((epoch + 1) << 32), std::memory_order_relaxed);
+				} else {
+					succ = data[node_index]->compare_exchange_weak(ei, (ei & ~mask) | epoch_mask, std::memory_order_relaxed);
+				}
+				epoch = get_epoch(ei);
+				is_in_next_epoch = used_epoch == epoch + 1;
+			}
 		}
-		return {false, false};
+		return succ;
+	}
+
+	bool mark_begun(std::size_t node_index, std::size_t leaf_index, std::uint64_t ei, std::uint32_t used_epoch) {
+		std::uint64_t epoch = get_epoch(ei);
+		std::uint64_t epoch_mask = (1 << leaf_index) << 16;
+		bool is_in_next_epoch = used_epoch == epoch + 1;
+		std::uint64_t mask = 1ull << leaf_index;
+		bool succ = false;
+		while (!succ && (epoch == used_epoch || is_in_next_epoch) && !(ei & mask) && static_cast<bool>(ei & epoch_mask) == is_in_next_epoch) {
+			succ = data[node_index]->compare_exchange_weak(ei, ei | mask, std::memory_order_relaxed);
+			epoch = get_epoch(ei);
+			is_in_next_epoch = used_epoch == epoch + 1;
+		}
+		return succ;
 	}
 
 	static inline thread_local std::minstd_rand rng{std::random_device()()};
 
 	template <claim_value VALUE>
 	static int select_random_bit_index(std::uint64_t value) {
-		//unsigned value32 = value;
-		//return VALUE == claim_value::ZERO ? std::countr_one(value32) : std::countr_zero(value32);
-
 		ARR_TYPE bits = static_cast<ARR_TYPE>(value);
 
-		// TODO: Don't randomize? (FIFO semantic on fragment level??)
 		if constexpr (VALUE == claim_value::ZERO) {
 			bits = ~bits;
 		}
@@ -87,166 +96,149 @@ private:
 		return std::countr_zero(_pdep_u32(1 << nth_bit, bits));
 	}
 
-	template <claim_value VALUE, claim_mode MODE>
-	std::size_t claim_bit_singular(cache_aligned_t<std::atomic<std::uint64_t>>* root, int starting_bit, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
-		int off = starting_bit / bit_count;
-		// TODO: Rotate.
-		//int initial_rot = starting_bit % bit_count;
-		auto idx = leaves_start_index + off;
-		auto* leaf = &root[idx];
-		auto leaf_val = leaf->value.load(order);
-
-		bool success = false;
-		std::size_t ret = 0;
-		do {
-			// TODO: Potentially directly use countl_xxx here to avoid it later?
-			// TODO: Epoch check more explicit (+1).
-			while (idx > 0 && !compare_epoch<VALUE>(leaf_val, epoch)) {
-				idx = get_parent(idx);
-				leaf = &root[idx];
-				leaf_val = leaf->value.load(order);
-				// TODO: Automatically fix parent here if child is erroneously marked?
-			}
-
-			if (!compare_epoch<VALUE>(leaf_val, epoch)) {
-				// Root is invalid as well.
-				return std::numeric_limits<std::size_t>::max();
-			}
-
-			bool advanced_epoch = false;
-			while (idx < leaves_start_index) {
-				idx = get_random_child<VALUE>(leaf_val, idx);
-				leaf = &root[idx];
-				leaf_val = leaf->value.load(order);
-				if (!compare_epoch<VALUE>(leaf_val, epoch)) {
-					advanced_epoch = true;
-					break;
-				}
-			}
-
-			// Skip if we didn't find a leaf but stepped into an invalid node.
-			if (!advanced_epoch) {
-				do {
-					auto bit_idx = select_random_bit_index<VALUE>(leaf_val);
-					ret = (idx - leaves_start_index) * bit_count + bit_idx;
-					if constexpr (MODE == claim_mode::READ_ONLY) {
-						return ret;
-					}
-					auto bit_change_ret = try_change_bit<VALUE>(epoch, *leaf, leaf_val, bit_idx, order);
-					success = bit_change_ret.first;
-					advanced_epoch = bit_change_ret.second;
-					// TODO: This check is already done in try_change_bit, try merging it.
-					if (!compare_epoch<VALUE>(leaf_val, epoch)) {
-						// Leaf empty, need to move up again.
-						advanced_epoch = true;
-						break;
-					}
-				} while (!success);
-			}
-
-			while (advanced_epoch && idx > 0) {
-				// idx = bit_count * parent + child_idx + 1
-				int child_idx = idx - 1 - get_parent(idx) * bit_count;
-				idx = get_parent(idx);
-				leaf = &root[idx];
-				leaf_val = leaf->value.load(order);
-				auto bit_change_ret = try_change_bit<VALUE>(epoch, *leaf, leaf_val, child_idx, order);
-				advanced_epoch = bit_change_ret.second;
-				// TODO: Set idx to restart?
-			}
-		} while (!success);
-		return ret;
-	}
-
-	int get_parent(int index) {
+	std::size_t get_parent(std::size_t index) {
 		return (index - 1) / bit_count;
 	}
 
 	template <claim_value VALUE>
-	int get_random_child(std::uint64_t node, int index) {
+	std::size_t get_random_child(std::uint64_t node, std::size_t index) {
 		auto offset = select_random_bit_index<VALUE>(node);
 		return index * bit_count + offset + 1;
 	}
 
-	template <claim_value VALUE>
-	bool compare_epoch(std::uint64_t eb, std::uint64_t epoch) {
-		if constexpr (EPOCH::uses_epochs) {
-			return EPOCH::compare_epochs(eb, epoch);
+	std::uint32_t get_epoch(std::uint64_t node) {
+		return node >> 32;
+	}
+
+	std::uint8_t get_epoch_mask(std::uint64_t node) {
+		return (node >> 16) & 0xFF;
+	}
+
+	std::uint8_t get_all_bits(std::uint64_t node) {
+		return (node >> 8) & 0xFF;
+	}
+
+	std::uint8_t get_any_bits(std::uint64_t node) {
+		return node & 0xFF;
+	}
+
+	template <op OP>
+	std::uint8_t determine_valid_bits(std::uint64_t node, std::uint32_t epoch) {
+		auto node_epoch = get_epoch(node);
+		auto mask = get_epoch_mask(node);
+		std::uint8_t bits = OP == op::WRITE ? ~get_all_bits(node) : get_any_bits(node);
+		if (epoch == node_epoch) {
+			return bits & ~mask;
+		} else if (epoch == node_epoch + 1) {
+			return bits & mask;
 		} else {
-			return has_valid_bit<VALUE>(eb);
+			return 0;
 		}
 	}
 
-	template <claim_value VALUE>
-	void change_bit(std::size_t window_index, std::size_t index, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
-		//assert(window_index < window_count);
-		//assert(index < blocks_per_window);
-		int idx = leaves_start_index + static_cast<int>(index / bit_count);
-		auto root = &data[window_index * fragments_per_window];
-		auto* leaf = &root[idx];
-		auto leaf_val = leaf->value.load(order);
-		auto [success, advanced_epoch] = try_change_bit<VALUE>(epoch, *leaf, leaf_val, index % bit_count, order);
-		while (advanced_epoch && idx > 0) {
-			// idx = bit_count * parent + child_idx + 1
-			int child_idx = idx - 1 - get_parent(idx) * bit_count;
-			idx = get_parent(idx);
-			leaf = &root[idx];
-			leaf_val = leaf->value.load(order);
-			auto bit_change_ret = try_change_bit<VALUE>(epoch, *leaf, leaf_val, child_idx, order);
-			advanced_epoch = bit_change_ret.second;
-		}
+	template <op OP>
+	std::size_t get_leftmost_child(std::uint64_t node, std::size_t index, std::uint32_t epoch) {
+		auto bits = determine_valid_bits<OP>(node, epoch);
+		auto bit = std::countr_zero(bits);
+		if (bit == 8) { return std::numeric_limits<std::size_t>::max(); }
+		return index * 8 + bit + 1;
+	}
+
+	std::size_t get_child_idx(std::uint64_t parent, std::uint64_t child) {
+		return child - 1 - parent * bit_count;
 	}
 
 public:
-	atomic_bit_tree(std::size_t window_count, std::size_t blocks_per_window) :
-		leaves_per_window(blocks_per_window / bit_count) {
-		// TODO: This restriction can be ever so slightly weakened (6 top level bits also work).
-		assert(std::has_single_bit(blocks_per_window));
+	atomic_bit_tree(std::size_t blocks) :
+		leaves(blocks / bit_count) {
+		assert(std::has_single_bit(blocks));
 		auto bits_per_level = std::bit_width(bit_count) - 1;
-		auto bits = std::bit_width(leaves_per_window) - 1;
+		auto bits = std::bit_width(leaves) - 1;
 		auto rounded_up_bits = bits + bits_per_level - 1;
-		auto bits_required_in_top_level = 2 << (rounded_up_bits % bits_per_level);
 		auto rounded_up_height = rounded_up_bits / bits_per_level;
-		// TODO: We could save memory by not allocating the leaves for "dead" top level bits (but ONLY leaves).
-		fragments_per_window = ((1ull << ((rounded_up_height + 1) * bits_per_level)) - 1) / (bit_count - 1);
-		leaves_start_index = static_cast<int>(fragments_per_window - leaves_per_window);
-		data = std::make_unique<cache_aligned_t<std::atomic<std::uint64_t>>[]>(fragments_per_window * window_count);
-		for (std::size_t i = 0; i < fragments_per_window * window_count; i++) {
-			auto bits_in_node = (i % fragments_per_window) == 0 ? bits_required_in_top_level : bit_count;
-			data[i]->fetch_or(((1 << bits_in_node) - 1) << (bit_count + bit_count - bits_in_node));
+		fragments = ((1ull << ((rounded_up_height + 1) * bits_per_level)) - 1) / (bit_count - 1);
+		leaves_start_index = static_cast<int>(fragments - leaves);
+		data = std::make_unique<cache_aligned_t<std::atomic<std::uint64_t>>[]>(fragments);
+	}
+
+	template <op OP>
+	std::size_t claim_bit(std::size_t previous_block, std::uint32_t& epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
+		std::size_t tree_idx = 0;
+		std::uint64_t node = data[tree_idx]->load(order);
+		std::uint32_t used_epoch = std::max(epoch, get_epoch(node));
+
+		while (tree_idx < fragments) {
+			std::size_t new_tree_idx = get_leftmost_child<OP>(node, tree_idx, used_epoch);
+			if (new_tree_idx == std::numeric_limits<std::size_t>::max()) {
+				if (tree_idx > 0) {
+					// TODO: Marking this node as done and propagating that upwards here requires assuring that all children
+					// are within the next epoch, either by simply checking whether all children are actually empty and waiting for the next epoch,
+					// or manually setting them (and all downstream dependents) to be so.
+					// For now we just retry if this is the case, this WILL cause locking if any thread falls asleep during up-propagation.
+					tree_idx = get_parent(tree_idx);
+					//node = data[tree_idx]->load(order);
+					// Epoch change/inconsistency, propagate upwards.
+					/*std::size_t parent_idx = get_parent(tree_idx);
+					std::uint64_t parent_node = data[parent_idx]->load(order);
+					mark_done<OP>(parent_idx, get_child_idx(parent_idx, tree_idx), parent_node, used_epoch);*/
+					continue;
+				} else {
+					if (get_epoch(node) == used_epoch) {
+						++used_epoch;
+						continue;
+					}
+					return std::numeric_limits<std::size_t>::max();
+				}
+			}
+			if (OP == op::WRITE) {
+				mark_begun(tree_idx, get_child_idx(tree_idx, new_tree_idx), node, used_epoch);
+				// TODO: If failure, try different path?
+			}
+			tree_idx = new_tree_idx;
+			if (tree_idx < fragments) {
+				node = data[tree_idx]->load(order);
+			}
+		}
+
+		epoch = used_epoch;
+		return tree_idx - fragments;
+	}
+
+	template <op OP>
+	void mark_leaf_done(std::size_t leaf_idx, std::uint32_t epoch) {
+		leaf_idx += fragments;
+		auto parent_idx = get_parent(leaf_idx);
+
+		std::uint64_t node = data[parent_idx]->load(std::memory_order_relaxed);
+		while (mark_done<OP>(parent_idx, get_child_idx(parent_idx, leaf_idx), node, epoch)) {
+			node = data[parent_idx]->load(std::memory_order_relaxed);
+			if (determine_valid_bits<OP>(node, epoch) || parent_idx == 0) {
+				break;
+			}
+			leaf_idx = parent_idx;
+			parent_idx = get_parent(leaf_idx);
+			node = data[parent_idx]->load(std::memory_order_relaxed);
 		}
 	}
 
-	template <claim_value VALUE, claim_mode MODE>
-	std::size_t claim_bit(std::size_t window_index, int starting_bit, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
-		// We use modified epochs.
-		epoch = epoch * 2 + (VALUE == claim_value::ONE ? 1 : 0);
-		auto ret = claim_bit_singular<VALUE, MODE>(&data[window_index * fragments_per_window], starting_bit, epoch, order);
+	void debug_print() {
+		static std::mutex print_mutex;
+		std::lock_guard lock{ print_mutex };
 
-		/*std::cout << window_index << "  " << (int)VALUE << " " << (int)MODE << " ";
-		for (auto i = 0; i < fragments_per_window; i++) {
-			auto val = data[window_index * fragments_per_window + i]->load();
-			std::cout << std::bitset<bit_count>(get_bits(val)) << " | ";
+		int depth = 0;
+		int x = 0;
+		while (x < fragments) {
+			for (int i = 0; i < std::pow(8, depth); ++i) {
+				auto data = this->data[x++]->load();
+				std::cout << get_epoch(data)
+					<< " " << std::bitset<8>(get_epoch_mask(data))
+					<< " " << std::bitset<8>(get_all_bits(data))
+					<< " " << std::bitset<8>(get_any_bits(data))
+					<< '\n';
+			}
+			std::cout << '\n';
+			++depth;
 		}
-		std::cout << std::endl;*/
-		return ret;
-	}
-
-	void set_epoch_if_empty(std::size_t window_index, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
-		epoch *= 2;
-		std::uint64_t next_eb = EPOCH::make_unit(epoch + 2);
-		for (std::size_t i = 0; i < fragments_per_window; i++) {
-			std::uint64_t eb = EPOCH::make_unit(epoch);
-			data[window_index * fragments_per_window + i]->compare_exchange_strong(eb, next_eb, order);
-		}
-	}
-
-	void set(std::size_t window_index, std::size_t index, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
-		return change_bit<claim_value::ZERO>(window_index, index, epoch * 2, order);
-	}
-
-	void reset(std::size_t window_index, std::size_t index, std::uint64_t epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
-		return change_bit<claim_value::ONE>(window_index, index, epoch * 2 + 1, order);
 	}
 };
 
