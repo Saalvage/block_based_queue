@@ -163,9 +163,19 @@ public:
 
 	template <op OP>
 	std::size_t claim_bit(std::size_t previous_block, std::uint32_t& epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
-		std::size_t tree_idx = 0;
-		std::uint64_t node = data[tree_idx]->load(order);
-		std::uint32_t used_epoch = std::max(epoch, get_epoch(node));
+		std::size_t tree_idx;
+		std::uint64_t node;
+		std::uint32_t used_epoch;
+
+		if (previous_block != std::numeric_limits<std::size_t>::max()) {
+			tree_idx = get_parent(fragments + previous_block);
+			node = data[tree_idx]->load(order);
+			used_epoch = epoch;
+		} else {
+			tree_idx = 0;
+			node = data[tree_idx]->load(order);
+			used_epoch = std::max(epoch, get_epoch(node));
+		}
 
 		while (tree_idx < fragments) {
 			std::size_t new_tree_idx = get_leftmost_child<OP>(node, tree_idx, used_epoch);
@@ -176,7 +186,7 @@ public:
 					// or manually setting them (and all downstream dependents) to be so.
 					// For now we just retry if this is the case, this WILL cause locking if any thread falls asleep during up-propagation.
 					tree_idx = get_parent(tree_idx);
-					//node = data[tree_idx]->load(order);
+					node = data[tree_idx]->load(order);
 					// Epoch change/inconsistency, propagate upwards.
 					/*std::size_t parent_idx = get_parent(tree_idx);
 					std::uint64_t parent_node = data[parent_idx]->load(order);
@@ -186,13 +196,17 @@ public:
 					if (get_epoch(node) == used_epoch) {
 						++used_epoch;
 						continue;
+					} else if (get_epoch(node) + 1 == used_epoch) {
+						return std::numeric_limits<std::size_t>::max();
+					} else {
+						// Outdated epoch.
+						used_epoch = get_epoch(node);
+						continue;
 					}
-					return std::numeric_limits<std::size_t>::max();
 				}
 			}
 			if (OP == op::WRITE) {
 				mark_begun(tree_idx, get_child_idx(tree_idx, new_tree_idx), node, used_epoch);
-				// TODO: If failure, try different path?
 			}
 			tree_idx = new_tree_idx;
 			if (tree_idx < fragments) {

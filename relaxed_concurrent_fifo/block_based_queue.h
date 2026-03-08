@@ -143,8 +143,8 @@ public:
 		block_based_queue& fifo;
 
 		// TODO: Find some workaround to these having to start out as -1.
-		std::uint64_t write_block_index = -1;
-		std::uint64_t read_block_index = -1;
+		std::size_t write_block_index = -1;
+		std::size_t read_block_index = -1;
 
 		std::uint32_t write_epoch = 0;
 		std::uint32_t read_epoch = 0;
