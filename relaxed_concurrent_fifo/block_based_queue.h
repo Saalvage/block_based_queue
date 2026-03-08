@@ -244,20 +244,8 @@ public:
 				}
 				header = &read_block.get_header();
 				ei = header->load(std::memory_order_relaxed);
-				if (get_write_index(ei) == 0) {
-					// We need to consider two situations:
-					// 1. A writer in the current epoch claimed this block, but never completed a full push, we update epoch & bitset.
-					// 2. A force-move occured, the block had its epoch updated by force, a delayed writer claimed the bit,
-					//    but can't write the header, we simply reset the bit (would fail anyway if epoch is incorrect).
-					// In case 1. we invalidate both block and bitset, in case 2. block is already invalidated.
-					//if (/*!epoch_valid(get_epoch(ei), read_epoch) || */header->compare_exchange_strong(ei, epoch_to_header(read_epoch + 1), std::memory_order_relaxed)) {
-					//	fifo.tree.mark_leaf_done<op::READ>(read_block_index, read_epoch);
-					//						fifo.filled_set.reset(read_window_index, fifo.block_index(read_window_index, read_block), read_epoch, std::memory_order_relaxed);
-					//}
-					// TODO
-					// If the CAS fails, the only thing that could've occurred was the write index being increased,
-					// making us able to read an element from the block.
-					// TODO: Maybe it's better to immediately claim a new block here?
+				if (get_write_index(ei) == 0 && epoch_valid(get_epoch(ei), read_epoch) && header->compare_exchange_strong(ei, epoch_to_header(read_epoch + 1), std::memory_order_relaxed)) {
+					fifo.tree.mark_leaf_done<op::READ>(read_block_index, read_epoch);
 				}
 			}
 
