@@ -7,14 +7,12 @@
 
 #include <immintrin.h>
 
-#include "atomic_bitset.h"
-
 enum class op {
 	READ,
 	WRITE,
 };
 
-template <typename ARR_TYPE = std::uint8_t, epoch_handling EPOCH = default_epoch_handling>
+template <typename ARR_TYPE = std::uint8_t>
 struct atomic_bit_tree {
 private:
 	static_assert(sizeof(ARR_TYPE) <= 4, "Inner bitset type must be 4 bytes or smaller to allow for storing epoch.");
@@ -166,7 +164,7 @@ public:
 	}
 
 	template <op OP>
-	std::size_t claim_bit(std::size_t previous_block, std::uint32_t& epoch, std::memory_order order = BITSET_DEFAULT_MEMORY_ORDER) {
+	std::size_t claim_bit(std::size_t previous_block, std::uint32_t& epoch, std::memory_order order = std::memory_order_relaxed) {
 		std::size_t tree_idx;
 		std::uint64_t node;
 		std::uint32_t used_epoch;
