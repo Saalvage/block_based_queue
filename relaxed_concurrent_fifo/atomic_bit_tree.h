@@ -21,7 +21,7 @@ private:
 
 	std::size_t leaves;
 	std::size_t fragments;
-	std::size_t leaves_start_index;
+	std::size_t tree_height;
 
 	static constexpr std::size_t bit_count = sizeof(ARR_TYPE) * 8;
 	// 32 bits epoch, 8 bits unused, 8 bits +1 epoch, 8 bits filled?, 8 bits any elements?
@@ -79,30 +79,35 @@ private:
 
 	static inline thread_local std::minstd_rand rng{std::random_device()()};
 
-	template <claim_value VALUE>
-	static int select_random_bit_index(std::uint64_t value) {
-		ARR_TYPE bits = static_cast<ARR_TYPE>(value);
-
-		if constexpr (VALUE == claim_value::ZERO) {
-			bits = ~bits;
-		}
-
-		bits = (value >> bit_count) & bits;
-
+	static int select_random_bit_index(ARR_TYPE bits, int rolled) {
 		assert(bits);
 
-		auto valid_bits = std::popcount(bits);
-		auto nth_bit = std::uniform_int_distribution<>{0, valid_bits - 1}(rng);
-		return std::countr_zero(_pdep_u32(1 << nth_bit, bits));
+		rolled = std::min(rolled, std::popcount(bits) - 1);
+		return std::countr_zero(_pdep_u32(1 << rolled, bits));
 	}
 
 	std::size_t get_parent(std::size_t index) {
 		return (index - 1) / bit_count;
 	}
 
-	template <claim_value VALUE>
-	std::size_t get_random_child(std::uint64_t node, std::size_t index) {
-		auto offset = select_random_bit_index<VALUE>(node);
+	template <op OP>
+	std::size_t get_random_child(std::uint64_t node, std::size_t index, std::uint32_t epoch) {
+		if (index == 0) {
+			return get_leftmost_child<OP>(node, index, epoch);
+		}
+
+		auto valid_bits = determine_valid_bits<OP>(node, epoch);
+		if (valid_bits == 0) {
+			return std::numeric_limits<std::size_t>::max();
+		}
+
+		auto bit_factor = std::bit_width(bit_count) - 1;
+		auto height = tree_height - (std::bit_width(index) - 1) / bit_factor;
+		auto elements_below = 1 << (height * bit_factor) /* TODO: * cells_per_block */;
+		std::geometric_distribution<> dist{ 1.0 - std::exp(elements_below * -0.001f) };
+		auto x = dist(rng);
+
+		auto offset = select_random_bit_index(valid_bits, x);
 		return index * bit_count + offset + 1;
 	}
 
@@ -155,9 +160,8 @@ public:
 		auto bits_per_level = std::bit_width(bit_count) - 1;
 		auto bits = std::bit_width(leaves) - 1;
 		auto rounded_up_bits = bits + bits_per_level - 1;
-		auto rounded_up_height = rounded_up_bits / bits_per_level;
-		fragments = ((1ull << ((rounded_up_height + 1) * bits_per_level)) - 1) / (bit_count - 1);
-		leaves_start_index = static_cast<int>(fragments - leaves);
+		tree_height = rounded_up_bits / bits_per_level;
+		fragments = ((1ull << ((tree_height + 1) * bits_per_level)) - 1) / (bit_count - 1);
 		data = std::make_unique<cache_aligned_t<std::atomic<std::uint64_t>>[]>(fragments);
 	}
 
@@ -178,7 +182,7 @@ public:
 		}
 
 		while (tree_idx < fragments) {
-			std::size_t new_tree_idx = get_leftmost_child<OP>(node, tree_idx, used_epoch);
+			std::size_t new_tree_idx = get_random_child<OP>(node, tree_idx, used_epoch);
 			if (new_tree_idx == std::numeric_limits<std::size_t>::max()) {
 				if (tree_idx > 0) {
 					// TODO: Marking this node as done and propagating that upwards here requires assuring that all children
