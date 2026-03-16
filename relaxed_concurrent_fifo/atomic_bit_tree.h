@@ -101,7 +101,7 @@ private:
 
 		auto bit_factor = std::bit_width(bit_count) - 1;
 		auto height = tree_height - (std::bit_width(index) - 1) / bit_factor;
-		auto elements_below = 1 << (height * bit_factor) /* TODO: * cells_per_block */;
+		auto elements_below = (1 << (height * bit_factor)) /* TODO: * cells_per_block */;
 		std::geometric_distribution<> dist{ 1.0 - std::exp(elements_below * -0.001f) };
 		auto x = dist(rng);
 
@@ -207,13 +207,17 @@ public:
 					}
 				}
 			}
-			if (OP == op::WRITE) {
+			if constexpr (OP == op::WRITE) {
 				mark_begun(tree_idx, get_child_idx(tree_idx, new_tree_idx), node, used_epoch);
 			}
 			tree_idx = new_tree_idx;
 			if (tree_idx < fragments) {
 				node = data[tree_idx]->load(order);
 			}
+		}
+
+		if constexpr (OP == op::WRITE) {
+			mark_leaf_done<op::WRITE>(tree_idx - fragments, used_epoch);
 		}
 
 		epoch = used_epoch;

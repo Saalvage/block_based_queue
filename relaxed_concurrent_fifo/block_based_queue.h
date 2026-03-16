@@ -196,7 +196,6 @@ public:
 				T old = 0;
 				while (!epoch_valid(get_epoch(ei), write_epoch) || (index = get_write_index(ei)) == fifo.cells_per_block
 					|| !write_block.get_cell(index).compare_exchange_weak(old, t, std::memory_order_relaxed)) {
-					if (write_block_index != -1) { fifo.tree.mark_leaf_done<op::WRITE>(write_block_index, write_epoch); }
 					if (!claim_new_block_write()) {
 						return false;
 					}
