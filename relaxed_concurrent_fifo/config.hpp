@@ -41,8 +41,8 @@ template <typename BENCHMARK>
 static void add_instances(std::vector<std::unique_ptr<benchmark_provider<BENCHMARK>>>& instances, bool parameter_tuning, std::unordered_set<std::string>& filter_set, bool are_exclude_filters) {
 #if defined(INCLUDE_BBQ) || defined(INCLUDE_ALL)
 	if (parameter_tuning) {
-		for (double b = 0.5; b <= 16; b *= 2) {
-			for (int c = 8; c <= 8; c *= 2) {
+		for (double b = 0.00001; b <= 0.1; b *= 10) {
+			for (int c = 2; c <= 2048; c *= 2) {
 				instances.push_back(std::make_unique<benchmark_provider_bbq<BENCHMARK>>("{},{},blockfifo", b, c - 1));
 			}
 		}

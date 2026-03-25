@@ -104,11 +104,11 @@ private:
 	}
 
 public:
-	block_based_queue(int thread_count, std::size_t min_size, double blocks_per_window_per_thread, std::size_t cells_per_block) :
+	block_based_queue(int thread_count, std::size_t min_size, double distribution_scale, std::size_t cells_per_block) :
 			cells_per_block(cells_per_block),
 			block_size(align_cache_line_size(sizeof(std::atomic_uint64_t) + cells_per_block * sizeof(T))),
 			block_count(make_po8(min_size / cells_per_block)),
-			tree(block_count),
+			tree(block_count, cells_per_block * distribution_scale),
 			buffer(std::make_unique<std::byte[]>(block_count * block_size)) {
 #if BBQ_LOG_CREATION_SIZE
 		std::cout << "Window count: " << window_count << std::endl;
@@ -116,7 +116,6 @@ public:
 #endif // BBQ_LOG_CREATION_SIZE
 
 		(void)thread_count;
-		(void)blocks_per_window_per_thread;
 	}
 
 	std::size_t capacity() const {

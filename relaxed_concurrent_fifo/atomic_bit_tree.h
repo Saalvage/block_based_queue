@@ -17,6 +17,7 @@ struct atomic_bit_tree {
 private:
 	static_assert(sizeof(ARR_TYPE) <= 4, "Inner bitset type must be 4 bytes or smaller to allow for storing epoch.");
 
+	double distribution_scale;
 	std::size_t leaves;
 	std::size_t fragments;
 	std::size_t tree_height;
@@ -101,8 +102,8 @@ private:
 
 		auto bit_factor = std::bit_width(bit_count) - 1;
 		auto height = tree_height - (std::bit_width(index) - 1) / bit_factor;
-		auto elements_below = (1 << (height * bit_factor)) /* TODO: * cells_per_block */;
-		std::geometric_distribution<> dist{ 1.0 - std::exp(elements_below * -0.001f) };
+		auto elements_below = 1 << (height * bit_factor);
+		std::geometric_distribution<> dist{ 1.0 - std::exp(-elements_below * distribution_scale) };
 		auto x = dist(rng);
 
 		auto offset = select_random_bit_index(valid_bits, x);
@@ -152,7 +153,8 @@ private:
 	}
 
 public:
-	atomic_bit_tree(std::size_t blocks) :
+	atomic_bit_tree(std::size_t blocks, double distribution_scale) :
+		distribution_scale(distribution_scale),
 		leaves(blocks / bit_count) {
 		assert(std::has_single_bit(blocks));
 		auto bits_per_level = std::bit_width(bit_count) - 1;
