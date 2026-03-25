@@ -164,7 +164,7 @@ public:
 		}
 
 		bool claim_new_block_write() {
-			auto new_index = fifo.tree.claim_bit<op::WRITE>(write_block_index, write_epoch);
+			auto new_index = fifo.tree.template claim_bit<op::WRITE>(write_block_index, write_epoch);
 			if (new_index == std::numeric_limits<std::size_t>::max()) {
 				return false;
 			}
@@ -174,7 +174,7 @@ public:
 		}
 
 		bool claim_new_block_read() {
-			auto new_index = fifo.tree.claim_bit<op::READ>(read_block_index, read_epoch);
+			auto new_index = fifo.tree.template claim_bit<op::READ>(read_block_index, read_epoch);
 			if (new_index == std::numeric_limits<std::size_t>::max()) {
 				return false;
 			}
@@ -229,7 +229,7 @@ public:
 				if (epoch_valid(get_epoch(ei), read_epoch)) {
 					if ((index = get_read_index(ei)) + 1 == get_write_index(ei)) {
 						if (header->compare_exchange_weak(ei, epoch_to_header(read_epoch + 1), std::memory_order_acquire, std::memory_order_relaxed)) {
-							fifo.tree.mark_leaf_done<op::READ>(read_block_index, read_epoch);
+							fifo.tree.template mark_leaf_done<op::READ>(read_block_index, read_epoch);
 							break;
 						}
 					} else {
@@ -244,7 +244,7 @@ public:
 				header = &read_block.get_header();
 				ei = header->load(std::memory_order_relaxed);
 				if (get_write_index(ei) == 0 && epoch_valid(get_epoch(ei), read_epoch) && header->compare_exchange_strong(ei, epoch_to_header(read_epoch + 1), std::memory_order_relaxed)) {
-					fifo.tree.mark_leaf_done<op::READ>(read_block_index, read_epoch);
+					fifo.tree.template mark_leaf_done<op::READ>(read_block_index, read_epoch);
 				}
 			}
 
