@@ -91,22 +91,21 @@ private:
 
 	template <op OP>
 	std::size_t get_random_child(std::uint64_t node, std::size_t index, std::uint32_t epoch) {
-		if (index == 0) {
-			return get_leftmost_child<OP>(node, index, epoch);
-		}
-
 		auto valid_bits = determine_valid_bits<OP>(node, epoch);
 		if (valid_bits == 0) {
 			return std::numeric_limits<std::size_t>::max();
 		}
 
 		auto bit_factor = std::bit_width(bit_count) - 1;
-		auto height = tree_height - (std::bit_width(index) - 1) / bit_factor;
-		auto elements_below = 1 << (height * bit_factor);
-		std::geometric_distribution<> dist{ 1.0 - std::exp(-elements_below * distribution_scale) };
-		auto x = dist(rng);
+		auto height = tree_height - (std::bit_width(index + 1) - 1) / bit_factor;
 
-		auto offset = select_random_bit_index(valid_bits, x);
+		std::size_t offset;
+		if (height > 2) {
+			offset = get_leftmost_child<OP>(valid_bits);
+		} else {
+			offset = select_random_bit_index(valid_bits, std::uniform_int_distribution<>{0, bit_count - 1}(rng));
+		}
+
 		return index * bit_count + offset + 1;
 	}
 
@@ -141,11 +140,8 @@ private:
 	}
 
 	template <op OP>
-	std::size_t get_leftmost_child(std::uint64_t node, std::size_t index, std::uint32_t epoch) {
-		auto bits = determine_valid_bits<OP>(node, epoch);
-		auto bit = std::countr_zero(bits);
-		if (bit == 8) { return std::numeric_limits<std::size_t>::max(); }
-		return index * 8 + bit + 1;
+	std::size_t get_leftmost_child(std::uint8_t bits) {
+		return std::countr_zero(bits);
 	}
 
 	std::size_t get_child_idx(std::uint64_t parent, std::uint64_t child) {
